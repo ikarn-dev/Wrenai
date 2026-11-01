@@ -3,7 +3,8 @@
 import { LoaderCircle, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type ReactElement, useState, useTransition } from "react";
+import { type ReactElement, useTransition } from "react";
+import { notify } from "@/components/ui/toast";
 import { removeAgentSetup } from "@/server/chat/draft-actions";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
 import type { AgentSetupDraft } from "@/shared/research";
@@ -17,20 +18,19 @@ import { AgentAvatar } from "./avatar";
 export function SetupCard({ setup }: { readonly setup: AgentSetupDraft }): ReactElement {
   const router = useRouter();
   const [busy, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const name = AGENT_CATALOG[setup.tool].name;
 
   function dismiss(): void {
     if (busy) {
       return;
     }
-    setError(null);
     startTransition(async () => {
       const result = await removeAgentSetup({ id: setup.id }).catch(() => null);
       if (result?.ok) {
+        notify("success", `${name} setup removed.`);
         router.refresh();
       } else {
-        setError(result?.message ?? "Couldn't remove this setup. Try again.");
+        notify("warn", result?.message ?? "Couldn't remove this setup. Try again.");
       }
     });
   }
@@ -49,7 +49,7 @@ export function SetupCard({ setup }: { readonly setup: AgentSetupDraft }): React
         </span>
         <span className="line-clamp-2 text-small text-fg-muted">{setup.brief}</span>
         <span className="mt-auto font-mono text-eyebrow uppercase text-fg-subtle">
-          {error ?? (setup.reviewState === "reviewed" ? "Reviewed" : "Draft")}
+          {setup.reviewState === "reviewed" ? "Reviewed" : "Draft"}
         </span>
       </Link>
       <button
@@ -72,9 +72,6 @@ export function SetupCard({ setup }: { readonly setup: AgentSetupDraft }): React
           <X size={14} strokeWidth={1.75} absoluteStrokeWidth aria-hidden="true" />
         )}
       </button>
-      <span role="status" className="sr-only">
-        {error ?? ""}
-      </span>
     </div>
   );
 }

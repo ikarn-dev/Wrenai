@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
 import { SmoothScroll } from "@/components/motion/smooth-scroll";
+import { Toaster } from "@/components/ui/toaster";
 import { monoFont, roundedFont, sansFont } from "./fonts";
 import "./globals.css";
 
@@ -24,6 +25,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
     <html lang="en" className={`${sansFont.variable} ${monoFont.variable} ${roundedFont.variable}`}>
       <body>
         <SmoothScroll>{children}</SmoothScroll>
+        <Toaster />
       </body>
     </html>
   );

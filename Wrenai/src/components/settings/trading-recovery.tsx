@@ -2,6 +2,7 @@
 import { base64urlnopad } from "@scure/base";
 import { type FormEvent, type ReactElement, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { notify, useToastState } from "@/components/ui/toast";
 import { walletForAccount } from "@/components/wallet/near-connector";
 import { attempt, walletNotice } from "@/components/wallet/notices";
 import {
@@ -31,7 +32,7 @@ export function TradingRecovery({
 }): ReactElement {
   const [busy, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useToastState("warn");
   const [confirmed, setConfirmed] = useState(initial?.backupConfirmed ?? false);
   const [confirmation, setConfirmation] = useState<{
     readonly accountId: string;
@@ -131,6 +132,7 @@ export function TradingRecovery({
         setConfirmed(true);
         setConfirmation(null);
         setMessage("Recovery backup confirmed.");
+        notify("success", "Recovery backup confirmed.");
       } catch {
         setError("Confirmation could not be verified. Retry the same confirmation.");
       }
@@ -216,11 +218,6 @@ export function TradingRecovery({
       {message && !error ? (
         <p role="status" className="text-small text-fg-muted">
           {message}
-        </p>
-      ) : null}
-      {error ? (
-        <p role="alert" className="text-small text-warn">
-          {error}
         </p>
       ) : null}
     </div>

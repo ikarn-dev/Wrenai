@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { AlertDialog } from "radix-ui";
 import { type ReactElement, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { notify, useToastState } from "@/components/ui/toast";
 import { changeGlobalStop, manageAgent } from "@/server/agents/actions";
 import type { AgentSummary } from "@/shared/agents";
 
@@ -18,7 +19,7 @@ export function AgentControls({
 }): ReactElement {
   const router = useRouter();
   const [busy, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useToastState("error");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const request = useRef<{ command: string; id: string; revision: number } | null>(null);
   function run(command: "resume" | "pause" | "stop" | "clone" | "delete"): void {
@@ -120,20 +121,11 @@ export function AgentControls({
                   {busy ? "Deleting…" : "Delete agent"}
                 </Button>
               </div>
-              {error ? (
-                <p role="alert" className="text-small text-loss">
-                  {error}
-                </p>
-              ) : null}
             </AlertDialog.Content>
           </AlertDialog.Portal>
         </AlertDialog.Root>
       </div>
-      {error && !confirmOpen ? (
-        <p role="alert" className="text-small text-loss">
-          {error}
-        </p>
-      ) : null}
+
       <span role="status" className="sr-only">
         {busy ? "Updating agent" : ""}
       </span>
@@ -154,7 +146,6 @@ export function GlobalStop({
   readonly revision: number;
 }): ReactElement {
   const [busy, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
   const request = useRef<{ id: string; engaged: boolean; revision: number } | null>(null);
   const label = engaged ? "Clear stop" : "Stop all";
 
@@ -174,17 +165,16 @@ export function GlobalStop({
       if (result.ok) {
         request.current = null;
       }
-      setMessage(
-        result.ok ? (engaged ? "Stop cleared. Agents stay paused." : "All agents stopped.") : result.message,
-      );
+      if (result.ok) {
+        notify("success", engaged ? "Stop cleared. Agents stay paused." : "All agents stopped.");
+      } else {
+        notify("warn", result.message);
+      }
     });
   }
 
   return (
     <div className="flex items-center gap-3">
-      <span role="status" className="text-caption text-fg-subtle">
-        {message ?? ""}
-      </span>
       <button
         type="button"
         onClick={toggle}

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, type ReactElement, useRef, useState, useTransition } from "react";
 import { PortfolioPanel } from "@/components/portfolio/panel";
 import { Button } from "@/components/ui/button";
+import { useToastState } from "@/components/ui/toast";
 import { walletForAccount } from "@/components/wallet/near-connector";
 import { attempt, walletNotice } from "@/components/wallet/notices";
 import {
@@ -30,7 +31,7 @@ function AssetReview({
   readonly onReviewed: (assets: readonly TradeAsset[]) => void;
 }): ReactElement {
   const [busy, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useToastState("warn");
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -85,11 +86,6 @@ function AssetReview({
       >
         {busy ? "Saving…" : "Confirm assets"}
       </Button>
-      {error ? (
-        <p role="alert" className="text-small text-warn">
-          {error}
-        </p>
-      ) : null}
     </form>
   );
 }
@@ -104,7 +100,7 @@ function QuoteForm({
   readonly accountId: string;
 }): ReactElement {
   const [busy, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useToastState("warn");
   const [preview, setPreview] = useState<TradePreview | null>(null);
   const attemptId = useRef<{ readonly hash: string; readonly id: string } | null>(null);
   function submit(event: FormEvent<HTMLFormElement>): void {
@@ -234,11 +230,6 @@ function QuoteForm({
           Balance connection uses a read-only wallet signature. It does not authorize a trade or move funds.
         </p>
       </form>
-      {error ? (
-        <p role="alert" className="text-small text-warn">
-          {error}
-        </p>
-      ) : null}
       {preview ? <TradePreviewResult key={preview.id} preview={preview} /> : null}
       {preview ? <AgentFunding key={`funding:${preview.id}`} agent={agent} preview={preview} /> : null}
     </div>

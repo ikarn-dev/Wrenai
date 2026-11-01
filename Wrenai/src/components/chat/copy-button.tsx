@@ -2,6 +2,7 @@
 
 import { Check, Copy } from "lucide-react";
 import { type ReactElement, useEffect, useRef, useState } from "react";
+import { notify } from "@/components/ui/toast";
 
 const ICON = { "aria-hidden": true, size: 13, strokeWidth: 1.75, absoluteStrokeWidth: true } as const;
 
@@ -24,6 +25,7 @@ export function CopyButton({
       setStatus("copied");
     } catch {
       setStatus("failed");
+      notify("warn", "Couldn't copy. Select the text to copy it.");
     }
     timer.current = setTimeout(() => setStatus("idle"), 2_000);
   }
@@ -39,12 +41,8 @@ export function CopyButton({
       >
         {status === "copied" ? <Check {...ICON} /> : <Copy {...ICON} />}
       </button>
-      <span role="status" className={status === "failed" ? "text-caption text-warn" : "sr-only"}>
-        {status === "copied"
-          ? "Copied to clipboard"
-          : status === "failed"
-            ? "Copy failed. Select the text to copy."
-            : ""}
+      <span role="status" className="sr-only">
+        {status === "copied" ? "Copied to clipboard" : ""}
       </span>
     </span>
   );

@@ -1,10 +1,12 @@
 "use client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type SetStateAction, useCallback, useEffect, useRef, useState } from "react";
+import { useToastState } from "@/components/ui/toast";
 import { loadChatPage, stopChatReply } from "@/server/chat/actions";
 import type { ChatEvent, ChatInput, ChatTurn, Conversation, ConversationSummary } from "@/shared/chat";
 import { chatRoutingIssue } from "@/shared/chat-routing";
 import { chatStatus } from "@/shared/chat-status";
+import { shortChatTitle } from "@/shared/chat-title";
 import type { ResearchTool } from "@/shared/research";
 import type { ChatController } from "./chat-controller";
 import { rejectOptimisticTurn } from "./reply-recovery";
@@ -37,7 +39,7 @@ export function useChat(
   const [checking, setChecking] = useState(false);
   const [preview, setPreview] = useState("");
   const [status, setStatus] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useToastState("warn");
   const active = useRef<ActiveReply | null>(null);
   const currentId = useRef(initialId);
   const mounted = useRef(true);
@@ -116,7 +118,7 @@ export function useChat(
     (input: ChatInput, turn: ChatTurn): void => {
       cache.setQueryData<Conversation>(key(input.conversationId), (current) => ({
         id: input.conversationId,
-        title: current?.title ?? input.message.slice(0, 72),
+        title: current?.title ?? shortChatTitle(input.message),
         updatedAt: Date.now(),
         hasEarlier: current?.hasEarlier ?? false,
         turns: [...(current?.turns ?? []).filter((item) => item.id !== turn.id), turn].sort(
@@ -132,7 +134,8 @@ export function useChat(
       setHistory((items) => [
         {
           id: input.conversationId,
-          title: items.find((item) => item.id === input.conversationId)?.title ?? input.message.slice(0, 72),
+          title:
+            items.find((item) => item.id === input.conversationId)?.title ?? shortChatTitle(input.message),
           updatedAt: Date.now(),
         },
         ...items.filter((item) => item.id !== input.conversationId),

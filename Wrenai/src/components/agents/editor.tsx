@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, type ReactElement, useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useToastState } from "@/components/ui/toast";
 import { parseAgentStrategy, saveAgentStrategy } from "@/server/agents/actions";
 import {
   type AgentPolicy,
@@ -41,7 +42,7 @@ export function AgentEditor({
   const [text, setText] = useState(agent?.strategyText ?? setup?.brief ?? "");
   const [policy, setPolicy] = useState<AgentPolicy>(agent?.policy ?? DEFAULT_POLICY);
   const [draft, setDraft] = useState<StrategyDraft | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useToastState("error");
   const [busy, startTransition] = useTransition();
   const [requestId, setRequestId] = useState<string | null>(null);
   const [saveId, setSaveId] = useState<string | null>(null);
@@ -246,11 +247,6 @@ export function AgentEditor({
           </m.form>
         )}
       </div>
-      {error ? (
-        <p role="alert" className="text-small text-loss">
-          {error}
-        </p>
-      ) : null}
     </div>
   );
 }

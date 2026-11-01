@@ -5,6 +5,7 @@ import { AnimatePresence, m, type Transition } from "motion/react";
 import { useRouter } from "next/navigation";
 import { type ReactElement, type RefObject, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { usePrefersReducedMotion } from "@/components/motion/use-prefers-reduced-motion";
+import { notify } from "@/components/ui/toast";
 import { createChatAgentSetup } from "@/server/chat/draft-actions";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
 import type { ChatTurn } from "@/shared/chat";
@@ -53,7 +54,7 @@ export function AgentOfferPrompt({
   const router = useRouter();
   const reducedMotion = usePrefersReducedMotion();
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
-  const [error, setError] = useState<{ readonly key: string; readonly message: string } | null>(null);
+  const [, setError] = useState<{ readonly key: string; readonly message: string } | null>(null);
   const [creating, startTransition] = useTransition();
   const current = useRef<string | null>(offer?.key ?? null);
   const attempt = useRef<string | null>(null);
@@ -92,12 +93,14 @@ export function AgentOfferPrompt({
         }
         if (!result.ok) {
           setError({ key: source.key, message: result.message });
+          notify("warn", result.message);
           return;
         }
         router.push(`/agents/setup/${result.value.id}`);
       } catch {
         if (current.current === source.key) {
           setError({ key: source.key, message: "Couldn’t save the setup. Try again." });
+          notify("warn", "Couldn’t save the setup. Try again.");
         }
       } finally {
         attempt.current = null;
@@ -169,11 +172,6 @@ export function AgentOfferPrompt({
                 <X size={15} aria-hidden="true" />
               </button>
             </div>
-            {error?.key === offer.key ? (
-              <p role="alert" className="max-w-xs px-3 pb-2 text-caption text-warn">
-                {error.message}
-              </p>
-            ) : null}
           </m.fieldset>
         ) : null}
       </AnimatePresence>

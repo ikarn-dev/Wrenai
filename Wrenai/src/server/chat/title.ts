@@ -1,12 +1,13 @@
 import "server-only";
 import { z } from "zod";
 import { verifiedCompletion } from "@/server/ai/verified-completion";
+import { SHORT_TITLE_WORDS, shortChatTitle } from "@/shared/chat-title";
 
 const TITLE_TIMEOUT_MS = 12_000;
 const MAX_TITLE = 48;
 
 const SYSTEM = [
-  "Write a title for this conversation, 2 to 5 words, in sentence case.",
+  `Write a title for this conversation, 2 to ${SHORT_TITLE_WORDS} words, in sentence case.`,
   "Name the topic, not the request: 'NEAR yield options', not 'Compare yields for me'.",
   "Reply with the title only: no quotes, no trailing punctuation, no emoji.",
 ].join(" ");
@@ -43,5 +44,5 @@ export async function generateChatTitle(
     signal: AbortSignal.any([AbortSignal.timeout(TITLE_TIMEOUT_MS), ...(signal ? [signal] : [])]),
   });
   const parsed = titleSchema.safeParse(cleanTitle(completion.content));
-  return parsed.success ? parsed.data : null;
+  return parsed.success ? shortChatTitle(parsed.data) : null;
 }

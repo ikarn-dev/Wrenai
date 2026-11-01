@@ -16,6 +16,7 @@ import {
   MAX_CHAT_CONVERSATIONS,
   MAX_CHAT_TURNS,
 } from "@/shared/chat";
+import { shortChatTitle } from "@/shared/chat-title";
 import { type ChatCipher, chatCipher } from "./cipher";
 import { ChatError } from "./errors";
 import { openMessage } from "./message-record";
@@ -58,7 +59,7 @@ function summary(row: typeof chatConversations.$inferSelect, cipher: ChatCipher)
   try {
     return {
       id: row.id,
-      title: cipher.open(row.userId, row.id, "title", row.sealedTitle),
+      title: shortChatTitle(cipher.open(row.userId, row.id, "title", row.sealedTitle)),
       updatedAt: row.updatedAt,
       revision: row.revision,
     };

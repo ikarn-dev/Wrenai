@@ -1,6 +1,7 @@
 "use client";
 import { type FormEvent, type ReactElement, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { useToastState } from "@/components/ui/toast";
 import { allocateAgentBalance } from "@/server/engine/funding-actions";
 import type { AgentSummary } from "@/shared/agents";
 import { formatUnits } from "@/shared/money";
@@ -14,7 +15,7 @@ export function AgentFunding({
   readonly preview: TradePreview;
 }): ReactElement | null {
   const [busy, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
+  const [, setMessage] = useToastState("info");
   const [allocated, setAllocated] = useState(false);
   const request = useRef<{ readonly input: string; readonly id: string } | null>(null);
   const quote = preview.quote;
@@ -86,11 +87,6 @@ export function AgentFunding({
       <Button type="submit" disabled={busy || allocated}>
         {busy ? "Allocating…" : allocated ? "Allocated" : "Allocate input balance"}
       </Button>
-      {message ? (
-        <p role="status" className="text-small text-fg-muted">
-          {message}
-        </p>
-      ) : null}
     </form>
   );
 }

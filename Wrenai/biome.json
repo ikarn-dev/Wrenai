@@ -48,7 +48,10 @@
       "correctness": {
         "noUnusedImports": "error",
         "noUnusedVariables": "error",
-        "useExhaustiveDependencies": "error"
+        "useExhaustiveDependencies": {
+          "level": "error",
+          "options": { "hooks": [{ "name": "useToastState", "stableResult": [1] }] }
+        }
       },
       "security": {
         "noDangerouslySetInnerHtml": "error"

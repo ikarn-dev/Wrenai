@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { type ReactElement, useState, useTransition } from "react";
 import { ResearchCards } from "@/components/chat/research-cards";
 import { Button } from "@/components/ui/button";
+import { useToastState } from "@/components/ui/toast";
 import { saveChatAgentSetup } from "@/server/chat/draft-actions";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
 import { packSchema } from "@/shared/agents";
@@ -13,7 +14,7 @@ export function AgentSetupReview({ draft }: { readonly draft: AgentSetupDraft })
   const router = useRouter();
   const [brief, setBrief] = useState(draft.brief);
   const [busy, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
+  const [, setMessage] = useToastState("info");
   function save(discard: boolean, reviewed = false): void {
     setMessage(null);
     startTransition(async () => {
@@ -96,11 +97,6 @@ export function AgentSetupReview({ draft }: { readonly draft: AgentSetupDraft })
           </Link>
         ) : null}
       </div>
-      {message ? (
-        <p role="status" className="text-small text-fg-muted">
-          {message}
-        </p>
-      ) : null}
       <ResearchCards reports={draft.reports} />
     </div>
   );

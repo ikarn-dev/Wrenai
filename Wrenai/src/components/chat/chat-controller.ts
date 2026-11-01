@@ -21,7 +21,7 @@ export interface ChatController {
   readonly preview: string;
   readonly status: string;
   readonly error: string | null;
-  readonly setError: Dispatch<SetStateAction<string | null>>;
+  readonly setError: (next: string | null) => void;
   readonly newChat: () => void;
   readonly select: (id: string) => void;
   readonly forget: (id: string) => void;

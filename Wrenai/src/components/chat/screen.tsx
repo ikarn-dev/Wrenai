@@ -12,6 +12,7 @@ import {
   useTransition,
 } from "react";
 import { Button } from "@/components/ui/button";
+import { notify, useToastState } from "@/components/ui/toast";
 import { loadChatHistory, removeConversation } from "@/server/chat/actions";
 import { type Conversation, type ConversationSummary, MAX_CHAT_TURNS } from "@/shared/chat";
 import { chatStatus } from "@/shared/chat-status";
@@ -48,7 +49,7 @@ export function ChatScreen({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [deletion, setDeletion] = useState<ConversationSummary | null>(null);
   const [managing, startTransition] = useTransition();
-  const [managementError, setManagementError] = useState<string | null>(null);
+  const [, setManagementError] = useToastState("error");
   const [showStatus, setShowStatus] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   // Picked once per mount so the line doesn't change on every render.
@@ -149,6 +150,7 @@ export function ChatScreen({
         chat.setHistory((items) => items.filter((item) => item.id !== id));
         chat.forget(id);
         setDeletion(null);
+        notify("success", "Chat deleted.");
       } catch {
         setManagementError("The deletion could not be confirmed. Refresh history to check.");
       }
@@ -366,11 +368,6 @@ export function ChatScreen({
                 the thread scrolls by wheel, touch and keyboard with no visible bar. */}
             <ScrollArea.Scrollbar orientation="vertical" className="hidden" />
           </ScrollArea.Root>
-          {chat.error ? (
-            <p role="alert" className="mx-auto w-full max-w-reading py-3 text-small text-warn">
-              {chat.error}
-            </p>
-          ) : null}
           {(last?.sequence ?? 0) >= MAX_CHAT_TURNS && !chat.busy ? (
             <p className="mx-auto max-w-reading py-2 text-small text-fg-muted">
               You’ve reached this chat’s message limit. Start a new chat to continue.
@@ -444,11 +441,6 @@ export function ChatScreen({
                 {deletion?.title}
               </span>
             </p>
-            {managementError ? (
-              <p role="alert" className="mt-3 text-small text-loss">
-                {managementError}
-              </p>
-            ) : null}
             <div className="mt-5 grid grid-cols-2 gap-2">
               <AlertDialog.Cancel asChild>
                 <Button disabled={managing}>Keep chat</Button>

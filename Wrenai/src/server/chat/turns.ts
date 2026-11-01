@@ -11,6 +11,7 @@ import {
   MAX_CHAT_CONVERSATIONS,
   MAX_CHAT_TURNS,
 } from "@/shared/chat";
+import { shortChatTitle } from "@/shared/chat-title";
 import { type ChatCipher, chatCipher } from "./cipher";
 import { ChatError } from "./errors";
 import { sealMessage } from "./message-record";
@@ -84,7 +85,7 @@ async function ensureConversation(
     .values({
       id: input.conversationId,
       userId,
-      sealedTitle: cipher.seal(userId, input.conversationId, "title", input.message.slice(0, 72)),
+      sealedTitle: cipher.seal(userId, input.conversationId, "title", shortChatTitle(input.message)),
       createdAt: now,
       updatedAt: now,
     })

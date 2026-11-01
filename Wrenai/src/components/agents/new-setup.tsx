@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, type ReactElement, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { useToastState } from "@/components/ui/toast";
 import { createAgentToolSetup } from "@/server/chat/draft-actions";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
 import type { ResearchTool } from "@/shared/research";
@@ -13,7 +14,7 @@ export function NewAgentSetup({ tool }: { readonly tool: ResearchTool }): ReactE
   const [answers, setAnswers] = useState<readonly string[]>(["", "", ""]);
   const [notes, setNotes] = useState("");
   const [busy, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useToastState("warn");
   const request = useRef<string | null>(null);
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -90,11 +91,6 @@ export function NewAgentSetup({ tool }: { readonly tool: ResearchTool }): ReactE
             Research first
           </Link>
         </div>
-        {error ? (
-          <p role="alert" className="text-small text-warn">
-            {error}
-          </p>
-        ) : null}
       </form>
     </div>
   );
