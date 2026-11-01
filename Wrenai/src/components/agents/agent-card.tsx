@@ -15,51 +15,54 @@ export function AgentStatus({ agent }: { readonly agent: AgentSummary }): ReactE
   );
 }
 
+const FIGURE = "flex flex-col gap-1";
+const FIGURE_TERM = "font-mono text-eyebrow uppercase text-fg-subtle";
+
+/** One agent: mark, name and status; its strategy; budget and PnL; why it is in its state; a link to it. */
 export function AgentCard({ agent }: { readonly agent: AgentSummary }): ReactElement {
   return (
-    <article className="card-shine flex min-w-0 flex-col gap-5 rounded-lg p-card">
+    <article className="flex min-w-0 flex-col gap-4 card-shine rounded-lg p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <AgentAvatar id={agent.id} running={agent.status === "running"} />
-          <div className="flex min-w-0 flex-col gap-1">
-            <h2 className="text-h3">
+          <AgentAvatar running={agent.status === "running"} size={28} />
+          <div className="flex min-w-0 flex-col">
+            <h3 className="truncate text-body font-medium text-fg-strong">
               <Link href={`/agents/${agent.id}`} className="rounded-xs hover:text-accent-text">
                 {agent.name}
               </Link>
-            </h2>
-            <p className="text-caption text-fg-muted">
+            </h3>
+            <p className="text-caption text-fg-subtle">
               {PACKS[agent.pack].label} · v{agent.version}
             </p>
           </div>
         </div>
         <AgentStatus agent={agent} />
       </div>
-      <p className="line-clamp-2 min-h-10 text-small leading-relaxed text-fg-muted">{agent.strategyText}</p>
-      <dl className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col gap-1">
-          <dt className="text-caption text-fg-subtle">Budget cap</dt>
-          <dd className="font-mono text-num-lg tabular-nums" title={`$${agent.policy.budgetUsd}`}>
+      <p className="line-clamp-2 min-h-10 text-small text-fg-muted">{agent.strategyText}</p>
+      <dl className="grid grid-cols-2 gap-4 rounded-lg-inset bg-sunken p-3 ring-1 ring-line-card ring-inset">
+        <div className={FIGURE}>
+          <dt className={FIGURE_TERM}>Budget cap</dt>
+          <dd className="font-mono text-num-lg text-fg-strong" title={`$${agent.policy.budgetUsd}`}>
             {formatCompactMicroUsd(parseUsd(agent.policy.budgetUsd))}
           </dd>
         </div>
-        <div className="flex flex-col gap-1 text-right">
-          <dt className="text-caption text-fg-subtle">Realized PnL</dt>
-          <dd className="font-mono text-num-lg tabular-nums">
+        <div className={`${FIGURE} text-right`}>
+          <dt className={FIGURE_TERM}>Realized PnL</dt>
+          <dd className="font-mono text-num-lg text-fg-muted">
             <span aria-hidden="true">—</span>
             <span className="sr-only">Performance valuation unavailable</span>
           </dd>
         </div>
       </dl>
-      <p className="text-caption leading-relaxed text-fg-subtle">{agent.reason}</p>
-      <div className="mt-auto flex items-center justify-between gap-3">
-        <Badge tone="neutral">Verified AI</Badge>
+      <div className="mt-auto flex items-end justify-between gap-3">
+        <p className="line-clamp-2 text-caption text-fg-subtle">{agent.reason}</p>
         <Link
           href={`/agents/${agent.id}`}
           aria-label={`View ${agent.name}`}
-          className="inline-flex min-h-10 items-center gap-2 rounded-sm text-small text-fg-muted hover:text-fg-strong"
+          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-sm px-2 text-small text-fg-muted transition-colors duration-200 ease-ios hover:bg-surface-3 hover:text-fg-strong pointer-coarse:h-11"
         >
-          View agent
-          <ArrowUpRight aria-hidden="true" size={16} />
+          View
+          <ArrowUpRight aria-hidden="true" size={14} strokeWidth={1.75} absoluteStrokeWidth />
         </Link>
       </div>
     </article>

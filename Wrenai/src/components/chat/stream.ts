@@ -1,5 +1,8 @@
 import { type ChatEvent, chatEventSchema, chatResponseSchema } from "@/shared/chat";
 
+/** Explicit rejection before streaming starts, so no optimistic pending row should survive. */
+export class ChatRequestRejected extends Error {}
+
 /** Incremental UTF-8/SSE framing; a dropped connection never promotes provisional text. */
 export async function consumeChatStream(
   response: Response,
@@ -7,7 +10,10 @@ export async function consumeChatStream(
 ): Promise<void> {
   if (!response.ok) {
     const result = chatResponseSchema.parse(await response.json());
-    throw new Error(result.ok ? "Unexpected chat response." : result.message);
+    if (!result.ok) {
+      throw new ChatRequestRejected(result.message);
+    }
+    throw new Error("Unexpected chat response.");
   }
   if (!response.body || !response.headers.get("content-type")?.includes("text/event-stream")) {
     throw new Error("Chat streaming is unavailable. Try again.");
@@ -16,6 +22,7 @@ export async function consumeChatStream(
   const decoder = new TextDecoder();
   let buffer = "";
   let completed = false;
+  let ended = false;
   try {
     while (true) {
       const chunk = await reader.read();
@@ -23,32 +30,51 @@ export async function consumeChatStream(
       if (buffer.length > 800_000) {
         throw new Error("The chat stream exceeded its limit.");
       }
-      let boundary = buffer.indexOf("\n\n");
-      while (boundary >= 0) {
-        const frame = buffer.slice(0, boundary);
-        buffer = buffer.slice(boundary + 2);
-        if (frame.startsWith("data: ")) {
-          const event = chatEventSchema.parse(JSON.parse(frame.slice(6)));
+      let boundary = /\r?\n\r?\n/.exec(buffer);
+      while (boundary) {
+        const frame = buffer.slice(0, boundary.index);
+        buffer = buffer.slice(boundary.index + boundary[0].length);
+        const data = frame
+          .split(/\r?\n/)
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).replace(/^ /, ""))
+          .join("\n");
+        if (data) {
+          const event = chatEventSchema.parse(JSON.parse(data));
           if (event.type === "error") {
-            throw new Error(event.message);
+            if (!completed) {
+              throw new Error(event.message);
+            }
+          } else if (!completed || event.type === "title") {
+            receive(event);
           }
-          receive(event);
           if (event.type === "done") {
             completed = true;
-            return;
           }
         }
-        boundary = buffer.indexOf("\n\n");
+        boundary = /\r?\n\r?\n/.exec(buffer);
       }
       if (chunk.done) {
+        ended = true;
         break;
       }
     }
     if (!completed) {
       throw new Error("The reply was interrupted before it was verified and saved.");
     }
+  } catch (error) {
+    // A network error in optional title metadata cannot invalidate a durably saved, verified answer.
+    if (!completed) {
+      throw error;
+    }
   } finally {
-    await reader.cancel();
-    reader.releaseLock();
+    try {
+      if (!ended) {
+        // Cleanup must preserve the original transport error or already saved result.
+        await reader.cancel().catch(() => undefined);
+      }
+    } finally {
+      reader.releaseLock();
+    }
   }
 }

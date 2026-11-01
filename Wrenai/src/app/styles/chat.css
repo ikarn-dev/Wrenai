@@ -1,0 +1,30 @@
+/* Jarvis mark (components/chat/jarvis-mark.tsx, layered): one image as two layers. The ring keeps everything
+   outside 58% of the mark's radius, the eye everything inside; a 2% feather hides the seam. While a reply is in
+   progress (a row holding the status line, [data-jarvis-working]) the ring turns once every 2.4 s around the still
+   eye. Transform only, on the compositor; reduced motion keeps it still. */
+@layer components {
+  .jarvis-mark-ring {
+    mask-image: radial-gradient(closest-side, transparent 57%, #000 59%);
+    transform-origin: 50% 50%;
+  }
+
+  .jarvis-mark-eye {
+    mask-image: radial-gradient(closest-side, #000 57%, transparent 59%);
+  }
+
+  .jarvis-row:has([data-jarvis-working]) .jarvis-mark-ring {
+    animation: jarvis-ring-spin 2.4s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .jarvis-row:has([data-jarvis-working]) .jarvis-mark-ring {
+      animation: none;
+    }
+  }
+}
+
+@keyframes jarvis-ring-spin {
+  to {
+    rotate: 360deg;
+  }
+}

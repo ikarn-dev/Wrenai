@@ -1,50 +1,21 @@
 "use client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  type Dispatch,
-  type RefObject,
-  type SetStateAction,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import { loadChatPage, stopChatReply } from "@/server/chat/actions";
 import type { ChatEvent, ChatInput, ChatTurn, Conversation, ConversationSummary } from "@/shared/chat";
-import { consumeChatStream } from "./stream";
+import { chatRoutingIssue } from "@/shared/chat-routing";
+import { chatStatus } from "@/shared/chat-status";
+import type { ResearchTool } from "@/shared/research";
+import type { ChatController } from "./chat-controller";
+import { rejectOptimisticTurn } from "./reply-recovery";
+import { ChatRequestRejected, consumeChatStream } from "./stream";
 import { createStreamPreview, type StreamPreview } from "./stream-preview";
 
 interface ActiveReply {
   readonly input: ChatInput;
   readonly controller: AbortController;
   readonly preview: StreamPreview;
-}
-interface ChatController {
-  readonly conversationId: string;
-  readonly turns: readonly ChatTurn[];
-  readonly history: readonly ConversationSummary[];
-  readonly setHistory: Dispatch<SetStateAction<readonly ConversationSummary[]>>;
-  readonly draft: string;
-  readonly setDraft: Dispatch<SetStateAction<string>>;
-  readonly inputRef: RefObject<HTMLTextAreaElement | null>;
-  readonly busy: boolean;
-  readonly sending: boolean;
-  readonly stopping: boolean;
-  readonly checking: boolean;
-  readonly loading: boolean;
-  readonly hasEarlier: boolean;
-  readonly preview: string;
-  readonly status: string;
-  readonly error: string | null;
-  readonly setError: Dispatch<SetStateAction<string | null>>;
-  readonly newChat: () => void;
-  readonly select: (id: string) => void;
-  readonly forget: (id: string) => void;
-  readonly submit: () => void;
-  readonly retry: (turn: ChatTurn) => void;
-  readonly stop: () => Promise<void>;
-  readonly check: () => Promise<void>;
-  readonly earlier: () => Promise<void>;
+  completed: boolean;
 }
 const key = (id: string): readonly string[] => ["chat", id];
 
@@ -58,6 +29,7 @@ export function useChat(
   const [conversationId, setId] = useState(initialId);
   const [history, setHistory] = useState(initialHistory);
   const [draft, setDraftValue] = useState(initialPrompt);
+  const [tool, setTool] = useState<ResearchTool | null>(initialConversation?.turns.at(-1)?.tool ?? null);
   const draftValue = useRef(initialPrompt);
   const drafts = useRef(new Map<string, string>());
   const [sending, setSending] = useState(false);
@@ -108,6 +80,7 @@ export function useChat(
       drafts.current.set(currentId.current, draftValue.current);
       currentId.current = id;
       setId(id);
+      setTool(null);
       setDraft(drafts.current.get(id) ?? "");
       setPreview("");
       setError(null);
@@ -122,6 +95,7 @@ export function useChat(
         const target = id && /^[a-f0-9-]{36}$/i.test(id) ? id : crypto.randomUUID();
         currentId.current = target;
         setId(target);
+        setTool(null);
         setDraft(drafts.current.get(target) ?? "");
         setPreview("");
         setError(null);
@@ -168,12 +142,13 @@ export function useChat(
     [replaceTurn],
   );
   const refresh = useCallback(
-    async (id: string): Promise<void> => {
+    async (id: string): Promise<Conversation> => {
       const result = await loadChatPage({ conversationId: id });
       if (!result.ok) {
         throw new Error(result.message);
       }
       cache.setQueryData(key(id), result.value);
+      return result.value;
     },
     [cache],
   );
@@ -182,31 +157,49 @@ export function useChat(
       if (active.current) {
         return;
       }
-      const attempt = { input, controller: new AbortController(), preview: createStreamPreview(setPreview) };
+      const routingIssue = chatRoutingIssue(input.message, input.tool ?? null);
+      if (routingIssue) {
+        setError(routingIssue);
+        return;
+      }
+      const attempt = {
+        input,
+        controller: new AbortController(),
+        preview: createStreamPreview(setPreview),
+        completed: false,
+      };
       active.current = attempt;
       setSending(true);
       setError(null);
       setPreview("");
-      setStatus("Connecting…");
+      setStatus(chatStatus("connecting"));
+      // Picked once per reply, so the line stays put while text streams in.
+      const streamingStatus = chatStatus("streaming");
       setDraft("");
       drafts.current.delete(input.conversationId);
-      replaceTurn(input, {
+      const previous = turns.find((turn) => turn.id === input.requestId);
+      const optimistic: ChatTurn = {
         id: input.requestId,
-        sequence: turns.find((turn) => turn.id === input.requestId)?.sequence ?? (last?.sequence ?? 0) + 1,
+        sequence: previous?.sequence ?? (last?.sequence ?? 0) + 1,
         message: input.message,
         includeContext: input.includeContext,
+        ...(input.tool ? { tool: input.tool } : {}),
         state: "pending",
         reply: null,
         createdAt: Date.now(),
-      });
+      };
+      replaceTurn(input, optimistic);
       const receive = (event: ChatEvent): void => {
-        if (!mounted.current || active.current !== attempt) {
+        if (
+          !mounted.current ||
+          (active.current !== attempt && !(attempt.completed && event.type === "title"))
+        ) {
           return;
         }
         switch (event.type) {
           case "delta":
             attempt.preview.append(event.text);
-            setStatus("Verification pending");
+            setStatus(streamingStatus);
             break;
           case "reset":
             attempt.preview.reset();
@@ -216,16 +209,31 @@ export function useChat(
             break;
           case "turn":
             replaceTurn(input, event.turn);
+            setStatus(chatStatus("preparing"));
             break;
           case "verified":
             setStatus("Verified · saving…");
             break;
           case "done":
             saved(input, event.turn);
+            attempt.completed = true;
+            attempt.preview.dispose();
+            active.current = null;
+            setSending(false);
+            setStatus("");
+            inputRef.current?.focus({ preventScroll: true });
             // Query subscribers may update after local state; the saved row replaces this preview in place.
             break;
           case "research":
-            break; // Cards become actionable only after the verified reply is durably saved.
+            break; // Agent setup is offered only after the verified reply is durably saved.
+          case "title":
+            // The server named the new chat after its first reply; history shows it at once.
+            setHistory((items) =>
+              items.map((item) =>
+                item.id === input.conversationId ? { ...item, title: event.title } : item,
+              ),
+            );
+            break;
           case "error":
             setError(event.message);
             break;
@@ -236,18 +244,42 @@ export function useChat(
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(input),
-          signal: attempt.controller.signal,
+          signal: AbortSignal.any([attempt.controller.signal, AbortSignal.timeout(125_000)]),
           cache: "no-store",
         });
         await consumeChatStream(response, receive);
       } catch (error) {
-        if (mounted.current && active.current === attempt) {
+        if (mounted.current && active.current === attempt && !attempt.completed) {
           attempt.preview.reset();
           setError(error instanceof Error ? error.message : "The reply could not be completed.");
+          if (error instanceof ChatRequestRejected) {
+            cache.setQueryData<Conversation>(key(input.conversationId), (current) =>
+              rejectOptimisticTurn(current, input.requestId, previous),
+            );
+            if (!draftValue.current) {
+              setDraft(input.message);
+            }
+            return;
+          }
           try {
-            await refresh(input.conversationId);
+            const conversation = await refresh(input.conversationId);
+            if (!mounted.current || active.current !== attempt) {
+              return;
+            }
+            const recovered = conversation.turns.find((turn) => turn.id === input.requestId);
+            if (recovered?.state === "complete") {
+              saved(input, recovered);
+              setError(null);
+            } else if (recovered?.state === "pending") {
+              setError("The connection was interrupted. Check response to see whether it finished.");
+            } else if (!recovered) {
+              replaceTurn(input, { ...optimistic, state: "failed" });
+            }
           } catch {
-            setError("Couldn’t check saved history. Retry this same message to recover its result.");
+            if (mounted.current && active.current === attempt) {
+              replaceTurn(input, { ...optimistic, state: "failed" });
+              setError("Couldn’t check the saved reply. Retry this message to recover its result.");
+            }
           }
         }
       } finally {
@@ -262,7 +294,7 @@ export function useChat(
         }
       }
     },
-    [last, refresh, replaceTurn, saved, setDraft, turns],
+    [cache, last, refresh, replaceTurn, saved, setDraft, turns],
   );
   const inputFor = useCallback(
     (turn: ChatTurn): ChatInput => {
@@ -272,6 +304,7 @@ export function useChat(
         previousTurnId: turns.find((item) => item.sequence === turn.sequence - 1)?.id ?? null,
         message: turn.message,
         includeContext: turn.includeContext,
+        tool: turn.tool ?? null,
       };
     },
     [conversationId, turns],
@@ -366,6 +399,7 @@ export function useChat(
     if (currentId.current === id) {
       currentId.current = crypto.randomUUID();
       setId(currentId.current);
+      setTool(null);
       setDraft("");
       setPreview("");
       setError(null);
@@ -382,6 +416,7 @@ export function useChat(
         previousTurnId: last?.id ?? null,
         message: draft.trim(),
         includeContext: true,
+        tool,
       });
     }
   }
@@ -389,18 +424,19 @@ export function useChat(
     (turn: ChatTurn): void => {
       if (!busy && turn.id === last?.id) {
         void send(
-          turn.state === "cancelled"
+          turn.state === "cancelled" || tool !== (turn.tool ?? null)
             ? {
                 ...inputFor(turn),
                 requestId: crypto.randomUUID(),
                 previousTurnId: turn.id,
                 includeContext: true,
+                tool,
               }
             : inputFor(turn),
         );
       }
     },
-    [busy, inputFor, last?.id, send],
+    [busy, inputFor, last?.id, send, tool],
   );
   return {
     conversationId,
@@ -409,6 +445,8 @@ export function useChat(
     setHistory,
     draft,
     setDraft,
+    tool,
+    setTool,
     inputRef,
     busy,
     sending,
@@ -417,7 +455,7 @@ export function useChat(
     loading: query.isLoading,
     hasEarlier: query.data?.hasEarlier ?? false,
     preview,
-    status,
+    status: status || (last?.state === "pending" && !sending ? "Waiting for saved reply…" : ""),
     error: error ?? query.error?.message ?? null,
     setError,
     newChat,

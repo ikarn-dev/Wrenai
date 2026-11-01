@@ -1,0 +1,90 @@
+/* The active nav item: a flat pill one grey step above the card (surface-3). No gradient, highlight or shadow, so
+   it reads as a place, not a button. The label stays fg-strong (12.68:1). */
+@utility nav-active {
+  background-color: var(--color-surface-3);
+}
+
+/* Badge lit edge, like the cards': a 1 px light gradient over the badge's own ring, brightest at the top-left,
+   gone along the sides, a faint glint at the bottom-right. A pseudo-element masked to the border, so the label and
+   fill are untouched; white at low strength reads on every tone. Not on badge-buttons, whose pseudo-elements carry
+   the hover glow. */
+@utility badge-shine {
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    pointer-events: none;
+    background-image: linear-gradient(
+      150deg,
+      color-mix(in oklab, var(--void-50) 34%, transparent),
+      transparent 40%,
+      transparent 65%,
+      color-mix(in oklab, var(--void-50) 14%, transparent)
+    );
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+}
+
+/* Scrolls by wheel, touch and keyboard with no visible bar (menus, popovers). Use only where the content's edge
+   already shows there is more, such as a list that ends mid-item. */
+@utility scrollbar-none {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Radix menus and popovers: grow out of their trigger on open (fade, 96% → 100%, 4 px toward the trigger), shrink
+   back on close. Radix keeps the content mounted until the exit animation ends. Transform and opacity only;
+   reduced motion turns it off. */
+@utility menu-motion {
+  transform-origin: var(
+    --radix-dropdown-menu-content-transform-origin,
+    var(--radix-popover-content-transform-origin)
+  );
+
+  &[data-state="open"] {
+    animation: menu-in 200ms var(--ease-ios);
+  }
+
+  &[data-state="closed"] {
+    animation: menu-out 140ms ease-in forwards;
+  }
+
+  &[data-side="top"] {
+    --menu-shift: 4px;
+  }
+
+  &[data-side="bottom"] {
+    --menu-shift: -4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &[data-state="open"],
+    &[data-state="closed"] {
+      animation: none;
+    }
+  }
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--menu-shift, 0)) scale(0.96);
+  }
+}
+
+@keyframes menu-out {
+  to {
+    opacity: 0;
+    transform: translateY(var(--menu-shift, 0)) scale(0.96);
+  }
+}

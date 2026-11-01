@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowDown, History, Info, Plus, X } from "lucide-react";
-import { AlertDialog, Dialog, Popover, ScrollArea } from "radix-ui";
+import { Ban, Eye, History, Info, LoaderCircle, Lock, MessageSquare, Plus, X } from "lucide-react";
+import { AlertDialog, Dialog, ScrollArea, Tooltip } from "radix-ui";
 import {
   type ReactElement,
   useCallback,
@@ -14,12 +14,22 @@ import {
 import { Button } from "@/components/ui/button";
 import { loadChatHistory, removeConversation } from "@/server/chat/actions";
 import { type Conversation, type ConversationSummary, MAX_CHAT_TURNS } from "@/shared/chat";
+import { chatStatus } from "@/shared/chat-status";
+import { AgentOfferPrompt, latestAgentOffer } from "./agent-offer";
 import { ChatComposer } from "./composer";
 import { ChatEmptyState } from "./empty-state";
 import { ChatHistory } from "./history";
-import { JarvisMark } from "./jarvis-mark";
+import { ChatHistoryPanel } from "./history-panel";
+import { JarvisLoading, JarvisMark } from "./jarvis-mark";
 import { ChatMessage } from "./message";
 import { useChat } from "./use-chat";
+
+const INFO_LINES = [
+  { icon: Eye, text: "Sees your wallet and agents" },
+  { icon: Ban, text: "Answers only, never trades" },
+  // "Stored", not just "encrypted": true as written (encrypted at rest, Spec §10) without implying no one can read it.
+  { icon: Lock, text: "Chats stored encrypted" },
+] as const;
 
 interface ChatScreenProps {
   readonly initialId: string;
@@ -40,6 +50,9 @@ export function ChatScreen({
   const [managing, startTransition] = useTransition();
   const [managementError, setManagementError] = useState<string | null>(null);
   const [showStatus, setShowStatus] = useState(false);
+  const [historyCollapsed, setHistoryCollapsed] = useState(false);
+  // Picked once per mount so the line doesn't change on every render.
+  const [stoppingStatus] = useState(() => chatStatus("stopping"));
   const [atBottom, setAtBottom] = useState(true);
   const following = useRef(true);
   const replyInProgress = useRef(chat.busy);
@@ -170,9 +183,9 @@ export function ChatScreen({
       className="flex h-[calc(100dvh-12rem-env(safe-area-inset-bottom))] min-h-96 min-w-0 gap-6 lg:h-[calc(100dvh-9rem)] xl:gap-8"
     >
       {/* History is a card like the Portfolio cards; the thread sits on the page beside it, no divider line. */}
-      <aside className="hidden w-64 shrink-0 card-shine rounded-lg p-2 xl:block">
-        <ChatHistory {...historyProps} />
-      </aside>
+      <ChatHistoryPanel collapsed={historyCollapsed} onToggle={() => setHistoryCollapsed((value) => !value)}>
+        <ChatHistory {...historyProps} onCollapse={() => setHistoryCollapsed(true)} />
+      </ChatHistoryPanel>
       <div className="relative flex min-w-0 flex-1 flex-col">
         <span role="status" className="sr-only">
           {chat.busy
@@ -187,39 +200,48 @@ export function ChatScreen({
         </span>
         <header className="flex min-h-12 shrink-0 items-center gap-2.5 pb-2">
           <JarvisMark size={24} />
-          <div className="flex min-w-0 flex-col">
-            <h1 className="text-h3">Jarvis</h1>
-            <p className="text-caption text-fg-subtle">Read-only assistant</p>
-          </div>
+          <h1 className="text-h3">Jarvis</h1>
           <div className="ml-auto flex items-center gap-1">
-            <Popover.Root>
-              <Popover.Trigger asChild>
-                <button
-                  type="button"
-                  aria-label="About Jarvis"
-                  title="About Jarvis"
-                  className="inline-flex size-11 cursor-pointer items-center justify-center rounded-sm text-fg-subtle hover:bg-surface-2 hover:text-fg-muted"
-                >
-                  <Info size={17} strokeWidth={1.5} aria-hidden="true" />
-                </button>
-              </Popover.Trigger>
-              <Popover.Portal>
-                <Popover.Content
-                  aria-label="About Jarvis"
-                  align="end"
-                  sideOffset={8}
-                  className="z-50 max-w-72 rounded-md border border-line bg-surface-1 p-4 text-small leading-relaxed text-fg-muted"
-                >
-                  <p>
-                    Wallet balance and agent status are included automatically. Chat provides information;
-                    agent setup requires your review.
-                  </p>
-                  <p className="mt-3">
-                    Chats are encrypted in storage. Wrenai’s backend processes them in plaintext.
-                  </p>
-                </Popover.Content>
-              </Popover.Portal>
-            </Popover.Root>
+            {/* Opens on hover and on keyboard focus; nothing to click. */}
+            <Tooltip.Provider delayDuration={150}>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <button
+                    type="button"
+                    aria-label="About Jarvis"
+                    className="inline-flex size-9 cursor-default items-center justify-center rounded-sm text-fg-subtle transition-colors duration-200 ease-ios hover:text-fg-strong pointer-coarse:size-11"
+                  >
+                    <Info size={16} strokeWidth={1.75} absoluteStrokeWidth aria-hidden="true" />
+                  </button>
+                </Tooltip.Trigger>
+                <Tooltip.Portal>
+                  <Tooltip.Content
+                    align="end"
+                    sideOffset={8}
+                    collisionPadding={12}
+                    className="z-50 card-shine rounded-md px-3 py-2.5 text-caption text-fg-muted shadow-float"
+                  >
+                    {/* Three facts, one line each: the panel sizes to the longest line, so nothing wraps into an
+                        orphan, and each row leads with an icon on its text's line. The storage line follows
+                        Spec §10: encrypted at rest, read in plaintext by our backend. */}
+                    <ul className="flex flex-col gap-1.5">
+                      {INFO_LINES.map(({ icon: Icon, text }) => (
+                        <li key={text} className="flex items-center gap-2 whitespace-nowrap">
+                          <Icon
+                            size={12}
+                            strokeWidth={1.75}
+                            absoluteStrokeWidth
+                            aria-hidden="true"
+                            className="shrink-0 text-fg-subtle"
+                          />
+                          {text}
+                        </li>
+                      ))}
+                    </ul>
+                  </Tooltip.Content>
+                </Tooltip.Portal>
+              </Tooltip.Root>
+            </Tooltip.Provider>
             <Dialog.Root open={historyOpen} onOpenChange={setHistoryOpen}>
               <Dialog.Trigger asChild>
                 <button
@@ -293,11 +315,7 @@ export function ChatScreen({
                 ref={threadContent}
                 style={{ display: "block", minWidth: 0, width: "100%" }}
               >
-                {chat.loading ? (
-                  <p role="status" className="py-6 text-small text-fg-subtle">
-                    Loading conversation…
-                  </p>
-                ) : null}
+                {chat.loading ? <JarvisLoading /> : null}
                 {chat.hasEarlier ? (
                   <button
                     type="button"
@@ -313,7 +331,6 @@ export function ChatScreen({
                     {chat.turns.map((turn) => (
                       <ChatMessage
                         key={turn.id}
-                        conversationId={chat.conversationId}
                         turn={turn}
                         last={turn.id === last?.id}
                         busy={turn.id === last?.id && chat.busy}
@@ -323,12 +340,10 @@ export function ChatScreen({
                             ? {
                                 content: chat.preview,
                                 status: chat.stopping
-                                  ? "Stopping reply…"
-                                  : chat.preview
-                                    ? chat.status || "Verification pending"
-                                    : showStatus
-                                      ? chat.status || "A reply is in progress."
-                                      : "",
+                                  ? stoppingStatus
+                                  : chat.preview || showStatus
+                                    ? chat.status
+                                    : "",
                                 checking: chat.checking,
                                 onCheck: chat.sending ? null : () => void chat.check(),
                               }
@@ -347,9 +362,9 @@ export function ChatScreen({
                 ) : null}
               </ScrollArea.Content>
             </ScrollArea.Viewport>
-            <ScrollArea.Scrollbar orientation="vertical" className="flex w-1.5 touch-none select-none p-px">
-              <ScrollArea.Thumb className="relative flex-1 rounded-full bg-line-strong" />
-            </ScrollArea.Scrollbar>
+            {/* Radix only lets the viewport scroll while a scrollbar is mounted, so it stays mounted but hidden:
+                the thread scrolls by wheel, touch and keyboard with no visible bar. */}
+            <ScrollArea.Scrollbar orientation="vertical" className="hidden" />
           </ScrollArea.Root>
           {chat.error ? (
             <p role="alert" className="mx-auto w-full max-w-reading py-3 text-small text-warn">
@@ -362,19 +377,6 @@ export function ChatScreen({
             </p>
           ) : null}
           <div className="relative shrink-0">
-            {!atBottom && chat.turns.length ? (
-              <button
-                type="button"
-                aria-label="Jump to latest message"
-                onClick={() => {
-                  setFollowing(true);
-                  scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "instant" });
-                }}
-                className="absolute bottom-full left-1/2 mb-3 inline-flex size-9 -translate-x-1/2 cursor-pointer items-center justify-center card-shine rounded-full text-fg-muted transition-colors duration-200 ease-ios hover:text-fg-strong pointer-coarse:size-11"
-              >
-                <ArrowDown size={18} aria-hidden="true" />
-              </button>
-            ) : null}
             <ChatComposer
               value={chat.draft}
               busy={chat.busy}
@@ -387,6 +389,26 @@ export function ChatScreen({
                 chat.submit();
               }}
               onStop={() => void chat.stop()}
+              tool={chat.tool}
+              onToolChange={chat.setTool}
+              agentOffer={
+                <AgentOfferPrompt
+                  offer={latestAgentOffer(chat.conversationId, last)}
+                  visible={!chat.busy && !chat.loading}
+                  inputRef={chat.inputRef}
+                  jumpToLatest={
+                    !atBottom && chat.turns.length
+                      ? () => {
+                          setFollowing(true);
+                          scroller.current?.scrollTo({
+                            top: scroller.current.scrollHeight,
+                            behavior: "instant",
+                          });
+                        }
+                      : null
+                  }
+                />
+              }
             />
           </div>
         </div>
@@ -401,25 +423,60 @@ export function ChatScreen({
       >
         <AlertDialog.Portal>
           <AlertDialog.Overlay className="fixed inset-0 z-50 bg-bg/80" />
-          <AlertDialog.Content className="card-shine fixed top-1/2 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-1/2 flex-col gap-5 rounded-lg p-card">
-            <AlertDialog.Title className="text-h2">Delete this chat?</AlertDialog.Title>
-            <AlertDialog.Description className="text-body text-fg-muted">
-              This deletes the saved text in “{deletion?.title}” and its messages. A pending reply cannot
-              restore a deleted chat.
+          {/* The confirm dialog layout (Docs/DESIGN.md → Typography → Layouts): rounded title, one line on the
+              consequence, the chat named in its own well, then the actions on one row. */}
+          <AlertDialog.Content className="card-shine fixed top-1/2 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-sm -translate-1/2 flex-col rounded-xl p-5 shadow-float">
+            <AlertDialog.Title className="font-rounded text-h2 font-bold">
+              Delete this chat?
+            </AlertDialog.Title>
+            <AlertDialog.Description className="mt-1.5 text-small text-fg-muted">
+              Its messages are deleted for good.
             </AlertDialog.Description>
-            <div className="flex justify-end gap-3">
-              <AlertDialog.Cancel asChild>
-                <Button disabled={managing}>Keep chat</Button>
-              </AlertDialog.Cancel>
-              <Button variant="destructive" disabled={managing} onClick={deleteChat}>
-                {managing ? "Deleting…" : "Delete chat"}
-              </Button>
-            </div>
+            <p className="mt-4 flex min-w-0 items-center gap-2 rounded-lg-inset bg-sunken px-3 py-2.5 text-small text-fg ring-1 ring-line-card ring-inset">
+              <MessageSquare
+                size={14}
+                strokeWidth={1.75}
+                absoluteStrokeWidth
+                aria-hidden="true"
+                className="shrink-0 text-fg-subtle"
+              />
+              <span className="truncate" title={deletion?.title}>
+                {deletion?.title}
+              </span>
+            </p>
             {managementError ? (
-              <p role="alert" className="text-small text-loss">
+              <p role="alert" className="mt-3 text-small text-loss">
                 {managementError}
               </p>
             ) : null}
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <AlertDialog.Cancel asChild>
+                <Button disabled={managing}>Keep chat</Button>
+              </AlertDialog.Cancel>
+              {/* Busy, not disabled, so it stays red; clicks are ignored while the delete runs. */}
+              <Button
+                variant="destructive"
+                aria-busy={managing}
+                aria-label={managing ? "Deleting chat" : undefined}
+                onClick={() => {
+                  if (!managing) {
+                    deleteChat();
+                  }
+                }}
+              >
+                {managing ? (
+                  <LoaderCircle
+                    size={16}
+                    strokeWidth={2}
+                    absoluteStrokeWidth
+                    aria-hidden="true"
+                    className="motion-safe:animate-spin"
+                  />
+                ) : (
+                  "Delete"
+                )}
+              </Button>
+            </div>
           </AlertDialog.Content>
         </AlertDialog.Portal>
       </AlertDialog.Root>

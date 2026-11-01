@@ -1,10 +1,12 @@
 import { chatResult, chatUser } from "@/server/chat/access";
 import { chatCipher } from "@/server/chat/cipher";
 import { ChatError } from "@/server/chat/errors";
+import { chatResponseStream } from "@/server/chat/response-stream";
 import { answerChat } from "@/server/chat/service";
 import { database } from "@/server/db/client";
 import { serverEnv } from "@/server/env";
 import { chatInputSchema } from "@/shared/chat";
+import { chatRoutingIssue } from "@/shared/chat-routing";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -48,34 +50,16 @@ export async function POST(request: Request): Promise<Response> {
     }
     const user = await chatUser("reply");
     const input = chatInputSchema.parse(await readInput(request));
+    const routingIssue = chatRoutingIssue(input.message, input.tool ?? null);
+    if (routingIssue) {
+      throw new ChatError("invalid_input", routingIssue);
+    }
     const cipher = chatCipher();
-    const controller = new AbortController();
-    const signal = AbortSignal.any([request.signal, controller.signal]);
-    const encoder = new TextEncoder();
-    let closed = false;
-    const stream = new ReadableStream<Uint8Array>({
-      async start(output) {
-        const emit = (event: import("@/shared/chat").ChatEvent): void => {
-          if (!closed) {
-            output.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
-          }
-        };
-        try {
-          const outcome = await chatResult(() => answerChat(database(), user, input, cipher, signal, emit));
-          if (!outcome.ok) {
-            emit({ type: "error", code: outcome.code, message: outcome.message });
-          }
-        } finally {
-          if (!closed) {
-            closed = true;
-            output.close();
-          }
-        }
-      },
-      cancel() {
-        closed = true;
-        controller.abort();
-      },
+    const stream = chatResponseStream(request.signal, async (signal, emit) => {
+      const outcome = await chatResult(() => answerChat(database(), user, input, cipher, signal, emit));
+      if (!outcome.ok) {
+        emit({ type: "error", code: outcome.code, message: outcome.message });
+      }
     });
     return new Response(stream, {
       headers: {

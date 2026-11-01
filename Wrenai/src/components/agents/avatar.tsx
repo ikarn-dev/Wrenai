@@ -1,26 +1,20 @@
-import { Atom, Compass, Crosshair, Fingerprint, Hexagon, Radar, Target, Waypoints } from "lucide-react";
 import type { ReactElement } from "react";
+import { JarvisMark } from "@/components/chat/jarvis-mark";
 
-const ICONS = [Radar, Compass, Crosshair, Waypoints, Atom, Hexagon, Fingerprint, Target] as const;
+/**
+ * An agent's avatar: the app's logo mark, bare (Docs/DESIGN.md → Agents → Avatars). While the agent runs, its outer
+ * ring turns slowly around the still eye, the same motion as Jarvis at work; otherwise it rests.
+ */
 export function AgentAvatar({
-  id,
   running = false,
+  size = 24,
 }: {
-  readonly id: string;
   readonly running?: boolean;
+  readonly size?: number;
 }): ReactElement {
-  let hash = 2166136261;
-  for (const character of id) {
-    hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
-  }
-  const Icon = ICONS[(hash >>> 0) % ICONS.length] ?? Radar;
   return (
-    <Icon
-      aria-hidden="true"
-      size={24}
-      strokeWidth={1.75}
-      absoluteStrokeWidth
-      className={`shrink-0 ${running ? "text-accent-text" : "text-fg-muted"}`}
-    />
+    <span {...(running ? { "data-jarvis-working": true } : {})} className="jarvis-row inline-flex shrink-0">
+      <JarvisMark size={size} layered />
+    </span>
   );
 }

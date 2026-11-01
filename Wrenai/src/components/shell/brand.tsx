@@ -11,7 +11,7 @@ const SIZES: Readonly<Record<BrandSize, { readonly mark: number; readonly row: s
 
 interface BrandProps {
   readonly size: BrandSize;
-  /** The mark alone (the collapsed sidebar). Screen readers still get the name. */
+  /** Fades the wordmark out, leaving the mark (the collapsed sidebar). Screen readers still get the name. */
   readonly markOnly?: boolean;
 }
 
@@ -27,7 +27,8 @@ export function Brand({ size, markOnly = false }: BrandProps) {
           The rounded face is drawn light: its 700 reads as a semibold, so it is the one face set above 600. */}
       <span
         aria-hidden="true"
-        className={`font-rounded font-bold whitespace-nowrap motion-safe:transition-[opacity,translate] motion-safe:duration-200 motion-safe:ease-ios ${markOnly ? `pointer-events-none absolute left-full -translate-x-2 opacity-0 ${size === "md" ? "ml-1" : "ml-1.5"}` : "translate-x-0 opacity-100"}`}
+        // Fades only and stays in place, so a width animation around it never moves the mark.
+        className={`font-rounded font-bold whitespace-nowrap transition-opacity duration-300 ease-ios motion-reduce:transition-none ${markOnly ? "opacity-0" : "opacity-100"}`}
       >
         Wren<span className="text-accent-text">ai</span>
       </span>

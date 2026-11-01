@@ -1,10 +1,9 @@
 "use client";
 
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
-import { m } from "motion/react";
 import Link from "next/link";
 import { Tooltip } from "radix-ui";
-import { type ReactElement, useCallback, useId, useState } from "react";
+import { memo, type ReactElement, useId } from "react";
 import { SIDEBAR_COOKIE } from "@/shared/sidebar";
 import { Brand } from "./brand";
 import { NAV_ITEMS } from "./nav-items";
@@ -39,71 +38,51 @@ function rememberWidth(collapsed: boolean): void {
 const CONTROL =
   "inline-flex size-9 shrink-0 cursor-pointer items-center justify-center text-fg-muted transition-colors duration-300 ease-ios hover:bg-surface-3 hover:text-fg-strong pointer-coarse:size-11";
 
-function SidebarSurface(): ReactElement {
-  const [radius, setRadius] = useState("var(--radius-md)");
-  const readRadius = useCallback((node: HTMLDivElement | null): void => {
-    if (node !== null) {
-      // Resolve the theme token so Motion keeps the corners round while the surface changes width.
-      setRadius(getComputedStyle(node).borderTopLeftRadius);
-    }
-  }, []);
-  return (
-    <m.div
-      ref={readRadius}
-      layout
-      initial={false}
-      aria-hidden="true"
-      style={{ borderRadius: radius }}
-      className="pointer-events-none absolute inset-0 -z-10 card-shine rounded-md"
-    />
-  );
+interface SidebarProps {
+  readonly collapsed: boolean;
+  readonly onCollapsedChange: (collapsed: boolean) => void;
 }
 
-/** The desktop navigation card, with its initial width read on the server to avoid a flash on reload. */
-export function Sidebar({ initiallyCollapsed }: { readonly initiallyCollapsed: boolean }): ReactElement {
-  const [collapsed, setCollapsed] = useState(initiallyCollapsed);
+/** Route subscribers live in NavigationItems; the frame only updates when its width changes. */
+function SidebarView({ collapsed, onCollapsedChange }: SidebarProps): ReactElement {
   const navigationId = useId();
   const toggleLabel = collapsed ? "Expand sidebar" : "Collapse sidebar";
   const ToggleIcon = collapsed ? ChevronsRight : ChevronsLeft;
 
   function toggle(): void {
     const next = !collapsed;
-    setCollapsed(next);
+    onCollapsedChange(next);
     rememberWidth(next);
   }
 
+  // The card's own width animates (420 ms, ease-ios), not a transform: the page beside it is a flex sibling, so
+  // a transformed sidebar would leave the page snapping to its new width and centered content jumping. Icons, the
+  // logo mark and the labels keep one left offset in both widths, so only the edge moves; labels and the
+  // wordmark are clipped as it narrows. Reduced motion switches at once.
   return (
     <aside aria-label="Sidebar" className="sticky top-0 z-20 hidden h-dvh shrink-0 py-3 lg:block">
       <Tooltip.Provider delayDuration={300}>
         <div
-          className={`relative isolate flex h-full min-h-0 flex-col rounded-md p-2 ${collapsed ? "w-18" : "w-60"}`}
+          className={`relative flex h-full min-h-0 flex-col card-shine rounded-md p-2 transition-[width] duration-[420ms] ease-ios motion-reduce:transition-none ${collapsed ? "w-14" : "w-60"}`}
         >
-          <SidebarSurface />
-          {/* Collapsed, the mark centers on the same axis as the nav icons below it. */}
-          <div
-            className={`relative flex h-10 w-full shrink-0 items-center pointer-coarse:h-11 ${collapsed ? "justify-center" : "justify-start"}`}
-          >
-            <m.div layout="position" initial={false} className="shrink-0">
-              <Link
-                href="/portfolio"
-                className={`flex h-10 items-center justify-center rounded-sm pointer-coarse:min-h-11 pointer-coarse:min-w-11 ${collapsed ? "w-10" : "px-2.5"}`}
-              >
-                <Brand size="md" markOnly={collapsed} />
-              </Link>
-            </m.div>
+          <div className="relative flex h-10 w-full shrink-0 items-center pointer-coarse:h-11">
+            <Link
+              href="/portfolio"
+              className="flex h-10 min-w-0 flex-1 items-center overflow-hidden rounded-sm px-1.5 pointer-coarse:min-h-11"
+            >
+              <Brand size="md" markOnly={collapsed} />
+            </Link>
             <NavigationTooltip label={toggleLabel}>
-              <m.button
-                layout="position"
-                initial={false}
+              <button
                 type="button"
                 onClick={toggle}
                 aria-label={toggleLabel}
                 aria-expanded={!collapsed}
                 aria-controls={navigationId}
-                className={`${CONTROL} absolute inset-y-0 my-auto ${collapsed ? "-right-6.5 rounded-full bg-surface-card pointer-coarse:-right-7.5" : "right-1 rounded-sm"}`}
+                className={`${CONTROL} absolute inset-y-0 my-auto transition-[right,background-color,color] duration-[420ms] ease-ios motion-reduce:transition-none ${collapsed ? "-right-6.5 rounded-full bg-surface-card pointer-coarse:-right-7.5" : "right-1 rounded-sm"}`}
               >
                 <ToggleIcon aria-hidden="true" size={18} strokeWidth={1.75} absoluteStrokeWidth />
-              </m.button>
+              </button>
             </NavigationTooltip>
           </div>
           {/* Groups are separated by thin rules, not labels (Docs/DESIGN.md → App shell). */}
@@ -124,3 +103,5 @@ export function Sidebar({ initiallyCollapsed }: { readonly initiallyCollapsed: b
     </aside>
   );
 }
+
+export const Sidebar = memo(SidebarView);

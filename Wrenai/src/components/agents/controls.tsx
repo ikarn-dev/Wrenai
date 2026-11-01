@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Pause, Play, Square, Trash2 } from "lucide-react";
+import { Copy, LoaderCircle, Pause, Play, Square, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertDialog } from "radix-ui";
@@ -141,6 +141,11 @@ export function AgentControls({
   );
 }
 
+/**
+ * The kill switch (Spec §5 rule 2): one click, no confirm, stops every agent and blocks new trades. The request id
+ * is reused on retry, so a double click or a lost reply never flips it twice. While it runs the button shows a
+ * spinner and ignores clicks; the result appears as one line beside it.
+ */
 export function GlobalStop({
   engaged,
   revision,
@@ -151,48 +156,57 @@ export function GlobalStop({
   const [busy, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const request = useRef<{ id: string; engaged: boolean; revision: number } | null>(null);
+  const label = engaged ? "Clear stop" : "Stop all";
+
+  function toggle(): void {
+    if (busy) {
+      return;
+    }
+    startTransition(async () => {
+      if (request.current?.engaged !== !engaged || request.current.revision !== revision) {
+        request.current = { id: crypto.randomUUID(), engaged: !engaged, revision };
+      }
+      const result = await changeGlobalStop({
+        engaged: !engaged,
+        requestId: request.current.id,
+        expectedRevision: revision,
+      }).catch(() => ({ ok: false as const, message: "Couldn't confirm the stop. Try again." }));
+      if (result.ok) {
+        request.current = null;
+      }
+      setMessage(
+        result.ok ? (engaged ? "Stop cleared. Agents stay paused." : "All agents stopped.") : result.message,
+      );
+    });
+  }
+
   return (
-    <div className="flex flex-col gap-2">
-      <Button
-        variant={engaged ? "secondary" : "destructive"}
-        aria-label={engaged ? "Clear global stop" : "Stop all agents"}
-        disabled={busy}
+    <div className="flex items-center gap-3">
+      <span role="status" className="text-caption text-fg-subtle">
+        {message ?? ""}
+      </span>
+      <button
+        type="button"
+        onClick={toggle}
         aria-busy={busy}
-        onClick={() => {
-          startTransition(async () => {
-            try {
-              if (request.current?.engaged !== !engaged || request.current.revision !== revision) {
-                request.current = { id: crypto.randomUUID(), engaged: !engaged, revision };
-              }
-              const result = await changeGlobalStop({
-                engaged: !engaged,
-                requestId: request.current.id,
-                expectedRevision: revision,
-              });
-              if (result.ok) {
-                request.current = null;
-              }
-              setMessage(
-                result.ok
-                  ? engaged
-                    ? "Global stop cleared. Agents remain stopped."
-                    : "All agents stopped."
-                  : result.message,
-              );
-            } catch {
-              setMessage("Could not confirm the global stop. Retry now.");
-            }
-          });
-        }}
+        aria-label={busy ? `${label}: updating` : label}
+        className={`inline-flex h-8 min-w-24 items-center justify-center gap-1.5 rounded-sm px-3 text-small font-medium ring-1 ring-inset transition-colors duration-200 ease-ios aria-busy:cursor-progress pointer-coarse:h-11 ${engaged ? "bg-surface-3 text-fg-strong ring-line-strong/50 hover:bg-surface-4" : "bg-loss-soft text-loss ring-loss/40 hover:ring-loss"}`}
       >
-        <Square aria-hidden="true" size={14} />
-        <span>{busy ? "Updating…" : engaged ? "Clear global stop" : "Stop all agents"}</span>
-      </Button>
-      {message ? (
-        <p role="status" className="text-caption text-fg-muted">
-          {message}
-        </p>
-      ) : null}
+        {busy ? (
+          <LoaderCircle
+            size={14}
+            strokeWidth={2}
+            absoluteStrokeWidth
+            aria-hidden="true"
+            className="motion-safe:animate-spin"
+          />
+        ) : (
+          <>
+            <Square size={11} fill="currentColor" aria-hidden="true" />
+            {label}
+          </>
+        )}
+      </button>
     </div>
   );
 }

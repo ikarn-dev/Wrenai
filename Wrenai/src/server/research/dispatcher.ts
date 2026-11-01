@@ -10,6 +10,7 @@ import {
   researchReportSchema,
   researchToolSchema,
 } from "@/shared/research";
+import { researchInputIssue } from "@/shared/research-input";
 import { leaderResearch, memeResearch, paymentResearch } from "./accounts-launches";
 import { arbitrageScan } from "./arbitrage";
 import { DECISION_GUIDANCE } from "./decision-guidance";
@@ -202,6 +203,18 @@ export async function runResearchTool(
       items: [],
       sources: [],
       limitations: ["No live conclusion is supported by invalid inputs."],
+    };
+  }
+  const issue = researchInputIssue(tool, parsed.data);
+  if (issue) {
+    return {
+      tool,
+      status: "unavailable",
+      summary: issue,
+      observedAt: Date.now(),
+      items: [],
+      sources: [],
+      limitations: ["Clarify the required input before requesting live data."],
     };
   }
   const [market, news] = await Promise.allSettled([

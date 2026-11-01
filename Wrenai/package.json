@@ -12,7 +12,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "next typegen && tsc --noEmit",
-    "lint": "biome check .",
+    "lint": "node scripts/check-tests.ts && biome check .",
     "format": "biome format --write .",
     "test": "vitest run",
     "db:generate": "node --env-file-if-exists=.env node_modules/drizzle-kit/bin.cjs generate",

@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageSquare, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import { MessageSquare, PanelLeftClose, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { memo, type ReactElement, useMemo, useState } from "react";
 import type { ConversationSummary } from "@/shared/chat";
 
@@ -13,6 +13,8 @@ interface HistoryProps {
   readonly onDelete: (item: ConversationSummary) => void;
   readonly onSelect: (id: string) => void;
   readonly onNavigate?: () => void;
+  /** Shows a collapse control in the header (the desktop card; the mobile sheet has its own close). */
+  readonly onCollapse?: () => void;
 }
 
 export const ChatHistory = memo(function ChatHistory({
@@ -24,6 +26,7 @@ export const ChatHistory = memo(function ChatHistory({
   onDelete,
   onNavigate,
   onSelect,
+  onCollapse,
 }: HistoryProps): ReactElement {
   const [query, setQuery] = useState("");
   const filtered = useMemo(() => {
@@ -34,8 +37,8 @@ export const ChatHistory = memo(function ChatHistory({
     // Same anatomy and states as the app sidebar: a mono eyebrow header, then 36 px rows on a 2 px rhythm,
     // the open chat on the lit nav-active pill. No divider lines.
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex h-8 items-center justify-between gap-2 pl-2.5">
-        <h2 className="font-mono text-eyebrow uppercase text-fg-subtle">Chats</h2>
+      <div className="flex h-8 items-center gap-2 pl-2.5">
+        <h2 className="mr-auto font-mono text-eyebrow uppercase text-fg-subtle">Chats</h2>
         <button
           type="button"
           aria-label="Refresh chat history"
@@ -56,6 +59,17 @@ export const ChatHistory = memo(function ChatHistory({
             }
           />
         </button>
+        {onCollapse === undefined ? null : (
+          <button
+            type="button"
+            aria-label="Hide chat history"
+            title="Hide chats"
+            onClick={onCollapse}
+            className="-ml-1.5 inline-flex size-8 cursor-pointer items-center justify-center rounded-xs text-fg-subtle transition-colors duration-200 ease-ios hover:text-fg-strong pointer-coarse:size-11"
+          >
+            <PanelLeftClose size={14} strokeWidth={1.75} absoluteStrokeWidth aria-hidden="true" />
+          </button>
+        )}
       </div>
       <button
         type="button"
@@ -63,7 +77,7 @@ export const ChatHistory = memo(function ChatHistory({
           onNew();
           onNavigate?.();
         }}
-        className="flex h-9 cursor-pointer items-center justify-center gap-2 card-shine rounded-xs px-3 text-small font-medium text-fg-strong transition-[scale] duration-200 ease-ios active:scale-98 motion-reduce:active:scale-100 pointer-coarse:h-11"
+        className="flex h-9 cursor-pointer items-center justify-center gap-2 card-shine rounded-lg-inset px-3 text-small font-medium text-fg-strong transition-[scale] duration-200 ease-ios active:scale-98 motion-reduce:active:scale-100 pointer-coarse:h-11"
       >
         <Plus
           size={15}
@@ -75,7 +89,7 @@ export const ChatHistory = memo(function ChatHistory({
         New chat
       </button>
       {items.length ? (
-        <label className="flex h-9 items-center gap-2 rounded-xs bg-sunken px-2.5 ring-1 ring-line-card ring-inset transition-shadow duration-200 ease-ios focus-within:ring-line-strong pointer-coarse:h-11">
+        <label className="flex h-9 items-center gap-2 rounded-lg-inset bg-sunken px-2.5 ring-1 ring-line-card ring-inset transition-shadow duration-200 ease-ios focus-within:ring-line-strong pointer-coarse:h-11">
           <Search
             size={14}
             strokeWidth={1.75}
@@ -104,7 +118,7 @@ export const ChatHistory = memo(function ChatHistory({
               return (
                 <li
                   key={item.id}
-                  className={`group flex min-w-0 items-center rounded-xs transition-colors duration-200 ease-ios ${current ? "nav-active text-fg-strong" : "text-fg-muted hover:text-fg-strong"}`}
+                  className={`group flex min-w-0 items-center rounded-lg-inset transition-colors duration-200 ease-ios ${current ? "nav-active text-fg-strong" : "text-fg-muted hover:text-fg-strong"}`}
                 >
                   <button
                     type="button"
@@ -113,7 +127,7 @@ export const ChatHistory = memo(function ChatHistory({
                       onNavigate?.();
                     }}
                     aria-current={current ? "page" : undefined}
-                    className="flex h-9 min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-xs px-2.5 text-small pointer-coarse:h-11"
+                    className="flex h-9 min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-lg-inset px-2.5 text-small pointer-coarse:h-11"
                   >
                     <MessageSquare
                       size={14}

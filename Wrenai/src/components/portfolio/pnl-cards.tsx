@@ -54,7 +54,7 @@ export function AgentPerformanceCard({ agents }: { readonly agents: readonly Age
                       href={`/agents/${agent.id}`}
                       className="inline-flex items-center gap-3 rounded-xs hover:text-accent-text"
                     >
-                      <AgentAvatar id={agent.id} running={agent.status === "running"} />
+                      <AgentAvatar running={agent.status === "running"} />
                       {agent.name}
                     </Link>
                   </th>

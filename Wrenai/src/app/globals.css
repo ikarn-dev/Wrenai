@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "lenis/dist/lenis.css";
 @import "./base.css";
+@import "./styles/surfaces.css";
+@import "./styles/chat.css";
 
 /* Palette: Docs/DESIGN.md → Color. Components use the semantic tokens below, never these steps. */
 :root {
@@ -153,9 +155,14 @@
   --color-surface-1: var(--void-900);
   --color-surface-2: var(--void-800);
   --color-surface-3: var(--void-700);
-  /* Every card (card-shine): neutral, so mint is left to actions, focus and status. Measured on void-900:
-     fg-subtle 5.93:1, loss 6.51:1, accent-text 12.58:1; the void-700 edge stands 1.50:1 off the page. */
-  --color-surface-card: var(--void-900);
+  /* A control on a surface-3 panel (Manage access): one step up, and one more on hover. Measured: fg-strong 8.95:1
+     on surface-4, 4.97:1 on surface-5. */
+  --color-surface-4: var(--void-600);
+  --color-surface-5: var(--void-500);
+  /* Every card (card-shine): neutral, so mint is left to actions, focus and status. Two grey steps above the page
+     (void-800 on void-950), so a card reads as its own surface. Measured on void-800: fg-subtle 5.25:1, loss
+     5.79:1, accent-text 11.18:1. Raised things inside a card use the next step, surface-3. */
+  --color-surface-card: var(--void-800);
   --color-line-card: var(--void-700);
   --color-sunken: var(--void-950);
   --color-line-subtle: var(--void-800);
@@ -462,58 +469,16 @@
     linear-gradient(var(--color-surface-card), var(--color-surface-card)) padding-box,
     linear-gradient(
       150deg,
-      color-mix(in oklab, var(--void-50) 22%, var(--color-line-card)),
-      var(--color-line-card) 30%,
-      var(--color-line-card) 70%,
-      color-mix(in oklab, var(--void-50) 10%, var(--color-line-card))
+      color-mix(in oklab, var(--void-50) 48%, var(--color-line-card)),
+      color-mix(in oklab, var(--void-50) 14%, var(--color-line-card)) 22%,
+      var(--color-line-card) 42%,
+      var(--color-line-card) 62%,
+      color-mix(in oklab, var(--void-50) 26%, var(--color-line-card))
     )
     border-box;
   box-shadow:
-    inset 0 1px 0 color-mix(in oklab, var(--void-50) 5%, transparent),
+    inset 0 1px 0 color-mix(in oklab, var(--void-50) 9%, transparent),
     0 1px 2px rgb(0 0 0 / 0.35);
-}
-
-/* The active nav item: a surface-2 pill lit like an iOS control. A soft top-to-bottom shine, a 1 px top highlight,
-   a faint edge and a small shadow below. All static, so nothing repaints; the label stays fg-strong (above 12:1). */
-@utility nav-active {
-  background-color: var(--color-surface-2);
-  background-image: linear-gradient(
-    to bottom,
-    color-mix(in oklab, var(--void-50) 8%, transparent),
-    transparent 75%
-  );
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklab, var(--void-50) 12%, transparent),
-    inset 0 0 0 1px color-mix(in oklab, var(--void-50) 6%, transparent),
-    0 1px 2px rgb(0 0 0 / 0.45);
-}
-
-/* Badge lit edge, like the cards': a 1 px light gradient over the badge's own ring, brightest at the top-left,
-   gone along the sides, a faint glint at the bottom-right. A pseudo-element masked to the border, so the label and
-   fill are untouched; white at low strength reads on every tone. Not on badge-buttons, whose pseudo-elements carry
-   the hover glow. */
-@utility badge-shine {
-  position: relative;
-
-  &::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    padding: 1px;
-    border-radius: inherit;
-    pointer-events: none;
-    background-image: linear-gradient(
-      150deg,
-      color-mix(in oklab, var(--void-50) 34%, transparent),
-      transparent 40%,
-      transparent 65%,
-      color-mix(in oklab, var(--void-50) 14%, transparent)
-    );
-    mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    mask-composite: exclude;
-  }
 }
 
 /* Dot grid (Docs/DESIGN.md → Dot grid): 1 px void-700 dots every 16 px, fading out toward the edges. Decoration for

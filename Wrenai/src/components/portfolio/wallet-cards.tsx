@@ -1,8 +1,6 @@
-import { Wallet } from "lucide-react";
 import type { ReactElement } from "react";
 import type { WalletBalanceReading } from "@/server/portfolio/wallet-balance";
 import { formatUnits } from "@/shared/money";
-import { PortfolioPanel } from "./panel";
 
 const NEAR_DECIMALS = 24;
 const MIN_DISPLAY_AMOUNT = 10n ** 20n;
@@ -74,84 +72,5 @@ export function ReadTime({ reading }: { readonly reading: WalletBalanceReading }
       NEAR RPC ·{" "}
       <time dateTime={new Date(reading.readAt).toISOString()}>{READ_TIME.format(reading.readAt)} UTC</time>
     </span>
-  );
-}
-
-function AssetsUnavailable(): ReactElement {
-  return (
-    <div role="status" className="flex flex-1 items-center gap-3 py-6">
-      <Wallet
-        aria-hidden="true"
-        size={20}
-        strokeWidth={1.75}
-        absoluteStrokeWidth
-        className="text-fg-subtle"
-      />
-      <div className="flex flex-col gap-1">
-        <p className="text-body font-medium text-fg-strong">Couldn't load your assets</p>
-        <p className="text-small text-fg-muted">Use Refresh to try again.</p>
-      </div>
-    </div>
-  );
-}
-
-const HEAD = "pb-3 text-left font-mono text-eyebrow font-medium uppercase text-fg-subtle";
-
-export function AssetsCard({ reading }: { readonly reading: WalletBalanceReading }): ReactElement {
-  return (
-    <PortfolioPanel
-      id="assets"
-      title="Holdings"
-      aside={<span className="text-caption text-fg-subtle">NEAR wallet</span>}
-    >
-      {reading.kind === "unavailable" ? (
-        <AssetsUnavailable />
-      ) : (
-        <div className="overflow-x-auto">
-          {/* Sideways only, so no data-lenis-prevent: it would contain vertical wheels and stop the page. */}
-          <table className="w-full min-w-sm border-collapse text-body">
-            <caption className="sr-only">Native NEAR balance. USD prices are not available.</caption>
-            <thead>
-              <tr className="border-b border-line-card">
-                <th scope="col" className={HEAD}>
-                  Asset
-                </th>
-                <th scope="col" className={`${HEAD} pl-4 text-right`}>
-                  Balance
-                </th>
-                <th scope="col" className={`${HEAD} pl-4 text-right`}>
-                  Value
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th scope="row" className="py-4 text-left font-normal">
-                  <span className="block text-fg-strong">NEAR</span>
-                  <span className="mt-0.5 block text-caption text-fg-subtle">Native token</span>
-                </th>
-                <td className="py-4 pl-4 text-right">
-                  <NearAmount amount={reading.kind === "balance" ? reading.yocto : 0n} />
-                </td>
-                <td
-                  aria-label="USD value unavailable"
-                  className="py-4 pl-4 text-right font-mono text-fg-subtle"
-                >
-                  —
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      )}
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-caption text-fg-subtle">
-        <p>
-          {reading.kind === "no_account"
-            ? "This account isn't on chain yet."
-            : "Native NEAR only. USD prices unavailable."}
-        </p>
-        <ReadTime reading={reading} />
-      </div>
-    </PortfolioPanel>
   );
 }

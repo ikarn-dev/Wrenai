@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { AccountActivity } from "@/components/activity/account-activity";
+import { ActivitySkeleton } from "@/components/activity/skeleton";
 import { TradingAccessPane } from "@/components/portfolio/access-card";
 import { InsightCards } from "@/components/portfolio/insight-cards";
 import { PortfolioOverview } from "@/components/portfolio/overview";
 import { PortfolioSection } from "@/components/portfolio/panel";
 import { AgentPerformanceCard, PnlCalendarCard } from "@/components/portfolio/pnl-cards";
 import { RefreshPortfolioButton } from "@/components/portfolio/refresh-button";
-import { AssetsCard } from "@/components/portfolio/wallet-cards";
 import { listAgents } from "@/server/agents/records";
 import { requireUser } from "@/server/auth/session";
 import { database } from "@/server/db/client";
@@ -47,8 +49,10 @@ export default async function PortfolioPage() {
           <PnlCalendarCard />
         </div>
       </PortfolioSection>
-      <PortfolioSection id="holdings" title="Holdings">
-        <AssetsCard reading={wallet} />
+      <PortfolioSection id="global-activity" title="Global activity">
+        <Suspense fallback={<ActivitySkeleton />}>
+          <AccountActivity ownerId={user.id} />
+        </Suspense>
       </PortfolioSection>
     </div>
   );

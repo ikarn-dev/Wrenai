@@ -93,7 +93,7 @@ export function TradingAccessPane({ accountId, reading }: TradingAccessPaneProps
       className="relative flex h-full overflow-hidden card-shine rounded-lg p-2"
     >
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 dot-grid" />
-      <div className="relative flex w-full flex-col gap-4 rounded-lg-inset bg-surface-2 p-4 shadow-float ring-1 ring-line-card ring-inset">
+      <div className="relative flex w-full flex-col gap-4 rounded-lg-inset bg-surface-3 p-4 shadow-float ring-1 ring-line-card ring-inset">
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2.5">
@@ -121,7 +121,7 @@ export function TradingAccessPane({ accountId, reading }: TradingAccessPaneProps
           {reading.state.kind === "active" ? (
             <Link
               href="/settings"
-              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xs bg-surface-3 text-body font-medium text-fg-strong ring-1 ring-line-strong/50 ring-inset transition-colors duration-300 ease-ios hover:bg-void-600 pointer-coarse:h-11"
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-sm bg-surface-4 text-body font-medium text-fg-strong ring-1 ring-line-strong/50 ring-inset transition-colors duration-300 ease-ios hover:bg-surface-5 pointer-coarse:h-11"
             >
               Manage access
               <ArrowUpRight aria-hidden="true" size={14} strokeWidth={1.75} absoluteStrokeWidth />

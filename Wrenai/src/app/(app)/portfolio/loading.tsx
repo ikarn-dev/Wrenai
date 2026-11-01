@@ -1,4 +1,5 @@
 import type { ReactElement } from "react";
+import { ActivitySkeleton } from "@/components/activity/skeleton";
 
 // Same grid as page.tsx, so nothing shifts when the data arrives.
 const PANEL = "min-w-0 card-shine rounded-lg p-card";
@@ -63,6 +64,9 @@ export default function PortfolioLoading(): ReactElement {
             <div className={`${PANEL} min-h-72 xl:col-span-2`} />
             <div className={`${PANEL} min-h-72`} />
           </div>
+        </SectionSkeleton>
+        <SectionSkeleton>
+          <ActivitySkeleton />
         </SectionSkeleton>
       </div>
     </div>

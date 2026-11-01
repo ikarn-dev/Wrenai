@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { inferenceModelSchema } from "@/shared/ai-models";
-import { researchReportSchema } from "./research";
+import { researchReportSchema, researchToolSchema } from "./research";
 
 export const MAX_CHAT_MESSAGE = 8_000;
 export const MAX_CHAT_TURNS = 100;
@@ -13,6 +13,7 @@ export const chatInputSchema = z.strictObject({
   previousTurnId: z.uuid().nullable(),
   message: z.string().trim().min(1, "Write a message first.").max(MAX_CHAT_MESSAGE),
   includeContext: z.boolean(),
+  tool: researchToolSchema.nullable().optional(),
 });
 export type ChatInput = z.infer<typeof chatInputSchema>;
 
@@ -53,6 +54,7 @@ export const chatTurnSchema = z.strictObject({
   sequence: z.number().int().positive(),
   message: z.string(),
   includeContext: z.boolean(),
+  tool: researchToolSchema.nullable().optional(),
   state: z.enum(["pending", "complete", "failed", "cancelled"]),
   reply: chatReplySchema.nullable(),
   createdAt: z.number().int().positive(),
@@ -94,6 +96,7 @@ export const chatEventSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("verified") }),
   z.strictObject({ type: z.literal("reset") }),
   z.strictObject({ type: z.literal("done"), turn: chatTurnSchema }),
+  z.strictObject({ type: z.literal("title"), title: z.string().min(1).max(72) }),
   z.strictObject({ type: z.literal("error"), code: z.string(), message: z.string().max(500) }),
 ]);
 export type ChatEvent = z.infer<typeof chatEventSchema>;

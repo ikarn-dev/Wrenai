@@ -13,6 +13,7 @@ import {
 } from "@/shared/chat";
 import { type ChatCipher, chatCipher } from "./cipher";
 import { ChatError } from "./errors";
+import { sealMessage } from "./message-record";
 import { displayTurn, storedReplySchema, type TurnRow } from "./queries";
 
 const LEASE_MS = 120_000;
@@ -39,7 +40,13 @@ async function touchConversation(
 
 function turnHash(input: ChatInput, cipher: ChatCipher): string {
   return cipher.hash(
-    JSON.stringify([input.conversationId, input.previousTurnId, input.message, input.includeContext]),
+    JSON.stringify([
+      input.conversationId,
+      input.previousTurnId,
+      input.message,
+      input.includeContext,
+      ...(input.tool ? [input.tool] : []),
+    ]),
   );
 }
 
@@ -175,7 +182,7 @@ export async function claimChatTurn(
         conversationId: input.conversationId,
         sequence,
         inputHash: turnHash(input, cipher),
-        sealedMessage: cipher.seal(userId, input.conversationId, `${input.requestId}:user`, input.message),
+        sealedMessage: sealMessage(cipher, userId, input),
         sealedReply: null,
         includeContext: input.includeContext,
         state: options.cancel ? "cancelled" : "pending",
@@ -266,5 +273,30 @@ export async function deleteConversation(
     await tx
       .delete(chatTurns)
       .where(and(eq(chatTurns.userId, userId), eq(chatTurns.conversationId, conversationId)));
+  });
+}
+
+/** Replaces a live conversation's title (the generated one after the first reply). Deleted chats stay deleted. */
+export async function renameConversation(
+  db: AppDatabase,
+  userId: string,
+  conversationId: string,
+  title: string,
+  cipher: ChatCipher = chatCipher(),
+): Promise<void> {
+  await userTransaction(db, userId, async (tx) => {
+    await tx
+      .update(chatConversations)
+      .set({
+        sealedTitle: cipher.seal(userId, conversationId, "title", title),
+        revision: sql`${chatConversations.revision} + 1`,
+      })
+      .where(
+        and(
+          eq(chatConversations.userId, userId),
+          eq(chatConversations.id, conversationId),
+          isNull(chatConversations.deletedAt),
+        ),
+      );
   });
 }

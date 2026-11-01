@@ -4,7 +4,7 @@ import { database } from "@/server/db/client";
 import type { ChatResult } from "@/shared/chat";
 import { type AgentSetupDraft, researchToolSchema } from "@/shared/research";
 import { chatResult, chatUser } from "./access";
-import { createAgentSetup, createManualAgentSetup, updateAgentSetup } from "./agent-drafts";
+import { createAgentSetup, createManualAgentSetup, deleteAgentSetup, updateAgentSetup } from "./agent-drafts";
 import { chatCipher } from "./cipher";
 
 export async function createChatAgentSetup(raw: unknown): Promise<ChatResult<AgentSetupDraft>> {
@@ -49,5 +49,13 @@ export async function createAgentToolSetup(raw: unknown): Promise<ChatResult<Age
       })
       .parse(raw);
     return createManualAgentSetup(database(), user.id, input.id, input.tool, input.answers, input.notes);
+  });
+}
+
+export async function removeAgentSetup(raw: unknown): Promise<ChatResult<null>> {
+  return chatResult(async () => {
+    const user = await chatUser("manage");
+    const input = z.strictObject({ id: z.uuid() }).parse(raw);
+    return deleteAgentSetup(database(), user.id, input.id);
   });
 }

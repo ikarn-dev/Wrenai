@@ -3,6 +3,9 @@
 import { Check, Copy } from "lucide-react";
 import { type ReactElement, useEffect, useRef, useState } from "react";
 
+const ICON = { "aria-hidden": true, size: 13, strokeWidth: 1.75, absoluteStrokeWidth: true } as const;
+
+/** A small icon-only copy control for message action rows: 28 px (44 px on touch), Check in mint once copied. */
 export function CopyButton({
   text,
   label = "Copy message",
@@ -32,9 +35,9 @@ export function CopyButton({
         aria-label={status === "copied" ? "Copied" : label}
         title={label}
         onClick={() => void copy()}
-        className="inline-flex size-10 cursor-pointer items-center justify-center rounded-sm text-fg-subtle transition-colors hover:bg-surface-2 hover:text-fg-strong pointer-coarse:size-11"
+        className={`inline-flex size-7 cursor-pointer items-center justify-center rounded-xs transition-colors duration-200 ease-ios hover:bg-surface-2 hover:text-fg-strong pointer-coarse:size-11 ${status === "copied" ? "text-accent-text" : "text-fg-subtle"}`}
       >
-        {status === "copied" ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
+        {status === "copied" ? <Check {...ICON} /> : <Copy {...ICON} />}
       </button>
       <span role="status" className={status === "failed" ? "text-caption text-warn" : "sr-only"}>
         {status === "copied"

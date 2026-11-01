@@ -1,5 +1,7 @@
 @layer base {
   html {
+    /* Keep the centered shell in place when navigation changes whether the page needs a scrollbar. */
+    scrollbar-gutter: stable;
     background-color: var(--color-bg);
     color: var(--color-fg);
     font-variant-numeric: tabular-nums;

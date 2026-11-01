@@ -4,20 +4,16 @@ import { InferenceClient, NO_ALIASING_HEADER } from "@nearai/inference-sdk/node"
 
 const CHAT_EVIDENCE_TTL_MS = 60_000;
 const MAX_CHAT_CLIENTS = 5;
-const chatClients = new Map<string, { readonly client: InferenceClient; readonly expiresAt: number }>();
+const chatClients = new Map<string, InferenceClient>();
 
 /** A warm-instance optimization only. The SDK still verifies each response against its selected model signer. */
 export function inferenceClient(apiKey: string, cachedChat: boolean): InferenceClient {
-  const now = Date.now();
-  for (const [id, entry] of chatClients) {
-    if (entry.expiresAt <= now) {
-      chatClients.delete(id);
-    }
-  }
   const id = createHash("sha256").update(apiKey).digest("hex");
   const cached = cachedChat ? chatClients.get(id) : undefined;
   if (cached) {
-    return cached.client;
+    chatClients.delete(id);
+    chatClients.set(id, cached);
+    return cached;
   }
   const client = new InferenceClient({
     apiKey,
@@ -34,8 +30,9 @@ export function inferenceClient(apiKey: string, cachedChat: boolean): InferenceC
       }
       chatClients.delete(oldest);
     }
-    // Do not extend on reuse: client replacement puts an independent upper bound on evidence age.
-    chatClients.set(id, { client, expiresAt: now + CHAT_EVIDENCE_TTL_MS });
+    // SDK 0.2.0 expires evidence from verification time (hits don't extend it) and evicts response bytes.
+    // Keep its reusable transport and shared in-flight checks instead of discarding the whole client.
+    chatClients.set(id, client);
   }
   return client;
 }

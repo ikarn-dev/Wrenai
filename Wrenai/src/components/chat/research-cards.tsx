@@ -1,20 +1,9 @@
 "use client";
-import { useRouter } from "next/navigation";
-import { type ReactElement, useState, useTransition } from "react";
-import { createChatAgentSetup } from "@/server/chat/draft-actions";
+import type { ReactElement } from "react";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
 import type { ResearchReport } from "@/shared/research";
 
-export function ResearchCards({
-  reports,
-  source,
-}: {
-  readonly reports: readonly ResearchReport[];
-  readonly source?: { readonly conversationId: string; readonly turnId: string };
-}): ReactElement {
-  const router = useRouter();
-  const [busy, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+export function ResearchCards({ reports }: { readonly reports: readonly ResearchReport[] }): ReactElement {
   const tools = [...new Set(reports.map((report) => report.tool))];
   return (
     <div className="mt-5 space-y-4">
@@ -123,38 +112,9 @@ export function ResearchCards({
                 </p>
               ))}
             </details>
-            {source && report.status !== "unavailable" ? (
-              <button
-                type="button"
-                disabled={busy}
-                className="mt-3 min-h-11 cursor-pointer rounded-sm px-3 text-small text-accent-text hover:bg-surface-2 disabled:cursor-progress"
-                onClick={() => {
-                  setError(null);
-                  startTransition(async () => {
-                    try {
-                      const result = await createChatAgentSetup({ ...source, tool });
-                      if (!result.ok) {
-                        setError(result.message);
-                        return;
-                      }
-                      router.push(`/agents/setup/${result.value.id}`);
-                    } catch {
-                      setError("The setup could not be saved. Try again.");
-                    }
-                  });
-                }}
-              >
-                {busy ? "Saving setup…" : "Create agent"}
-              </button>
-            ) : null}
           </section>
         );
       })}
-      {error ? (
-        <p role="alert" className="text-small text-warn">
-          {error}
-        </p>
-      ) : null}
     </div>
   );
 }

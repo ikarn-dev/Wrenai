@@ -68,6 +68,7 @@ interface StreamRequest {
   readonly signal: AbortSignal;
   readonly allowTools: boolean;
   readonly onDelta: (text: string) => void;
+  readonly onVerification?: () => void;
 }
 export interface VerifiedChatStream {
   readonly content: string;
@@ -136,6 +137,7 @@ async function attemptStream(
     throw new InferenceError("invalid_input", "The answer was interrupted. Try a shorter request.");
   }
   let onAbort: (() => void) | undefined;
+  request.onVerification?.();
   const aborted = new Promise<never>((_resolve, reject) => {
     onAbort = () => reject(new InferenceError("cancelled", "Reply stopped or exceeded its time limit."));
     if (request.signal.aborted) {

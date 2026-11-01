@@ -18,6 +18,7 @@ import {
 } from "@/shared/chat";
 import { type ChatCipher, chatCipher } from "./cipher";
 import { ChatError } from "./errors";
+import { openMessage } from "./message-record";
 import { readChatCache, writeChatCache } from "./redis-cache";
 
 export const storedReplySchema = z.strictObject({
@@ -31,7 +32,7 @@ export function displayTurn(row: TurnRow, cipher: ChatCipher, now = Date.now()):
     return {
       id: row.id,
       sequence: row.sequence,
-      message: cipher.open(row.userId, row.conversationId, `${row.id}:user`, row.sealedMessage),
+      ...openMessage(cipher, row.userId, row.conversationId, row.id, row.sealedMessage),
       includeContext: row.includeContext,
       state: row.state === "pending" && row.leaseExpiresAt <= now ? "failed" : row.state,
       reply:

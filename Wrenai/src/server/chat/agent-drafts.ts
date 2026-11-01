@@ -44,6 +44,19 @@ export async function listAgentSetups(
     .limit(100);
   return rows.map((row) => openDraft(row, cipher));
 }
+/** Deletes one of the owner's setup drafts. Drafts never run, so nothing else depends on them. */
+export async function deleteAgentSetup(db: AppDatabase, owner: string, id: string): Promise<null> {
+  return userTransaction(db, owner, async (tx) => {
+    const removed = await tx
+      .delete(chatAgentDrafts)
+      .where(and(eq(chatAgentDrafts.id, id), eq(chatAgentDrafts.userId, owner)))
+      .returning({ id: chatAgentDrafts.id });
+    if (removed.length === 0) {
+      throw new ChatError("not_found", "That setup is already gone. Refresh to update the list.");
+    }
+    return null;
+  });
+}
 /** Copies only a saved verified owner reply, never client-supplied research or a provisional stream. */
 export async function createAgentSetup(
   db: AppDatabase,

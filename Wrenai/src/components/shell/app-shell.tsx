@@ -1,7 +1,7 @@
 "use client";
 
-import { LayoutGroup, LazyMotion, MotionConfig, m, type Transition } from "motion/react";
-import type { ReactElement, ReactNode } from "react";
+import { LayoutGroup, LazyMotion, MotionConfig, type Transition } from "motion/react";
+import { type ReactElement, type ReactNode, useState } from "react";
 import { usePrefersReducedMotion } from "@/components/motion/use-prefers-reduced-motion";
 import { MobileNav } from "./mobile-nav";
 import { Sidebar } from "./sidebar";
@@ -23,17 +23,20 @@ interface AppShellProps {
 /** Synchronizes the sidebar and page without scaling the page's text or moving the account menu. */
 export function AppShell({ initiallyCollapsed, header, children }: AppShellProps): ReactElement {
   const reducedMotion = usePrefersReducedMotion();
+  const [collapsed, setCollapsed] = useState(initiallyCollapsed);
   return (
     <LazyMotion features={loadLayoutFeatures} strict>
       <MotionConfig reducedMotion="user" transition={reducedMotion ? INSTANT : SIDEBAR_TRANSITION}>
         <LayoutGroup>
           <div className="mx-auto flex min-h-dvh max-w-app">
-            <Sidebar initiallyCollapsed={initiallyCollapsed} />
+            <Sidebar collapsed={collapsed} onCollapsedChange={setCollapsed} />
             <div className="flex min-w-0 flex-1 flex-col">
-              {header}
-              <m.div layout="position" initial={false} className="flex flex-1 flex-col">
-                {children}
-              </m.div>
+              <LayoutGroup inherit={false}>{header}</LayoutGroup>
+              {/* A plain flex child: it reflows with the sidebar's width transition each frame, so centered page
+                  content glides instead of snapping and sliding back. */}
+              <div className="flex flex-1 flex-col">
+                <LayoutGroup inherit={false}>{children}</LayoutGroup>
+              </div>
             </div>
             <MobileNav />
           </div>
