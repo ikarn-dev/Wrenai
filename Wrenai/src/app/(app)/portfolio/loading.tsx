@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 // Same grid as page.tsx, so nothing shifts when the data arrives.
 const PANEL = "min-w-0 card-shine rounded-lg p-card";
 const BLOCK = "rounded-xs bg-surface-2 motion-safe:animate-pulse";
-const TILES = ["wallet", "access", "public", "confidential", "agents", "pnl"] as const;
+const TILES = ["agents", "pnl"] as const;
 const INSIGHTS = ["performance", "allocation", "activity"] as const;
 
 function TileSkeleton(): ReactElement {
@@ -40,7 +40,10 @@ export default function PortfolioLoading(): ReactElement {
       </header>
       <div aria-hidden="true" className="flex min-w-0 flex-col gap-12">
         <div className="grid gap-8 lg:grid-cols-2">
-          <div className="grid gap-stack sm:grid-cols-2">
+          <div className="grid auto-rows-fr gap-stack sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <TileSkeleton />
+            </div>
             {TILES.map((id) => (
               <TileSkeleton key={id} />
             ))}

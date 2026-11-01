@@ -1,20 +1,13 @@
-import { ChartNoAxesCombined, Globe, KeyRound, Lock, Wallet, Waypoints } from "lucide-react";
+import { ChartNoAxesCombined, Wallet, Waypoints } from "lucide-react";
 import type { ReactElement } from "react";
-import type { DelegatedKeyReading } from "@/server/delegation/delegated-key";
 import type { WalletBalanceReading } from "@/server/portfolio/wallet-balance";
 import type { AgentSummary } from "@/shared/agents";
-import { KEY_STATUS } from "./access-card";
 import { StatTile } from "./panel";
 import { NearAmount, ReadTime } from "./wallet-cards";
 
 interface PortfolioOverviewProps {
   readonly wallet: WalletBalanceReading;
-  readonly agentKey: DelegatedKeyReading;
   readonly agents: readonly AgentSummary[];
-}
-
-function Unavailable({ label }: { readonly label: string }): ReactElement {
-  return <span className="text-fg-muted">{label}</span>;
 }
 
 function agentCount(agents: readonly AgentSummary[]): string {
@@ -26,38 +19,26 @@ function agentCount(agents: readonly AgentSummary[]): string {
 }
 
 /**
- * Six facts in a two-column grid: where the money is, whether agents can trade, and how they're doing. Values
- * that aren't measured yet say so instead of showing a number.
+ * The three facts a user checks first: what's in the wallet, what the agents are doing, and how they've done.
+ * Trading access lives in the pane beside this, so it isn't repeated. The grid stretches to the pane's height.
  */
-export function PortfolioOverview({ wallet, agentKey, agents }: PortfolioOverviewProps): ReactElement {
-  const key = KEY_STATUS[agentKey.state.kind];
+export function PortfolioOverview({ wallet, agents }: PortfolioOverviewProps): ReactElement {
   return (
-    <div className="grid gap-stack sm:grid-cols-2">
-      <StatTile icon={Wallet} label="NEAR wallet" meta={<ReadTime reading={wallet} />}>
-        {wallet.kind === "unavailable" ? (
-          <Unavailable label="Unavailable" />
-        ) : (
-          <NearAmount amount={wallet.kind === "balance" ? wallet.yocto : 0n} compact />
-        )}
-      </StatTile>
-      <StatTile
-        icon={KeyRound}
-        label="Trading access"
-        meta={agentKey.checked ? "On intents.near" : "Not verified"}
-      >
-        {key.label}
-      </StatTile>
-      <StatTile icon={Globe} label="Public Intents" meta="Shown once balances sync">
-        <Unavailable label="Not available yet" />
-      </StatTile>
-      <StatTile icon={Lock} label="Confidential" meta="Shown once balances sync">
-        <Unavailable label="Not available yet" />
-      </StatTile>
+    <div className="grid h-full auto-rows-fr gap-stack sm:grid-cols-2">
+      <div className="sm:col-span-2">
+        <StatTile icon={Wallet} label="NEAR wallet" meta={<ReadTime reading={wallet} />}>
+          {wallet.kind === "unavailable" ? (
+            <span className="text-fg-muted">Unavailable</span>
+          ) : (
+            <NearAmount amount={wallet.kind === "balance" ? wallet.yocto : 0n} compact />
+          )}
+        </StatTile>
+      </div>
       <StatTile icon={Waypoints} label="Agents" meta="Each agent has its own budget">
         {agentCount(agents)}
       </StatTile>
       <StatTile icon={ChartNoAxesCombined} label="Net PnL" meta="From recorded fills">
-        <Unavailable label="No trades yet" />
+        <span className="text-fg-muted">No trades yet</span>
       </StatTile>
     </div>
   );

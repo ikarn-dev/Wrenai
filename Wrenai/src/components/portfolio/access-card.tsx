@@ -9,7 +9,7 @@ import { middleTruncate } from "@/shared/truncate";
 
 type KeyKind = DelegatedKeyReading["state"]["kind"];
 
-export const KEY_STATUS: Readonly<
+const KEY_STATUS: Readonly<
   Record<KeyKind, { readonly label: string; readonly tone: BadgeTone; readonly description: string }>
 > = {
   none: { label: "Not set up", tone: "neutral", description: "Set up a key so agents can trade for you." },
@@ -88,7 +88,7 @@ export function TradingAccessPane({ accountId, reading }: TradingAccessPaneProps
           {reading.checked ? status.description : "Showing the last recorded status. Refresh to retry."}
         </p>
         <KeyFacts accountId={accountId} reading={reading} />
-        <div className="mt-auto grid">
+        <div className="grid">
           {reading.state.kind === "active" ? (
             <Link
               href="/settings"

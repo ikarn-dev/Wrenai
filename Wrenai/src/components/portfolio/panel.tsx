@@ -70,7 +70,7 @@ interface StatTileProps {
  */
 export function StatTile({ icon: Icon, label, children, meta }: StatTileProps): ReactElement {
   return (
-    <dl className="flex min-h-32 min-w-0 flex-col gap-2 card-shine rounded-lg p-4">
+    <dl className="flex h-full min-h-32 min-w-0 flex-col gap-2 card-shine rounded-lg p-4">
       <div className="flex items-center justify-between gap-3">
         <dt className="font-mono text-eyebrow uppercase text-fg-muted">{label}</dt>
         <Icon {...ICON} size={16} className="shrink-0 text-fg-subtle" />

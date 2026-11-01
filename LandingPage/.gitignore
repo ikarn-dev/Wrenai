@@ -15,11 +15,6 @@
 *.keystore
 wrenai-encrypted-recovery*.json
 
-# Local planning and tooling; application scripts remain versioned
-/Docs/
-/.kiro/
-/scripts/
-
 # Dependencies and caches
 node_modules/
 .pnpm-store/
@@ -39,8 +34,7 @@ coverage/
 playwright-report/
 test-results/
 
-# Runtime databases and backups
-/Wrenai/data/
+# Local databases and backups
 *.db
 *.db-*
 *.sqlite

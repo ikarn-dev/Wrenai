@@ -33,7 +33,7 @@ export default async function PortfolioPage() {
         <RefreshPortfolioButton />
       </header>
       <div className="grid min-w-0 gap-8 lg:grid-cols-2">
-        <PortfolioOverview wallet={wallet} agentKey={agentKey} agents={agents} />
+        <PortfolioOverview wallet={wallet} agents={agents} />
         <TradingAccessPane accountId={user.accountId} reading={agentKey} />
       </div>
       <PortfolioSection id="insights" title="Insights">
