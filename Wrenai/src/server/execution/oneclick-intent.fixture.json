@@ -1,0 +1,76 @@
+{
+  "source": "https://docs.near-intents.org/integration/distribution-channels/1click-api/quickstart/signed-intent-execution",
+  "request": {
+    "dry": false,
+    "swapType": "EXACT_INPUT",
+    "slippageTolerance": 49,
+    "originAsset": "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+    "destinationAsset": "nep141:wrap.near",
+    "amount": "10000000",
+    "depositType": "CONFIDENTIAL_INTENTS",
+    "recipientType": "CONFIDENTIAL_INTENTS",
+    "refundType": "CONFIDENTIAL_INTENTS",
+    "recipient": "intents.near",
+    "refundTo": "intents.near",
+    "deadline": "2026-10-31T06:12:51.952Z",
+    "quoteWaitingTimeMs": 0,
+    "appFees": []
+  },
+  "quote": {
+    "quote": {
+      "amountIn": "10000000",
+      "amountInFormatted": "10.0",
+      "amountInUsd": "9.998300000000",
+      "minAmountIn": "10000000",
+      "amountOut": "2295248774418035830894500",
+      "amountOutFormatted": "2.2952487744180358308945",
+      "amountOutUsd": "9.961379680974",
+      "minAmountOut": "2284002055423387455323116",
+      "timeEstimate": 10,
+      "refundFee": "0",
+      "withdrawFee": "0",
+      "deadline": "2026-11-03T06:12:51.952Z",
+      "timeWhenInactive": "2026-11-03T06:12:51.952Z",
+      "depositAddress": "99a23f5bbcda9b195d01b6e3ad551cd8632c1876fb952102f14fdc52cae1fdf5"
+    },
+    "quoteRequest": {
+      "dry": false,
+      "depositMode": "SIMPLE",
+      "swapType": "EXACT_INPUT",
+      "slippageTolerance": 49,
+      "originAsset": "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+      "depositType": "CONFIDENTIAL_INTENTS",
+      "destinationAsset": "nep141:wrap.near",
+      "amount": "10000000",
+      "refundTo": "intents.near",
+      "refundType": "CONFIDENTIAL_INTENTS",
+      "recipient": "intents.near",
+      "recipientType": "CONFIDENTIAL_INTENTS",
+      "deadline": "2026-10-31T06:12:51.952Z",
+      "confidentiality": "basic",
+      "quoteWaitingTimeMs": 0,
+      "appFees": [
+        {
+          "recipient": "2238fd089f1c92b206c218cd16b8676cb98964e0d50f8ab729c6396a81e07805",
+          "fee": 20,
+          "limitOrderId": null
+        }
+      ],
+      "insured": false
+    },
+    "signature": "ed25519:2txcypGErvbF7Q5pMGFQmCDb8rUFF8Q87CxHTmvQp8eyNNzoDSfzZ4UZ2LAn1eUg6usEjX1LS15h5xVwGmRmKTUq",
+    "timestamp": "2026-10-31T06:10:52.198Z",
+    "correlationId": "cfa74935-3b6d-4926-9c8e-4fa8050fc9a2"
+  },
+  "generated": {
+    "intent": {
+      "standard": "nep413",
+      "payload": {
+        "message": "{\"deadline\":\"2026-11-03T06:12:51.952Z\",\"intents\":[{\"intent\":\"transfer\",\"receiver_id\":\"99a23f5bbcda9b195d01b6e3ad551cd8632c1876fb952102f14fdc52cae1fdf5\",\"tokens\":{\"imt:51e8f94d77b5e90dc9852ca6113771e11e8382ce69473a75e313e41665de7cbe:nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1\":\"10000000\"}}],\"signer_id\":\"intents.near\"}",
+        "nonce": "Vij2xgDhEPMXAHyofkB05BgAvKJgWhXgDaYm9nx0J60=",
+        "recipient": "intents.far"
+      }
+    },
+    "correlationId": "72d5d373-a0ff-44e8-9976-38327f8d855f"
+  }
+}

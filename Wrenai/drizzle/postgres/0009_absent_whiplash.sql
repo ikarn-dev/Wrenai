@@ -1,0 +1,4 @@
+ALTER TABLE "chat_agent_drafts" ALTER COLUMN "conversation_id" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "chat_agent_drafts" ALTER COLUMN "turn_id" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "chat_agent_drafts" ADD COLUMN "source_type" text DEFAULT 'chat' NOT NULL;--> statement-breakpoint
+ALTER TABLE "chat_agent_drafts" ADD CONSTRAINT "chat_draft_source_valid" CHECK (("chat_agent_drafts"."source_type" = 'chat' AND "chat_agent_drafts"."conversation_id" IS NOT NULL AND "chat_agent_drafts"."turn_id" IS NOT NULL) OR ("chat_agent_drafts"."source_type" = 'manual' AND "chat_agent_drafts"."conversation_id" IS NULL AND "chat_agent_drafts"."turn_id" IS NULL));

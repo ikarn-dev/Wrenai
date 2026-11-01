@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `agent_key_prompt_dismissed_at` integer;

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+  <title>Wrenai offline recovery</title>
+  <style>
+    :root{color-scheme:dark;--bg:#131a16;--surface:#1a231e;--fg:#f6f8f4;--muted:#b4bfb7;--line:#5c6d63;--accent:#89edc0}
+    *{box-sizing:border-box}body{margin:0;padding:32px 20px;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
+    main{max-width:640px;margin:48px auto}h1{font-size:26px;font-weight:600;letter-spacing:-.03em}p{color:var(--muted)}
+    form{display:grid;gap:20px;margin:28px 0}label{display:grid;gap:8px}input,textarea{width:100%;min-height:44px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);font:inherit}
+    textarea{font:13px/1.5 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere}button{min-height:44px;padding:10px 16px;border:0;border-radius:8px;background:var(--accent);color:var(--bg);font:inherit;font-weight:500;cursor:pointer}
+    button:disabled{cursor:wait;opacity:.6}:focus-visible{outline:2px solid var(--accent);outline-offset:4px}.actions{display:flex;gap:12px;flex-wrap:wrap}
+    #clear{color:var(--fg);background:var(--surface);border:1px solid var(--line)}[hidden]{display:none}
+  </style>
+</head>
+<body><main>
+  <h1>Recover your trading accounts</h1>
+  <p>Open this saved file on your device. It unlocks your encrypted backup without Wrenai, Vercel or an internet connection. This page makes no network requests.</p>
+  <form id="recovery-form">
+    <label>Encrypted recovery file<input id="backup" type="file" accept=".json,application/json" required></label>
+    <label>Backup password<input id="password" type="password" autocomplete="current-password" minlength="12" maxlength="1024" required></label>
+    <div class="actions"><button id="unlock" type="submit">Reveal recovery keys</button><button id="clear" type="button">Clear</button></div>
+  </form>
+  <p id="message" role="status">Keep revealed keys private. Import the NEAR key into a compatible NEAR wallet and the perps key into an EVM wallet to regain account access.</p>
+  <label id="result" hidden>Recovered account details<textarea id="keys" rows="18" readonly spellcheck="false" autocomplete="off"></textarea></label>
+</main>
+<script>
+function recoveryBytes(value) {
+  const text = value.replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from(atob(text.padEnd(Math.ceil(text.length / 4) * 4, "=")), c => c.charCodeAt(0));
+}
+async function unlockRecoveryFile(text, password) {
+  if (typeof text !== "string" || text.length > 40000 || typeof password !== "string" || password.length < 12 || password.length > 1024) { throw new Error("Invalid backup or password"); }
+  const envelope = JSON.parse(text);
+  if (envelope?.format !== "wrenai-encrypted-recovery-v1" || envelope.kdf !== "PBKDF2-SHA256" || envelope.iterations !== 600000 ||
+    typeof envelope.salt !== "string" || !/^[A-Za-z0-9_-]{22}$/.test(envelope.salt) || typeof envelope.iv !== "string" || !/^[A-Za-z0-9_-]{16}$/.test(envelope.iv) ||
+    typeof envelope.ciphertext !== "string" || envelope.ciphertext.length < 22 || envelope.ciphertext.length > 32000 || !/^[A-Za-z0-9_-]+$/.test(envelope.ciphertext)) { throw new Error("Invalid backup format"); }
+  const encoded = new TextEncoder().encode(password);
+  let base;
+  try {base = await crypto.subtle.importKey("raw", encoded, "PBKDF2", false, ["deriveKey"]);} finally {encoded.fill(0);}
+  const key = await crypto.subtle.deriveKey({name:"PBKDF2",salt:recoveryBytes(envelope.salt),iterations:600000,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["decrypt"]);
+  const plaintext = new Uint8Array(await crypto.subtle.decrypt({name:"AES-GCM",iv:recoveryBytes(envelope.iv),additionalData:new TextEncoder().encode("wrenai-mainnet-recovery:v1"),tagLength:128},key,recoveryBytes(envelope.ciphertext)));
+  try {
+    const payload = JSON.parse(new TextDecoder().decode(plaintext));
+    if (payload?.format !== "wrenai-trading-recovery-v1" || payload.network !== "mainnet" || !payload.native || !payload.perps ||
+      typeof payload.native.privateKey !== "string" || !/^ed25519:[1-9A-HJ-NP-Za-km-z]+$/.test(payload.native.privateKey) ||
+      typeof payload.perps.privateKey !== "string" || !/^0x[a-f0-9]{64}$/.test(payload.perps.privateKey)) { throw new Error("Invalid recovery payload"); }
+    return payload;
+  } finally {plaintext.fill(0);}
+}
+const form = document.getElementById("recovery-form");
+if (form) {
+  const output = document.getElementById("keys");
+  const result = document.getElementById("result");
+  const message = document.getElementById("message");
+  const password = document.getElementById("password");
+  const button = document.getElementById("unlock");
+  form.addEventListener("submit", async event => {
+    event.preventDefault(); output.value = ""; result.hidden = true;
+    const file = document.getElementById("backup").files[0];
+    if (!file || file.size > 40000) {message.textContent = "Choose a valid recovery file smaller than 40 KB."; return;}
+    button.disabled = true; message.textContent = "Unlocking on this device…";
+    try {
+      const payload = await unlockRecoveryFile(await file.text(), password.value);
+      output.value = JSON.stringify(payload, null, 2); result.hidden = false;
+      message.textContent = "Unlocked. Keep these keys private. Close or clear this page after importing them into your wallets.";
+    } catch {message.textContent = "Could not unlock this backup. Check the password and recovery file.";}
+    finally {password.value = ""; button.disabled = false;}
+  });
+  document.getElementById("clear").addEventListener("click", () => {output.value = ""; result.hidden = true; form.reset(); message.textContent = "Recovery keys cleared.";});
+}
+</script>
+</body></html>

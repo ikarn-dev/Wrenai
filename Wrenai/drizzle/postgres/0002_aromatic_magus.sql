@@ -1,0 +1,2 @@
+ALTER TABLE "execution_actions" ADD COLUMN "settlement_receipt_id" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "execution_terminal_receipt_idx" ON "execution_actions" USING btree ("user_id","scope","settlement_receipt_id");

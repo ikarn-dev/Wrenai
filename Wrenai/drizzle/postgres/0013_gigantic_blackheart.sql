@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "defi_perp_active_claim_idx" ON "defi_position_claims" USING btree ("user_id","scope","venue_id","instrument_id") WHERE "defi_position_claims"."kind" IN ('perp_long', 'perp_short') AND "defi_position_claims"."released_at" IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "defi_perp_market_idx" ON "defi_positions" USING btree ("user_id","scope","venue_id","instrument_id") WHERE "defi_positions"."kind" IN ('perp_long', 'perp_short') AND "defi_positions"."quantity_units" > 0;

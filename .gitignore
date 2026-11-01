@@ -1,0 +1,25 @@
+# Secrets: never commit
+Wrenai/.env
+.env
+.env.*
+!.env.example
+
+# Local only: planning docs, Kiro config, check scripts
+Docs/
+.kiro/
+scripts/
+
+# Dependencies and build output
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+coverage/
+
+# Local SQLite database
+Wrenai/data/
+
+# OS and editor files
+.DS_Store
+*.log

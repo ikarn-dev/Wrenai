@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1793026495688,
+      "tag": "0000_parallel_slipstream",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1793089311340,
+      "tag": "0001_broad_gideon",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793107872299,
+      "tag": "0002_clear_donald_blake",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1793200971057,
+      "tag": "0003_far_shadowcat",
+      "breakpoints": true
+    }
+  ]
+}

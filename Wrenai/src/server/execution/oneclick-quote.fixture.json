@@ -1,0 +1,59 @@
+{
+  "request": {
+    "dry": true,
+    "swapType": "EXACT_INPUT",
+    "slippageTolerance": 50,
+    "originAsset": "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+    "destinationAsset": "nep141:wrap.near",
+    "amount": "10000000",
+    "depositType": "CONFIDENTIAL_INTENTS",
+    "recipientType": "CONFIDENTIAL_INTENTS",
+    "refundType": "CONFIDENTIAL_INTENTS",
+    "recipient": "intents.near",
+    "refundTo": "intents.near",
+    "deadline": "2026-10-30T14:08:24.596Z",
+    "quoteWaitingTimeMs": 0
+  },
+  "response": {
+    "quote": {
+      "amountIn": "10000000",
+      "amountInFormatted": "10.0",
+      "amountInUsd": "9.994980000000",
+      "minAmountIn": "10000000",
+      "amountOut": "2345236655230483098591548",
+      "amountOutFormatted": "2.345236655230483098591548",
+      "amountOutUsd": "9.990708151282",
+      "minAmountOut": "2333510471954330683098590",
+      "timeEstimate": 12,
+      "refundFee": "0",
+      "withdrawFee": "0"
+    },
+    "quoteRequest": {
+      "dry": true,
+      "depositMode": "SIMPLE",
+      "swapType": "EXACT_INPUT",
+      "slippageTolerance": 50,
+      "originAsset": "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+      "depositType": "CONFIDENTIAL_INTENTS",
+      "destinationAsset": "nep141:wrap.near",
+      "amount": "10000000",
+      "refundTo": "intents.near",
+      "refundType": "CONFIDENTIAL_INTENTS",
+      "recipient": "intents.near",
+      "recipientType": "CONFIDENTIAL_INTENTS",
+      "deadline": "2026-10-30T14:08:24.596Z",
+      "confidentiality": "basic",
+      "quoteWaitingTimeMs": 0,
+      "insured": false,
+      "appFees": [
+        {
+          "recipient": "2238fd089f1c92b206c218cd16b8676cb98964e0d50f8ab729c6396a81e07805",
+          "fee": 20
+        }
+      ]
+    },
+    "signature": "ed25519:2XgQTbUd1qH4w9p3AFakZm3oDShF59E2VR7qv3d2ErDyL94iGnJy4Ujfdc5uQWqGCPMK7TX7WK4Fx9UnS6V9YbH1",
+    "timestamp": "2026-10-30T14:06:24.733Z",
+    "correlationId": "fecd9de8-b360-4ab3-8014-13d4edd905d7"
+  }
+}

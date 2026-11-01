@@ -1,0 +1,6 @@
+ALTER TABLE "execution_permissions" DROP CONSTRAINT "execution_permission_shape";--> statement-breakpoint
+ALTER TABLE "execution_fills" DROP CONSTRAINT "execution_fill_amounts_valid";--> statement-breakpoint
+ALTER TABLE "execution_permissions" ALTER COLUMN "expires_at" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "execution_fills" ALTER COLUMN "fee_micro_usd" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "execution_permissions" ADD CONSTRAINT "execution_permission_shape" CHECK ("execution_permissions"."permission_hash" ~ '^[a-f0-9]{64}$' AND ("execution_permissions"."expires_at" IS NULL OR "execution_permissions"."expires_at" > "execution_permissions"."confirmed_at") AND octet_length("execution_permissions"."permission_json") <= 16000);--> statement-breakpoint
+ALTER TABLE "execution_fills" ADD CONSTRAINT "execution_fill_amounts_valid" CHECK ("execution_fills"."input_units" > 0 AND "execution_fills"."output_units" > 0 AND "execution_fills"."input_value_micro_usd" > 0 AND ("execution_fills"."fee_micro_usd" IS NULL OR "execution_fills"."fee_micro_usd" >= 0));

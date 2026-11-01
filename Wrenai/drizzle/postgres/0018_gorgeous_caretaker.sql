@@ -1,0 +1,1 @@
+ALTER TABLE "agent_runtimes" ADD COLUMN "strategy_state_json" text;

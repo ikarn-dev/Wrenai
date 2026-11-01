@@ -1,0 +1,481 @@
+@import "tailwindcss";
+@import "lenis/dist/lenis.css";
+@import "./base.css";
+
+/* Palette: Docs/DESIGN.md → Color. Components use the semantic tokens below, never these steps. */
+:root {
+  --mint-50: #f0fcf7;
+  --mint-100: #d9f8ea;
+  --mint-200: #b3f3d5;
+  --mint-300: #89edc0;
+  --mint-400: #5fd6a4;
+  --mint-500: #3db886;
+  --mint-600: #2d9570;
+  --mint-700: #237359;
+  --mint-800: #1b5646;
+  --mint-900: #133c31;
+  --mint-950: #0c241e;
+
+  /* Neutral greys with no hue, so surfaces never tint green; mint only appears where it means something. */
+  --void-50: #f7f7f7;
+  --void-100: #ededed;
+  --void-200: #dedede;
+  --void-300: #bdbdbd;
+  --void-400: #959595;
+  --void-500: #6b6b6b;
+  --void-600: #454545;
+  --void-700: #2e2e2e;
+  --void-800: #232323;
+  --void-900: #1a1a1a;
+  --void-950: #121212;
+
+  --card-radius: 16px;
+  color-scheme: dark;
+}
+
+@media (min-width: 40rem) {
+  :root {
+    --card-radius: 20px;
+  }
+}
+
+/* Remove Tailwind's defaults so only the design system's tokens exist. */
+@theme {
+  --color-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+
+  --color-loss: #f07a72;
+  --color-loss-soft: #2a1412;
+  --color-warn: #e2b45a;
+  --color-warn-soft: #2a2211;
+
+  /* App scale follows Material 3 sizes (body 14, titles 16–22, headlines 24–28) and Butterick's
+     120–145% line spacing. Inter tracking tightens as size grows (Inter's dynamic metrics).
+     Docs/DESIGN.md → Typography. */
+  --text-display-xl: clamp(2.5rem, 1.75rem + 3.333vw, 4.75rem);
+  --text-display-xl--line-height: 1.04;
+  --text-display-xl--letter-spacing: -0.022em;
+  --text-display-xl--font-weight: 600;
+  --text-display: clamp(2rem, 1.583rem + 1.852vw, 3.25rem);
+  --text-display--line-height: 1.08;
+  --text-display--letter-spacing: -0.022em;
+  --text-display--font-weight: 600;
+  --text-h1: clamp(1.375rem, 1.25rem + 0.556vw, 1.75rem);
+  --text-h1--line-height: 1.2;
+  --text-h1--letter-spacing: -0.021em;
+  --text-h1--font-weight: 600;
+  --text-h2: clamp(1.125rem, 1.083rem + 0.185vw, 1.25rem);
+  --text-h2--line-height: 1.3;
+  --text-h2--letter-spacing: -0.017em;
+  --text-h2--font-weight: 600;
+  /* The sign-in card's headline: 24 → 28 px, up to the app's h1 cap, at a lighter weight than page titles. */
+  --text-sign-in-title: clamp(1.5rem, 1.417rem + 0.37vw, 1.75rem);
+  --text-sign-in-title--line-height: 1.2;
+  --text-sign-in-title--letter-spacing: -0.021em;
+  --text-sign-in-title--font-weight: 500;
+  --text-h3: clamp(0.9375rem, 0.917rem + 0.093vw, 1rem);
+  --text-h3--line-height: 1.4;
+  --text-h3--letter-spacing: -0.011em;
+  --text-h3--font-weight: 600;
+  --text-lead: clamp(1rem, 0.958rem + 0.185vw, 1.125rem);
+  --text-lead--line-height: 1.5;
+  --text-lead--letter-spacing: -0.011em;
+  /* lead that shrinks with its @container (cqi), so a 20-character label stays on one line in a full-width
+     lg button (40 px padding, 18 px icon): full size from a 250 px button, down to small at about 190 px. */
+  --text-lead-fit: clamp(var(--text-small), 6.5cqi, var(--text-lead));
+  --text-lead-fit--line-height: 1.5;
+  --text-lead-fit--letter-spacing: -0.011em;
+  --text-body: clamp(0.875rem, 0.854rem + 0.093vw, 0.9375rem);
+  --text-body--line-height: 1.5;
+  --text-body--letter-spacing: -0.006em;
+  --text-small: clamp(0.75rem, 0.729rem + 0.093vw, 0.8125rem);
+  --text-small--line-height: 1.45;
+  /* The floor of the scale (12 px, fixed): the one-line subtext under a popup title. */
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.45;
+  --text-eyebrow: 0.75rem;
+  --text-eyebrow--line-height: 1.4;
+  --text-eyebrow--letter-spacing: 0.08em;
+  --text-eyebrow--font-weight: 500;
+  --text-num-xl: clamp(1.5rem, 1.333rem + 0.741vw, 2rem);
+  --text-num-xl--line-height: 1.15;
+  --text-num-xl--letter-spacing: -0.02em;
+  --text-num-xl--font-weight: 500;
+  --text-num-lg: clamp(1.125rem, 1.042rem + 0.37vw, 1.375rem);
+  --text-num-lg--line-height: 1.25;
+  --text-num-lg--letter-spacing: -0.01em;
+  --text-num-lg--font-weight: 500;
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-xl: 28px;
+  /* radius-xl minus an 8px inset, for panes inside an xl container (concentric corners). */
+  --radius-inset: 20px;
+
+  --shadow-float: 0 12px 32px rgb(0 0 0 / 0.45);
+
+  /* iOS-style deceleration: fast start, long soft settle. */
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* Opacity only, so the glow stays centered and even while it breathes. */
+  --animate-glow-breathe: glow-breathe 8s ease-in-out infinite alternate;
+
+  @keyframes glow-breathe {
+    0% {
+      opacity: 0.78;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  --spacing-gutter: clamp(1rem, 0.5rem + 2.222vw, 2.5rem);
+  --spacing-section: clamp(4rem, 2.667rem + 5.926vw, 8rem);
+  --spacing-card: clamp(1rem, 0.833rem + 0.741vw, 1.5rem);
+  --spacing-stack: clamp(0.75rem, 0.625rem + 0.556vw, 1.125rem);
+
+  --container-reading: 42rem;
+  --container-landing: 75rem;
+  --container-app: 90rem;
+}
+
+@theme inline {
+  --color-bg: var(--void-900);
+  --color-surface-1: var(--void-900);
+  --color-surface-2: var(--void-800);
+  --color-surface-3: var(--void-700);
+  /* Every card (card-shine): neutral, so mint is left to actions, focus and status. Measured on void-900:
+     fg-subtle 5.93:1, loss 6.51:1, accent-text 12.58:1; the void-700 edge stands 1.50:1 off the page. */
+  --color-surface-card: var(--void-900);
+  --color-line-card: var(--void-700);
+  --color-sunken: var(--void-950);
+  --color-line-subtle: var(--void-800);
+  --color-line: var(--void-700);
+  --color-line-strong: var(--void-500);
+  --color-fg-strong: var(--void-50);
+  --color-fg: var(--void-200);
+  --color-fg-muted: var(--void-300);
+  --color-fg-subtle: var(--void-400);
+  --color-fg-disabled: var(--void-500);
+  --color-accent: var(--mint-400);
+  --color-accent-fg: var(--void-950);
+  --color-accent-text: var(--mint-300);
+  --color-accent-soft: var(--mint-950);
+  --color-accent-line: var(--mint-600);
+  --color-gain: var(--mint-400);
+  --color-texture: var(--mint-700);
+  --color-texture-hero: var(--mint-400);
+
+  --radius-lg: var(--card-radius);
+
+  /* One family for titles, text and buttons; titles differ by weight and tracking, not by typeface. */
+  --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  /* The wordmark and popup titles only (Docs/DESIGN.md → Typography → Roles). */
+  --font-rounded: var(--font-quicksand), ui-rounded, ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Visual pane (Docs/DESIGN.md → Visual pane). Lives inside its own sunken pane, never under text.
+   Two concentric ellipses share one center, so the light falls off evenly in every direction. */
+@utility glow-pane {
+  background-image:
+    radial-gradient(
+      36% 32% at 72% 64%,
+      color-mix(in oklab, var(--mint-300) 26%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      78% 68% at 72% 64%,
+      color-mix(in oklab, var(--mint-500) 30%, transparent),
+      color-mix(in oklab, var(--mint-800) 14%, transparent) 55%,
+      transparent 80%
+    );
+}
+
+/* Raised button face (Docs/DESIGN.md → Components → Buttons): the fill, its edge (inner top highlight and a faint
+   ring) and the top sheen, colored by the variant (button-glow for primary, button-soft for Later-style buttons).
+   It is a child of the button because a child can't paint below its parent's own background, and the face has to
+   sit above the lip (button-raised) and sink into it on press. */
+@utility button-face {
+  position: relative;
+  isolation: isolate;
+  border-radius: inherit;
+  background-color: var(--button-face-color);
+  box-shadow: var(--button-face-edge);
+  /* The rise after a press: fast start, long soft settle. Hover never animates the fill itself: a variant that
+     lightens on hover fades a tint layer (::after) by opacity, in step with the sheen. */
+  transition: transform 480ms var(--ease-ios);
+
+  /* Sheen: above the fill, below the label (negative z-index inside the face's stacking context). */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--mint-100) 42%, transparent),
+      transparent 62%
+    );
+    opacity: var(--button-sheen);
+    transition: opacity 560ms var(--ease-ios);
+  }
+}
+
+/* A raised button, built like a key: the face (button-face) rests on a darker lip. The element keeps the lip's
+   height below the face and draws the lip on a pseudo-element; the variant (button-glow, button-soft) sets the
+   colors. Press changes only transform, so it runs on the compositor. Every raised variant shares this, so two
+   raised buttons in a row have the same height and the same press. */
+@utility button-raised {
+  --button-lip: 4px;
+  position: relative;
+  isolation: isolate;
+  padding-bottom: var(--button-lip);
+
+  /* Lip: the face's shape one lip lower and behind it, so only its bottom edge shows, following the corners.
+     It never moves; the face sinks into it. */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: var(--button-lip) 0 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background-color: var(--button-lip-color);
+    /* A variant whose lip is close to the surface behind it outlines the lip, so its edge doesn't blend away. */
+    box-shadow: var(--button-lip-edge, none);
+  }
+
+  &:disabled::before,
+  &:disabled > .button-face::before {
+    opacity: 0;
+  }
+
+  &:disabled > .button-face {
+    background-color: var(--color-surface-2);
+    box-shadow: none;
+  }
+
+  /* Press: the face sinks fast and leaves 1 px of lip, then rises on its own slower transition. */
+  &:not(:disabled):active > .button-face {
+    transform: translateY(calc(var(--button-lip) - 1px));
+    transition-duration: 120ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &:not(:disabled):active > .button-face {
+      transform: none;
+    }
+  }
+}
+
+/* Later-style raised button (button-soft): neutral grey, so mint is left to the primary beside it. A void-600 face
+   on a void-700 lip; a top highlight and a faint grey ring outline the face, and a grey ring outlines the lip, so
+   both hold their edge on a mint card. Hover lifts the face to void-500. Measured: fg-strong 8.79:1 at rest,
+   4.90:1 on hover under the 12% sheen (the sheen stays put: more would drop the label below 4.5:1); the face stands
+   1.74:1 off the card and 1.40:1 off its lip. No glow. */
+@utility button-soft {
+  --button-face-color: var(--void-600);
+  --button-face-edge:
+    inset 0 1px 0 color-mix(in oklab, var(--void-100) 14%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--void-400) 30%, transparent);
+  --button-lip-color: var(--void-700);
+  --button-lip-edge: inset 0 0 0 1px color-mix(in oklab, var(--void-500) 50%, transparent);
+  --button-sheen: 0.12;
+
+  /* Hover tint: the void-500 face as a layer under the sheen (z-index -2 below the sheen's -1, inside the face's
+     stacking context), faded by opacity on the sheen's 560 ms, so the hover is one motion in both directions. */
+  & > .button-face::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    border-radius: inherit;
+    pointer-events: none;
+    background-color: var(--void-500);
+    opacity: 0;
+    transition: opacity 560ms var(--ease-ios);
+  }
+
+  @media (hover: hover) {
+    &:not(:disabled):hover > .button-face::after {
+      opacity: 1;
+    }
+  }
+}
+
+/* Primary raised button: the accent face on a mint-600 lip, a soft shadow below, and the hover glow and full
+   sheen, both faded by opacity only instead of repainting box-shadow. */
+@utility button-glow {
+  --button-face-color: var(--color-accent);
+  --button-face-edge:
+    inset 0 1px 0 color-mix(in oklab, var(--mint-100) 40%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--mint-300) 18%, transparent);
+  --button-lip-color: var(--mint-600);
+  --button-sheen: 0.45;
+  box-shadow: 0 4px 12px -6px color-mix(in oklab, var(--mint-400) 30%, transparent);
+
+  /* Glow: outer shadows only, which are never painted inside the box, so the face and label stay untouched.
+     Kept faint: layered spreads give a soft falloff that reaches about 14 px, well inside the 24 px gap to the
+     next line. */
+  &::after {
+    content: "";
+    position: absolute;
+    border-radius: inherit;
+    pointer-events: none;
+    inset: 0;
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--mint-300) 20%, transparent),
+      0 2px 6px -1px color-mix(in oklab, var(--mint-400) 22%, transparent),
+      0 6px 16px -6px color-mix(in oklab, var(--mint-400) 26%, transparent),
+      0 0 18px -4px color-mix(in oklab, var(--mint-500) 16%, transparent);
+    opacity: 0;
+    transition: opacity 560ms var(--ease-ios);
+  }
+
+  @media (hover: hover) {
+    &:hover::after,
+    &:hover > .button-face::before {
+      opacity: 1;
+    }
+  }
+
+  &:focus-visible::after {
+    opacity: 1;
+  }
+
+  /* Lip, sheen and face are reset by button-raised. */
+  &:disabled {
+    box-shadow: none;
+  }
+
+  &:disabled::after {
+    opacity: 0;
+  }
+}
+
+/* Sign-in page backdrop: a faint mint light along the bottom edge (the top band mirrors it). Three low-strength
+   ellipses anchored at the edge, deeper mint to the left and lighter to the right, each fading out inside its thin
+   band. No wash across the page, so the page stays black and the light reads only at the very edges. */
+@utility glow-page {
+  background-image:
+    radial-gradient(
+      50% 70% at 50% 100%,
+      color-mix(in oklab, var(--mint-300) 14%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      45% 80% at 14% 100%,
+      color-mix(in oklab, var(--mint-500) 16%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      45% 80% at 86% 100%,
+      color-mix(in oklab, var(--mint-400) 12%, transparent),
+      transparent 70%
+    );
+}
+
+/* Light badge (the network badge): a light mint label on a faint mint tint with a soft inset ring. No glow.
+   Measured: mint-200 on the 14% tint 9.54:1 over a card (surface-card), 10.5:1 over surface-1. */
+@utility badge-light {
+  background-color: color-mix(in oklab, var(--mint-400) 14%, transparent);
+  color: var(--mint-200);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--mint-300) 30%, transparent);
+}
+
+/* Hover light for a loss badge-button (Sign out): a soft red glow and a lit edge, both pre-rendered on
+   pseudo-elements and faded by opacity only, like button-glow. The edge is a 1 px gradient ring masked to the border
+   (brightest at the top, softer along the sides), drawn over the badge's resting ring. The glow reaches about 7 px,
+   inside the panel's inset, so its edge never clips it. */
+@utility badge-button-glow {
+  position: relative;
+  isolation: isolate;
+
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 560ms var(--ease-ios);
+  }
+
+  &::before {
+    padding: 1px;
+    background-image: linear-gradient(
+      170deg,
+      color-mix(in oklab, var(--color-loss) 60%, transparent),
+      color-mix(in oklab, var(--color-loss) 16%, transparent) 50%,
+      color-mix(in oklab, var(--color-loss) 34%, transparent)
+    );
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+
+  &::after {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--color-loss) 10%, transparent),
+      0 0 10px -3px color-mix(in oklab, var(--color-loss) 38%, transparent),
+      0 2px 8px -4px color-mix(in oklab, var(--color-loss) 30%, transparent);
+  }
+
+  @media (hover: hover) {
+    &:hover::before,
+    &:hover::after {
+      opacity: 1;
+    }
+  }
+
+  &:focus-visible::before,
+  &:focus-visible::after {
+    opacity: 1;
+  }
+}
+
+/* Flat panels share a neutral fill and a quiet inset edge, with no elevation or lit highlights.
+   The inset edge preserves dimensions and works inside clipped surfaces such as the account menu. */
+@utility card-shine {
+  background-color: var(--color-surface-card);
+  box-shadow: inset 0 0 0 1px var(--color-line-card);
+}
+
+/* The active nav item: a surface-2 pill lit like an iOS control. A soft top-to-bottom shine, a 1 px top highlight,
+   a faint edge and a small shadow below. All static, so nothing repaints; the label stays fg-strong (above 12:1). */
+@utility nav-active {
+  background-color: var(--color-surface-2);
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--void-50) 8%, transparent),
+    transparent 75%
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--void-50) 12%, transparent),
+    inset 0 0 0 1px color-mix(in oklab, var(--void-50) 6%, transparent),
+    0 1px 2px rgb(0 0 0 / 0.45);
+}
+
+/* Dot grid (Docs/DESIGN.md → Dot grid): 1 px void-700 dots every 16 px, fading out toward the edges. Decoration for
+   empty states and showcase panes only; never behind text in tables or forms. */
+@utility dot-grid {
+  background-image: radial-gradient(circle, var(--void-700) 1px, transparent 1.2px);
+  background-size: 16px 16px;
+  background-position: center;
+  mask-image: radial-gradient(70% 70% at 50% 50%, black 40%, transparent 100%);
+}
+
+/* Halftone fades toward every edge, strongest where the glow is. */
+@utility fade-radial-end {
+  mask-image: radial-gradient(85% 80% at 72% 64%, black 30%, transparent 78%);
+}
