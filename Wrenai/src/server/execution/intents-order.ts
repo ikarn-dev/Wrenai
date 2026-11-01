@@ -7,6 +7,7 @@ import { executionActions, executionEvents } from "@/server/db/execution-schema"
 import { users } from "@/server/db/schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import { readUserRiskPolicy } from "@/server/guard/user-policy";
+import { copyEvidenceSchema } from "@/server/research/explorer-contracts";
 import { parseUsd, policySchema } from "@/shared/agents";
 import { positiveTokenUnitsSchema } from "@/shared/token-units";
 import { ExecutionError, executionPlanSchema } from "./contracts";
@@ -32,7 +33,8 @@ export const swapSignalSchema = z.strictObject({
     .regex(/^nep141:[^\s:*]+$/),
   inputUnits: positiveTokenUnitsSchema,
   referenceInputMicroUsd: positiveTokenUnitsSchema.optional(),
-  purpose: z.enum(["trigger_entry", "trigger_exit"]).optional(),
+  purpose: z.enum(["trigger_entry", "trigger_exit", "copy_trade"]).optional(),
+  copyTrade: copyEvidenceSchema.optional(),
   referenceOutputPriceMicroUsd: positiveTokenUnitsSchema.optional(),
   outputDecimals: z.number().int().min(0).max(36).optional(),
 });
@@ -96,6 +98,13 @@ export async function prepareSwapExecution(
     throw new ExecutionError("not_ready", "A current running agent is required for execution.");
   }
   const policy = policySchema.parse(JSON.parse(agent.policyJson));
+  if (
+    agent.pack === "copy_trading"
+      ? signal.purpose !== "copy_trade" || signal.copyTrade === undefined
+      : signal.purpose === "copy_trade" || signal.copyTrade !== undefined
+  ) {
+    throw new ExecutionError("not_ready", "The strategy requires its own verified execution signal.");
+  }
   await checkStrategyAssets(db, {
     agentId: agent.id,
     strategyVersion: agent.version,

@@ -36,6 +36,22 @@ export function StrategySummary({ strategy }: { readonly strategy: Strategy }): 
           <Detail label="Drift band">{strategy.driftBps / 100}%</Detail>
           <Detail label="Check interval">{strategy.intervalSeconds} seconds</Detail>
         </>
+      ) : strategy.kind === "copy_trading" ? (
+        <>
+          <Detail label="Public leader">{strategy.leaderAccountId}</Detail>
+          <Detail label="Reviewed assets">{strategy.assets.join(" / ")}</Detail>
+          <Detail label="Copy size">{formatExactMicroUsd(parseUsd(strategy.orderSizeUsd))}</Detail>
+          <Detail label="Maximum signal age">
+            <span className="font-mono tabular-nums">{strategy.maxSignalAgeSeconds}</span> seconds
+          </Detail>
+          <Detail label="Maximum price deviation">
+            <span className="font-mono tabular-nums">{strategy.maxPriceDeviationBps}</span> bps
+          </Detail>
+          <Detail label="Check interval">60 seconds · best effort</Detail>
+          <Detail label="Expires (UTC)">
+            {new Date(strategy.expiresAt).toISOString().slice(0, 16).replace("T", " ")}
+          </Detail>
+        </>
       ) : (
         <>
           <Detail label="Trading pair">

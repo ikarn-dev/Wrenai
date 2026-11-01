@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { strategyVersions } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
-import { type Strategy, strategySchema, symbolSchema } from "@/shared/agents";
+import { strategySchema, strategySymbols, symbolSchema } from "@/shared/agents";
 import { ExecutionError, type ExecutionPlan, hashSchema } from "./contracts";
 import { executionHash } from "./records";
 
@@ -25,14 +25,6 @@ const bindingsSchema = z.strictObject({
     .max(6),
 });
 
-function strategySymbols(strategy: Strategy): ReadonlySet<string> {
-  return new Set(
-    strategy.kind === "rebalancer"
-      ? strategy.targets.map((target) => target.symbol)
-      : [strategy.asset, strategy.quoteAsset],
-  );
-}
-
 /** Canonical IDs must be resolved by the verified provider/strategy review path, never by a proposal. */
 export async function checkStrategyAssets(
   db: AppDatabase,
@@ -53,7 +45,7 @@ export async function checkStrategyAssets(
   }
   const strategy = strategySchema.parse(JSON.parse(version.configJson));
   const bindings = bindingsSchema.parse(JSON.parse(version.resolvedAssetsJson));
-  const symbols = strategySymbols(strategy);
+  const symbols = new Set(strategySymbols(strategy));
   const assetIds = new Set(bindings.assets.map((asset) => asset.assetId));
   if (
     bindings.strategyHash !== executionHash(strategy) ||

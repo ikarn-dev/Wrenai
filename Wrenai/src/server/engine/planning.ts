@@ -1,17 +1,22 @@
 import "server-only";
+import { and, eq } from "drizzle-orm";
 import type { z } from "zod";
 import type { agentRuntimes } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
+import { executionActions } from "@/server/db/execution-schema";
 import { type currentAgentStrategy, resolvedTradeAssets } from "@/server/execution/asset-review";
 import { ExecutionError } from "@/server/execution/contracts";
 import type { swapSignalSchema } from "@/server/execution/intents-order";
 import { synchronizePrivateInventory } from "@/server/execution/private-inventory";
 import { unreservedOwnedUnits } from "@/server/positions/lots";
+import { publicLeaderFeed } from "@/server/research/explorer";
 import { intentTokens } from "@/server/research/intents";
 import { policySchema } from "@/shared/agents";
+import { copyDecision, copyRequestId, copyStateSchema, INITIAL_COPY_STATE } from "./copy";
 import { freshMarketPrice } from "./market-price";
 import { type PricedHolding, rebalanceSignal } from "./rebalance";
-import { INITIAL_TRIGGER_STATE, type TriggerState, triggerDecision, triggerStateSchema } from "./trigger";
+import type { RuntimeStrategyState } from "./strategy-state";
+import { INITIAL_TRIGGER_STATE, triggerDecision, triggerStateSchema } from "./trigger";
 import { applyTriggerReceipt } from "./trigger-receipt";
 
 export interface StrategyCheckPlan {
@@ -21,7 +26,8 @@ export interface StrategyCheckPlan {
   > | null;
   readonly intervalSeconds: number;
   readonly reason: string;
-  readonly progress?: { readonly triggerState: TriggerState; readonly completed: boolean };
+  readonly requestId?: string;
+  readonly progress?: { readonly strategyState: RuntimeStrategyState; readonly completed: boolean };
 }
 type CurrentStrategy = Awaited<ReturnType<typeof currentAgentStrategy>>;
 
@@ -87,6 +93,55 @@ export async function planStrategyCheck(
       reason: "Within the reviewed allocation band.",
     };
   }
+  if (current.strategy.kind === "copy_trading") {
+    const state =
+      runtime.strategyStateJson === null
+        ? INITIAL_COPY_STATE
+        : copyStateSchema.parse(JSON.parse(runtime.strategyStateJson));
+    const readings =
+      Date.now() >= Date.parse(current.strategy.expiresAt)
+        ? null
+        : await Promise.allSettled([publicLeaderFeed(), ownedHoldings(db, current)]);
+    const feed = readings?.[0],
+      holdings = readings?.[1];
+    if (feed?.status === "rejected") {
+      if (feed.reason instanceof ExecutionError) {
+        throw feed.reason;
+      }
+      throw new ExecutionError("not_ready", "The public leader feed is unavailable.");
+    }
+    if (holdings?.status === "rejected") {
+      throw new ExecutionError("not_ready", "The follower's allocated holdings could not be refreshed.");
+    }
+    const decision = copyDecision(
+      current.strategy,
+      policy,
+      state,
+      feed?.status === "fulfilled" ? feed.value : { capturedAt: Date.now(), swaps: [] },
+      holdings?.status === "fulfilled" ? holdings.value : [],
+      runtime.createdAt,
+      Date.now(),
+    );
+    const request = decision.signal
+      ? copyRequestId(current.agent.id, current.agent.version, decision.signal.copyTrade.eventId)
+      : undefined;
+    const [existing] = request
+      ? await db
+          .select({ id: executionActions.id })
+          .from(executionActions)
+          .where(
+            and(eq(executionActions.userId, current.agent.userId), eq(executionActions.requestId, request)),
+          )
+          .limit(1)
+      : [];
+    return {
+      signal: existing ? null : decision.signal,
+      ...(request ? { requestId: request } : {}),
+      intervalSeconds: 60,
+      reason: existing ? "This leader swap already has a follower execution record." : decision.reason,
+      progress: { strategyState: decision.state, completed: decision.completed },
+    };
+  }
   const strategy = current.strategy;
   const state =
     runtime.strategyStateJson === null
@@ -106,7 +161,7 @@ export async function planStrategyCheck(
       signal: null,
       intervalSeconds: 5,
       reason: "The last trigger order is reconciled.",
-      progress: { triggerState: receipt, completed: receipt.phase === "completed" },
+      progress: { strategyState: receipt, completed: receipt.phase === "completed" },
     };
   }
   if (state.phase === "completed") {
@@ -114,7 +169,7 @@ export async function planStrategyCheck(
       signal: null,
       intervalSeconds: 5,
       reason: "The reviewed trigger strategy has completed.",
-      progress: { triggerState: state, completed: true },
+      progress: { strategyState: state, completed: true },
     };
   }
   const holdings = await ownedHoldings(db, current);
@@ -133,6 +188,6 @@ export async function planStrategyCheck(
     signal: decision.signal,
     intervalSeconds: 5,
     reason: decision.reason,
-    progress: { triggerState: decision.state, completed: decision.state.phase === "completed" },
+    progress: { strategyState: decision.state, completed: decision.state.phase === "completed" },
   };
 }

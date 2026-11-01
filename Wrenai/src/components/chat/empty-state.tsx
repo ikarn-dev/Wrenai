@@ -1,5 +1,6 @@
 import { ArrowLeftRight, Sprout, Wallet } from "lucide-react";
 import type { ReactElement } from "react";
+import { JarvisMark } from "./jarvis-mark";
 
 const PROMPTS = [
   {
@@ -22,19 +23,28 @@ const PROMPTS = [
   },
 ] as const;
 
+// Docs/DESIGN.md → Jarvis → Empty state: the mark, one title, one line on what Jarvis can do, three prompts.
 export function ChatEmptyState({ onPrompt }: { readonly onPrompt: (prompt: string) => void }): ReactElement {
   return (
-    <div className="mx-auto flex w-full max-w-reading flex-col items-center gap-6 px-1 pt-6 pb-5 sm:gap-8 sm:pb-6">
-      <h2 className="text-center text-h1 font-medium text-fg-strong">How can I help?</h2>
-      <div className="flex flex-wrap justify-center gap-2">
+    <div className="mx-auto flex w-full max-w-reading flex-col items-center px-1 pt-6 pb-8 text-center">
+      <JarvisMark size={44} />
+      <h2 className="mt-5 text-h1">How can I help?</h2>
+      <p className="mt-1.5 text-small text-fg-muted">Ask about your wallet, agents, yields and quotes.</p>
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
         {PROMPTS.map(({ icon: Icon, title, prompt }) => (
           <button
             key={title}
             type="button"
             onClick={() => onPrompt(prompt)}
-            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-line-subtle px-4 text-small text-fg-muted transition-colors hover:border-line-strong hover:bg-surface-2 hover:text-fg-strong"
+            className="inline-flex h-9 cursor-pointer items-center gap-2 card-shine rounded-full px-3.5 text-small text-fg transition-[color,scale] duration-200 ease-ios hover:text-fg-strong active:scale-97 motion-reduce:active:scale-100 pointer-coarse:h-11"
           >
-            <Icon size={16} strokeWidth={1.5} aria-hidden="true" />
+            <Icon
+              size={15}
+              strokeWidth={1.75}
+              absoluteStrokeWidth
+              aria-hidden="true"
+              className="text-accent-text"
+            />
             {title}
           </button>
         ))}

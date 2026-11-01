@@ -102,7 +102,7 @@ describe("database-fenced durable agent lifecycle", () => {
     }
     const state = { ...INITIAL_TRIGGER_STATE, lastMarketAt: Date.now(), phase: "completed" as const };
     await finishStrategyCheck(context.db, id, claim.token, Date.now() + 5000, "Completed.", false, {
-      triggerState: state,
+      strategyState: state,
       completed: true,
     });
     expect((await readAgentRuntime(context.db, id))?.strategyStateJson).toBe(JSON.stringify(state));

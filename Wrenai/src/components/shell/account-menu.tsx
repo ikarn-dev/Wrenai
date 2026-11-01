@@ -25,7 +25,7 @@ const EASE_IOS: [number, number, number, number] = [0.32, 0.72, 0, 1];
 const MORPH: Transition = { duration: 0.42, ease: EASE_IOS };
 // Animated through Motion, so the corners stay true while the surface is scaled mid-morph. Closed: a full pill
 // (half the 36 px height). Open: 16 px, so the 6 px inset blocks inside use radius-sm (concentric corners).
-const RADIUS_CLOSED = 18;
+const RADIUS_CLOSED = 16;
 const RADIUS_OPEN = 16;
 
 const KEY_STATUS: Readonly<Record<AgentKeyStatus, { readonly label: string; readonly tone: BadgeTone }>> = {
@@ -90,7 +90,7 @@ function AccountPanel({ id, accountId, agentKey, copy, onCopy, onNavigate }: Pan
   return (
     <div id={id} className="flex flex-col gap-3 p-1.5 pt-0">
       {/* The trigger sits over the right of this row, so the open panel's header is the pill itself. */}
-      <div className="flex h-9 items-center px-1.5">
+      <div className="flex h-8 items-center px-1.5">
         <Badge tone="light" dot>
           Mainnet
         </Badge>
@@ -191,7 +191,7 @@ export function AccountMenu(props: AccountMenuProps) {
             aria-expanded={open}
             aria-controls={open ? panelId : undefined}
             onClick={toggle}
-            className="relative z-10 inline-flex h-9 min-w-0 cursor-pointer items-center gap-1.5 rounded-full pr-2.5 pl-3"
+            className="relative z-10 inline-flex h-8 min-w-0 cursor-pointer items-center gap-1.5 rounded-full pr-2.5 pl-3"
           >
             <AccountLabel accountId={props.accountId} />
             <ChevronDown

@@ -7,6 +7,7 @@ import { NewAgentSetup } from "@/components/agents/new-setup";
 import { requireUser } from "@/server/auth/session";
 import { readAgentSetup } from "@/server/chat/agent-drafts";
 import { database } from "@/server/db/client";
+import { packSchema } from "@/shared/agents";
 import { researchToolSchema } from "@/shared/research";
 
 export const metadata: Metadata = { title: "New agent" };
@@ -22,8 +23,9 @@ export default async function NewAgentPage({
   const id = z.uuid().safeParse(query.setup);
   if (id.success) {
     const draft = await readAgentSetup(database(), user.id, id.data);
-    if (draft.tool === "rebalancer" || draft.tool === "triggers") {
-      return <AgentEditor setup={{ pack: draft.tool, brief: draft.brief }} />;
+    const pack = packSchema.safeParse(draft.tool);
+    if (pack.success) {
+      return <AgentEditor setup={{ pack: pack.data, brief: draft.brief }} />;
     }
     redirect(`/agents/setup/${id.data}`);
   }

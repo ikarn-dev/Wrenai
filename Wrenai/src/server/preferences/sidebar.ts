@@ -1,24 +1,11 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { serverEnv } from "@/server/env";
+import { SIDEBAR_COOKIE } from "@/shared/sidebar";
 
-// A display preference, not a secret: the server reads it to render the sidebar at the right width on first paint,
-// so a reload never flashes the wide sidebar before it collapses.
-const SIDEBAR_COOKIE = "wrenai_sidebar";
-const ONE_YEAR_S = 365 * 24 * 60 * 60;
-
-/** True when the user collapsed the sidebar to icons. */
+/**
+ * True when the user collapsed the sidebar to icons. The browser writes this display preference itself (no server
+ * request that could fail); the server only reads it to render the right width on first paint.
+ */
 export async function readSidebarCollapsed(): Promise<boolean> {
   return (await cookies()).get(SIDEBAR_COOKIE)?.value === "collapsed";
-}
-
-/** Call only from a Server Action. */
-export async function writeSidebarCollapsed(collapsed: boolean): Promise<void> {
-  (await cookies()).set(SIDEBAR_COOKIE, collapsed ? "collapsed" : "expanded", {
-    httpOnly: true,
-    secure: serverEnv().secureCookies,
-    sameSite: "lax",
-    path: "/",
-    maxAge: ONE_YEAR_S,
-  });
 }

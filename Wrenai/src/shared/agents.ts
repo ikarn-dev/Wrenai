@@ -4,11 +4,15 @@ import { AGENT_CATALOG } from "./agent-catalog";
 export const PACKS = {
   rebalancer: { label: AGENT_CATALOG.rebalancer.name, description: AGENT_CATALOG.rebalancer.description },
   triggers: { label: AGENT_CATALOG.triggers.name, description: AGENT_CATALOG.triggers.description },
+  copy_trading: {
+    label: AGENT_CATALOG.copy_trading.name,
+    description: AGENT_CATALOG.copy_trading.description,
+  },
 } as const;
 
 export const symbolSchema = z.enum(["NEAR", "BTC", "ETH", "SOL", "USDC", "USDT"]);
 export type AssetSymbol = z.infer<typeof symbolSchema>;
-export const packSchema = z.enum(["rebalancer", "triggers"]);
+export const packSchema = z.enum(["rebalancer", "triggers", "copy_trading"]);
 export const approvalSchema = z.enum(["autonomous", "above_size", "every_action"]);
 export const statusSchema = z.enum(["paused", "running", "stopped", "error"]);
 
@@ -55,7 +59,24 @@ const triggersSchema = z.strictObject({
   rearm: z.boolean(),
 });
 
-const strategyFieldsSchema = z.discriminatedUnion("kind", [rebalancerSchema, triggersSchema]);
+const copyTradingSchema = z.strictObject({
+  kind: z.literal("copy_trading"),
+  leaderAccountId: z
+    .string()
+    .min(2)
+    .max(64)
+    .regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/),
+  assets: z.array(symbolSchema).min(2).max(6),
+  orderSizeUsd: usdInputSchema,
+  maxSignalAgeSeconds: z.number().int().min(60).max(600),
+  maxPriceDeviationBps: z.number().int().min(0).max(500),
+  expiresAt: z.iso.datetime(),
+});
+const strategyFieldsSchema = z.discriminatedUnion("kind", [
+  rebalancerSchema,
+  triggersSchema,
+  copyTradingSchema,
+]);
 // Object-level refinements can run after a child reports a continuable error. A pipeline keeps
 // all financial comparisons behind complete structural and decimal validation.
 export const strategySchema = strategyFieldsSchema.pipe(
@@ -67,7 +88,7 @@ export const strategySchema = strategyFieldsSchema.pipe(
       if (config.targets.reduce((sum, target) => sum + target.weightBps, 0) !== 10_000) {
         context.addIssue({ code: "custom", message: "Allocation targets must total 100%." });
       }
-    } else {
+    } else if (config.kind === "triggers") {
       const entry = parseUsd(config.triggerPriceUsd);
       if (config.takeProfitPriceUsd !== null && parseUsd(config.takeProfitPriceUsd) <= entry) {
         context.addIssue({ code: "custom", message: "Take profit must be above the entry price." });
@@ -75,10 +96,27 @@ export const strategySchema = strategyFieldsSchema.pipe(
       if (config.stopLossPriceUsd !== null && parseUsd(config.stopLossPriceUsd) >= entry) {
         context.addIssue({ code: "custom", message: "Stop loss must be below the entry price." });
       }
+    } else if (new Set(config.assets).size !== config.assets.length) {
+      context.addIssue({ code: "custom", message: "Each copied asset can be listed only once." });
     }
   }),
 );
 export type Strategy = z.infer<typeof strategySchema>;
+
+export function strategySymbols(strategy: Strategy): readonly AssetSymbol[] {
+  switch (strategy.kind) {
+    case "rebalancer":
+      return strategy.targets.map((target) => target.symbol);
+    case "triggers":
+      return [strategy.asset, strategy.quoteAsset];
+    case "copy_trading":
+      return strategy.assets;
+    default: {
+      const unreachable: never = strategy;
+      return unreachable;
+    }
+  }
+}
 
 const policyFieldsSchema = z.strictObject({
   budgetUsd: usdInputSchema,

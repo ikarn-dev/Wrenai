@@ -78,6 +78,12 @@ export default async function AgentPage({
           can miss moves during worker or provider outages.
         </p>
       ) : null}
+      {agent.pack === "copy_trading" ? (
+        <p className="text-small text-fg-muted">
+          Copies supported public NEAR-origin 1Click swaps at best-effort one-minute checks. Private,
+          unrelated, stale and unexecutable activity is skipped. This is not a complete wallet-history feed.
+        </p>
+      ) : null}
       <AgentRuntimePanel
         agent={agent}
         ownerId={user.id}

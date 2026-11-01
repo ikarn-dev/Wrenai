@@ -25,7 +25,8 @@ export function AgentPerformanceCard({ agents }: { readonly agents: readonly Age
         </Link>
       }
     >
-      <div data-lenis-prevent className="flex-1 overflow-x-auto">
+      {/* Sideways only, so no data-lenis-prevent: it would contain vertical wheels and stop the page. */}
+      <div className="flex-1 overflow-x-auto">
         <table className="h-full w-full min-w-sm border-collapse text-body">
           <caption className="sr-only">Your agents. Performance needs recorded fills.</caption>
           <thead className="h-8">

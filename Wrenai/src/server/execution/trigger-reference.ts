@@ -8,7 +8,7 @@ import { INITIAL_TRIGGER_STATE, triggerStateSchema } from "@/server/engine/trigg
 import { intentTokens } from "@/server/research/intents";
 import { parseUsd, policySchema } from "@/shared/agents";
 import type { TradeQuote } from "@/shared/trade-preview";
-import { currentAgentStrategy, resolvedTradeAssets } from "./asset-review";
+import { type currentAgentStrategy, resolvedTradeAssets } from "./asset-review";
 import { ExecutionError } from "./contracts";
 import type { preparedOrderSchema } from "./intents-order";
 import type { ExecutionAction } from "./records";
@@ -19,14 +19,14 @@ export async function triggerSubmissionCheck(
   action: ExecutionAction,
   prepared: z.infer<typeof preparedOrderSchema>,
   quote: TradeQuote,
+  current: Awaited<ReturnType<typeof currentAgentStrategy>>,
 ): Promise<(() => void) | null> {
-  const current = await currentAgentStrategy(db, action.userId, action.agentId, action.agentRevision);
   if (current.strategy.kind !== "triggers") {
     return null;
   }
   const strategy = current.strategy;
   const signal = prepared.signal;
-  if (!signal?.purpose) {
+  if (signal?.purpose !== "trigger_entry" && signal?.purpose !== "trigger_exit") {
     throw new ExecutionError("not_ready", "This trigger is missing its immutable entry or exit instruction.");
   }
   const { tokens } = await intentTokens();

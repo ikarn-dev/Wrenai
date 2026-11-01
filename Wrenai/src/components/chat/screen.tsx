@@ -1,14 +1,23 @@
 "use client";
 
-import { ArrowDown, History, Info, Orbit, Plus, X } from "lucide-react";
+import { ArrowDown, History, Info, Plus, X } from "lucide-react";
 import { AlertDialog, Dialog, Popover, ScrollArea } from "radix-ui";
-import { type ReactElement, useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
+import {
+  type ReactElement,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { loadChatHistory, removeConversation } from "@/server/chat/actions";
 import { type Conversation, type ConversationSummary, MAX_CHAT_TURNS } from "@/shared/chat";
 import { ChatComposer } from "./composer";
 import { ChatEmptyState } from "./empty-state";
 import { ChatHistory } from "./history";
+import { JarvisMark } from "./jarvis-mark";
 import { ChatMessage } from "./message";
 import { useChat } from "./use-chat";
 
@@ -160,7 +169,8 @@ export function ChatScreen({
       aria-label="Jarvis chat"
       className="flex h-[calc(100dvh-12rem-env(safe-area-inset-bottom))] min-h-96 min-w-0 gap-6 lg:h-[calc(100dvh-9rem)] xl:gap-8"
     >
-      <aside className="hidden w-56 shrink-0 border-r border-line-subtle pr-5 xl:block">
+      {/* History is a card like the Portfolio cards; the thread sits on the page beside it, no divider line. */}
+      <aside className="hidden w-64 shrink-0 card-shine rounded-lg p-2 xl:block">
         <ChatHistory {...historyProps} />
       </aside>
       <div className="relative flex min-w-0 flex-1 flex-col">
@@ -176,8 +186,11 @@ export function ChatScreen({
                   : ""}
         </span>
         <header className="flex min-h-12 shrink-0 items-center gap-2.5 pb-2">
-          <Orbit size={20} strokeWidth={1.5} className="shrink-0 text-accent-text" aria-hidden="true" />
-          <h1 className="text-body font-medium">Jarvis</h1>
+          <JarvisMark size={24} />
+          <div className="flex min-w-0 flex-col">
+            <h1 className="text-h3">Jarvis</h1>
+            <p className="text-caption text-fg-subtle">Read-only assistant</p>
+          </div>
           <div className="ml-auto flex items-center gap-1">
             <Popover.Root>
               <Popover.Trigger asChild>
@@ -357,7 +370,7 @@ export function ChatScreen({
                   setFollowing(true);
                   scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "instant" });
                 }}
-                className="absolute bottom-full left-1/2 mb-3 -translate-x-1/2 inline-flex size-11 cursor-pointer items-center justify-center rounded-full border border-line-strong bg-surface-1 text-fg-muted hover:text-fg-strong"
+                className="absolute bottom-full left-1/2 mb-3 inline-flex size-9 -translate-x-1/2 cursor-pointer items-center justify-center card-shine rounded-full text-fg-muted transition-colors duration-200 ease-ios hover:text-fg-strong pointer-coarse:size-11"
               >
                 <ArrowDown size={18} aria-hidden="true" />
               </button>

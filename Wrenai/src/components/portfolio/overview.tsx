@@ -1,13 +1,21 @@
-import { ChartNoAxesCombined, Wallet, Waypoints } from "lucide-react";
+import { ChartNoAxesCombined, MessageCircle, ShieldCheck, Wallet, Waypoints } from "lucide-react";
 import type { ReactElement } from "react";
 import type { WalletBalanceReading } from "@/server/portfolio/wallet-balance";
 import type { AgentSummary } from "@/shared/agents";
+import type { UserRiskPolicyRecord } from "@/shared/risk-policy";
+import type { TelegramLinkState } from "@/shared/telegram";
 import { StatTile } from "./panel";
 import { NearAmount, ReadTime } from "./wallet-cards";
 
 interface PortfolioOverviewProps {
   readonly wallet: WalletBalanceReading;
   readonly agents: readonly AgentSummary[];
+  readonly riskPolicy: UserRiskPolicyRecord | null;
+  readonly telegram: TelegramLinkState;
+}
+
+function Quiet({ children }: { readonly children: string }): ReactElement {
+  return <span className="text-fg-muted">{children}</span>;
 }
 
 function agentCount(agents: readonly AgentSummary[]): string {
@@ -18,17 +26,44 @@ function agentCount(agents: readonly AgentSummary[]): string {
   return `${running} of ${agents.length} running`;
 }
 
+function telegramValue(telegram: TelegramLinkState): ReactElement {
+  switch (telegram.kind) {
+    case "linked":
+      return (
+        <>
+          {telegram.account.username === null ? telegram.account.firstName : `@${telegram.account.username}`}
+        </>
+      );
+    case "waiting":
+    case "confirm":
+      return <Quiet>Finishing link</Quiet>;
+    case "unlinked":
+      return <Quiet>Not connected</Quiet>;
+    case "unavailable":
+      return <Quiet>Unavailable</Quiet>;
+    default: {
+      const unhandled: never = telegram;
+      throw new Error(`Unhandled Telegram state: ${String(unhandled)}`);
+    }
+  }
+}
+
 /**
- * The three facts a user checks first: what's in the wallet, what the agents are doing, and how they've done.
- * Trading access lives in the pane beside this, so it isn't repeated. The grid stretches to the pane's height.
+ * What a user checks first: the wallet, then four facts in a 2×2 grid (agents, PnL, the spending limit every
+ * agent trades inside, and whether Telegram alerts reach them). Trading access lives in the pane beside this.
  */
-export function PortfolioOverview({ wallet, agents }: PortfolioOverviewProps): ReactElement {
+export function PortfolioOverview({
+  wallet,
+  agents,
+  riskPolicy,
+  telegram,
+}: PortfolioOverviewProps): ReactElement {
   return (
     <div className="grid content-start gap-stack sm:grid-cols-2">
       <div className="sm:col-span-2">
         <StatTile icon={Wallet} label="NEAR wallet" meta={<ReadTime reading={wallet} />}>
           {wallet.kind === "unavailable" ? (
-            <span className="text-fg-muted">Unavailable</span>
+            <Quiet>Unavailable</Quiet>
           ) : (
             <NearAmount amount={wallet.kind === "balance" ? wallet.yocto : 0n} large />
           )}
@@ -38,7 +73,13 @@ export function PortfolioOverview({ wallet, agents }: PortfolioOverviewProps): R
         {agentCount(agents)}
       </StatTile>
       <StatTile icon={ChartNoAxesCombined} label="Net PnL" meta="From recorded fills">
-        <span className="text-fg-muted">No trades yet</span>
+        <Quiet>No trades yet</Quiet>
+      </StatTile>
+      <StatTile icon={ShieldCheck} label="Daily limit" meta="Shared by all your agents">
+        {riskPolicy === null ? <Quiet>Not set</Quiet> : `$${riskPolicy.policy.dailyCapUsd} per day`}
+      </StatTile>
+      <StatTile icon={MessageCircle} label="Telegram" meta="Alerts and approvals">
+        {telegramValue(telegram)}
       </StatTile>
     </div>
   );

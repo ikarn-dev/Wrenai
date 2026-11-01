@@ -33,7 +33,16 @@ export function AgentRuntimePanel({
       }
       return result.value;
     },
-    refetchInterval: 5000,
+    refetchInterval: (query) => {
+      const state = query.state.data;
+      return state?.agent.status === "running" ||
+        state?.runtime?.state === "starting" ||
+        state?.pending.length
+        ? 5000
+        : 60_000;
+    },
+    staleTime: 5000,
+    refetchOnWindowFocus: true,
     refetchIntervalInBackground: false,
     retry: false,
   });

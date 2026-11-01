@@ -16,9 +16,13 @@ export const AGENT_CATALOG = {
   },
   copy_trading: {
     name: "Copy Trading Agent",
-    description: "Evaluate a public wallet before choosing activity to follow.",
+    description: "Copy confirmed public NEAR-origin 1Click swaps within your reviewed assets and limits.",
     prompt: "Help me evaluate a public trading account, including evidence gaps and follower costs.",
-    fields: ["Public leader account", "Trades or assets to follow", "Maximum copied size and exit rules"],
+    fields: [
+      "Public NEAR leader and assets to follow",
+      "Fixed copy size in USD",
+      "Signal-age limit, price deviation and expiry",
+    ],
   },
   yield_optimizer: {
     name: "Yield Agent",

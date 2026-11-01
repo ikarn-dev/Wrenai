@@ -29,7 +29,8 @@ describe("read-only chat input and context boundaries", () => {
     const prompt = chatPrompt([], text, null, 1_000);
     expect(prompt.messages.at(-1)).toEqual({ role: "user", content: text });
     expect(prompt.messages[0]?.content).toContain("cannot execute");
-    expect(prompt.messages[0]?.content).toContain("Live agent execution is not connected");
+    expect(prompt.messages[0]?.content).toContain("Chat never activates or executes an agent");
+    expect(prompt.messages[0]?.content).toContain("Copy Trading requires Explorer access");
     expect(prompt.messages[0]?.content).toContain("backend processes plaintext");
     expect(prompt.messages[0]?.content).toContain("No fresh account context");
     expect(prompt.messages.filter((message) => message.role === "system")).toHaveLength(1);

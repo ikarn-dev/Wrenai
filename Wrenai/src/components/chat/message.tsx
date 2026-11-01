@@ -1,7 +1,8 @@
-import { Orbit, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { memo, type ReactElement } from "react";
 import type { ChatTurn } from "@/shared/chat";
 import { CopyButton } from "./copy-button";
+import { JarvisMark } from "./jarvis-mark";
 import { ChatMarkdown } from "./markdown";
 import { ResearchCards } from "./research-cards";
 
@@ -50,7 +51,7 @@ export const ChatMessage = memo(function ChatMessage({
       </div>
       {reply || pending ? (
         <div className="flex min-w-0 gap-3 sm:gap-4">
-          <Orbit size={20} strokeWidth={1.5} aria-hidden="true" className="mt-1 shrink-0 text-accent-text" />
+          <JarvisMark size={20} className="mt-0.5" />
           <div className="min-w-0 flex-1">
             <ChatMarkdown content={reply?.content ?? pending?.content ?? ""} />
             <div className="mt-2 flex min-h-11 flex-wrap items-start gap-3">

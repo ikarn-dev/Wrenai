@@ -12,7 +12,7 @@ import { userTransaction } from "@/server/db/user-transaction";
 import { ExecutionError } from "@/server/execution/contracts";
 import { databaseTime, executionHash } from "@/server/execution/records";
 import type { agentCommandSchema } from "@/shared/agents";
-import { triggerStateSchema } from "./trigger";
+import { hasOpenTriggerPosition, runtimeStrategyStateSchema } from "./strategy-state";
 
 export async function prepareAgentRuntime(
   db: AppDatabase,
@@ -58,7 +58,7 @@ export async function prepareAgentRuntime(
       existing?.strategyStateJson !== null &&
       existing?.strategyStateJson !== undefined &&
       existing.strategyVersion !== agent.version &&
-      triggerStateSchema.parse(JSON.parse(existing.strategyStateJson)).phase === "holding"
+      hasOpenTriggerPosition(existing.strategyStateJson)
     ) {
       throw new AgentError(
         "not_ready",
@@ -203,7 +203,7 @@ export async function finishStrategyCheck(
   nextCheckAt: number,
   reason: string,
   failed: boolean,
-  progress?: { readonly triggerState: unknown; readonly completed: boolean },
+  progress?: { readonly strategyState: unknown; readonly completed: boolean },
 ): Promise<void> {
   const initial = await readAgentRuntime(db, activationId);
   if (!initial) {
@@ -231,7 +231,7 @@ export async function finishStrategyCheck(
         leaseExpiresAt: null,
         state: failures >= 3 ? "blocked" : complete ? "stopped" : runtime.state,
         ...(progress
-          ? { strategyStateJson: JSON.stringify(triggerStateSchema.parse(progress.triggerState)) }
+          ? { strategyStateJson: JSON.stringify(runtimeStrategyStateSchema.parse(progress.strategyState)) }
           : {}),
         updatedAt: now,
       })

@@ -77,7 +77,7 @@ export function StatTile({ icon: Icon, label, children, meta }: StatTileProps): 
     <dl className="flex min-w-0 flex-col gap-3 card-shine rounded-lg p-4">
       <div className="flex items-center justify-between gap-3">
         <dt className="font-mono text-eyebrow uppercase text-fg-muted">{label}</dt>
-        <Icon {...ICON} size={16} className="shrink-0 text-fg-subtle" />
+        <Icon {...ICON} size={16} className="shrink-0 text-accent-text" />
       </div>
       <div className="flex min-w-0 flex-col gap-1">
         <dd className="min-w-0 truncate text-lead text-fg-strong">{children}</dd>

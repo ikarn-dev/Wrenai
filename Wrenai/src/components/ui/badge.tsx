@@ -23,16 +23,20 @@ export function badgeClasses(tone: BadgeTone): string {
   return `${SHAPE} ${TONES[tone]} h-8 px-3 pointer-coarse:h-11`;
 }
 
+// sm: inline status (24 px). md: beside 32 px controls in a bar, such as the account pill.
+const BADGE_SIZES = { sm: "h-6 px-2.5", md: "h-8 px-3" } as const;
+
 interface BadgeProps {
   readonly tone: BadgeTone;
   /** A status dot before the label. The label always carries the meaning; the dot only repeats it. */
   readonly dot?: boolean;
+  readonly size?: keyof typeof BADGE_SIZES;
   readonly children: ReactNode;
 }
 
-export function Badge({ tone, dot = false, children }: BadgeProps) {
+export function Badge({ tone, dot = false, size = "sm", children }: BadgeProps) {
   return (
-    <span className={`${SHAPE} ${TONES[tone]} badge-shine h-6 px-2.5`}>
+    <span className={`${SHAPE} ${TONES[tone]} badge-shine ${BADGE_SIZES[size]}`}>
       {dot ? <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-current" /> : null}
       {children}
     </span>

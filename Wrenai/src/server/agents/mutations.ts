@@ -15,7 +15,7 @@ import type { AppDatabase } from "@/server/db/client";
 import { executionActions } from "@/server/db/execution-schema";
 import { positionLots } from "@/server/db/position-schema";
 import { userTransaction } from "@/server/db/user-transaction";
-import { triggerStateSchema } from "@/server/engine/trigger";
+import { hasOpenTriggerPosition } from "@/server/engine/strategy-state";
 import { assignedCapitalLimit } from "@/server/positions/capital-records";
 import {
   type AgentSummary,
@@ -71,7 +71,7 @@ async function recordRequest(
 async function newAgent(
   db: AppDatabase,
   userId: string,
-  pack: "rebalancer" | "triggers",
+  pack: AgentSummary["pack"],
   policyJson: string,
 ): Promise<typeof agents.$inferSelect> {
   const existing = await db
@@ -175,11 +175,7 @@ export async function saveAgent(
           ),
         )
         .limit(1);
-      if (
-        pending ||
-        (runtime?.strategyStateJson &&
-          triggerStateSchema.parse(JSON.parse(runtime.strategyStateJson)).phase === "holding")
-      ) {
+      if (pending || (runtime?.strategyStateJson && hasOpenTriggerPosition(runtime.strategyStateJson))) {
         throw new AgentError(
           "conflict",
           "Close the trigger position and reconcile outstanding orders before changing strategy versions.",

@@ -13,10 +13,7 @@ import { readSidebarCollapsed } from "@/server/preferences/sidebar";
 // floating bar at the bottom. No divider lines: sections are separated by space and surfaces.
 export default async function AppLayout({ children }: { readonly children: ReactNode }) {
   const user = await requireUser();
-  const [initiallyCollapsed, agentKey] = await Promise.all([
-    readSidebarCollapsed(),
-    storedKeyState(user.id),
-  ]);
+  const [initiallyCollapsed, agentKey] = await Promise.all([readSidebarCollapsed(), storedKeyState(user.id)]);
   return (
     <AppShell
       initiallyCollapsed={initiallyCollapsed}
@@ -26,7 +23,7 @@ export default async function AppLayout({ children }: { readonly children: React
             <Brand size="md" />
           </Link>
           <div className="ml-auto flex min-w-0 items-center gap-3">
-            <Badge tone="light" dot>
+            <Badge tone="light" dot size="md">
               Mainnet
             </Badge>
             <AccountMenu accountId={user.accountId} agentKey={agentKey.kind} />

@@ -1,17 +1,41 @@
 "use client";
 
-import { ChevronsLeft, ChevronsRight, TriangleAlert } from "lucide-react";
+import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { m } from "motion/react";
 import Link from "next/link";
 import { Tooltip } from "radix-ui";
 import { type ReactElement, useCallback, useId, useState } from "react";
+import { SIDEBAR_COOKIE } from "@/shared/sidebar";
 import { Brand } from "./brand";
 import { NAV_ITEMS } from "./nav-items";
 import { NavigationItems, NavigationTooltip } from "./navigation-items";
 
 const MAIN_ITEMS = NAV_ITEMS.filter((item) => item.group === "main");
 const SETTINGS_ITEMS = NAV_ITEMS.filter((item) => item.group === "settings");
-const SAVE_ERROR = "Couldn't save sidebar layout. Try again.";
+const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * Stores the width for the next full load, in the browser: no request, so nothing to fail or show. Uses the
+ * Cookie Store API (every current browser; it needs a secure context, which includes localhost). Without it the
+ * width still applies for this visit and the next load opens expanded, which is harmless, so there is no notice.
+ */
+function rememberWidth(collapsed: boolean): void {
+  if (!("cookieStore" in window)) {
+    return;
+  }
+  void window.cookieStore
+    .set({
+      name: SIDEBAR_COOKIE,
+      value: collapsed ? "collapsed" : "expanded",
+      path: "/",
+      sameSite: "lax",
+      expires: Date.now() + ONE_YEAR_MS,
+    })
+    .catch(() => {
+      // Only the next load's width depends on this; the current width already changed.
+      return undefined;
+    });
+}
 const CONTROL =
   "inline-flex size-9 shrink-0 cursor-pointer items-center justify-center text-fg-muted transition-colors duration-300 ease-ios hover:bg-surface-3 hover:text-fg-strong pointer-coarse:size-11";
 
@@ -38,30 +62,14 @@ function SidebarSurface(): ReactElement {
 /** The desktop navigation card, with its initial width read on the server to avoid a flash on reload. */
 export function Sidebar({ initiallyCollapsed }: { readonly initiallyCollapsed: boolean }): ReactElement {
   const [collapsed, setCollapsed] = useState(initiallyCollapsed);
-  const [saveFailed, setSaveFailed] = useState(false);
   const navigationId = useId();
   const toggleLabel = collapsed ? "Expand sidebar" : "Collapse sidebar";
   const ToggleIcon = collapsed ? ChevronsRight : ChevronsLeft;
 
-  // The width changes at once; saving only decides the width of the next full load, so it runs in the
-  // background and never blocks the button. A failed save keeps the chosen width and offers a retry.
-  async function save(next: boolean): Promise<void> {
-    setSaveFailed(false);
-    const saved = await fetch("/api/preferences/sidebar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ collapsed: next }),
-    }).then(
-      (response) => response.ok,
-      () => false,
-    );
-    setSaveFailed(!saved);
-  }
-
   function toggle(): void {
     const next = !collapsed;
     setCollapsed(next);
-    void save(next);
+    rememberWidth(next);
   }
 
   return (
@@ -108,33 +116,9 @@ export function Sidebar({ initiallyCollapsed }: { readonly initiallyCollapsed: b
               <NavigationItems items={MAIN_ITEMS} view={collapsed ? "collapsed" : "expanded"} />
             </div>
             <div className="flex shrink-0 flex-col gap-0.5 border-t border-line-card pt-2">
-              {saveFailed ? (
-                <NavigationTooltip label={SAVE_ERROR} shown={collapsed}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void save(collapsed);
-                    }}
-                    aria-label={`${SAVE_ERROR} Retry`}
-                    className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-sm text-small text-warn pointer-coarse:min-h-11 ${collapsed ? "w-10 justify-center pointer-coarse:w-11" : "px-3 text-left"}`}
-                  >
-                    <TriangleAlert
-                      aria-hidden="true"
-                      size={16}
-                      strokeWidth={1.75}
-                      absoluteStrokeWidth
-                      className="shrink-0"
-                    />
-                    {collapsed ? null : "Layout not saved. Retry"}
-                  </button>
-                </NavigationTooltip>
-              ) : null}
               <NavigationItems items={SETTINGS_ITEMS} view={collapsed ? "collapsed" : "expanded"} />
             </div>
           </nav>
-          <p role="status" className="sr-only">
-            {saveFailed ? SAVE_ERROR : ""}
-          </p>
         </div>
       </Tooltip.Provider>
     </aside>

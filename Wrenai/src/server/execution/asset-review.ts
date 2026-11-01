@@ -6,7 +6,7 @@ import { agentEvents, strategyVersions } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { userTransaction } from "@/server/db/user-transaction";
 import { type IntentToken, intentTokens } from "@/server/research/intents";
-import { type AssetSymbol, type Strategy, strategySchema } from "@/shared/agents";
+import { type AssetSymbol, type Strategy, strategySchema, strategySymbols } from "@/shared/agents";
 import {
   type AgentTradeAssets,
   reviewAgentAssetsSchema,
@@ -25,9 +25,7 @@ const aliases: Readonly<Record<AssetSymbol, readonly string[]>> = {
   USDT: ["USDT"],
 };
 export function strategyAssetSymbols(strategy: Strategy): readonly AssetSymbol[] {
-  return strategy.kind === "rebalancer"
-    ? strategy.targets.map((target) => target.symbol)
-    : [strategy.asset, strategy.quoteAsset];
+  return strategySymbols(strategy);
 }
 export function assetCandidates(tokens: readonly IntentToken[], symbol: AssetSymbol): readonly TradeAsset[] {
   return tokens

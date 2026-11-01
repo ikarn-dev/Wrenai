@@ -107,7 +107,8 @@ export function AssetsCard({ reading }: { readonly reading: WalletBalanceReading
       {reading.kind === "unavailable" ? (
         <AssetsUnavailable />
       ) : (
-        <div data-lenis-prevent className="overflow-x-auto">
+        <div className="overflow-x-auto">
+          {/* Sideways only, so no data-lenis-prevent: it would contain vertical wheels and stop the page. */}
           <table className="w-full min-w-sm border-collapse text-body">
             <caption className="sr-only">Native NEAR balance. USD prices are not available.</caption>
             <thead>

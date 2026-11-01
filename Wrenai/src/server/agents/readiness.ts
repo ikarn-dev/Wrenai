@@ -8,11 +8,12 @@ import { readAgentTradeAssets } from "@/server/execution/asset-review";
 import { synchronizePrivateInventory } from "@/server/execution/private-inventory";
 import { readUserRiskPolicy } from "@/server/guard/user-policy";
 import { allocationCeiling, committedCapital } from "@/server/positions/capital-records";
+import { publicLeaderFeed } from "@/server/research/explorer";
 import type { AgentSummary } from "@/shared/agents";
 import { AgentError } from "./errors";
 
 export const EXECUTION_UNAVAILABLE =
-  "Rebalancing and price triggers use the Vercel trading runtime after balance allocation and shared authorization. Market checks run at best-effort five-second intervals; portfolio checks run every minute. Other tools still need live execution adapters.";
+  "Rebalancing, price triggers and supported public Copy Trading use the Vercel runtime after balance allocation and shared authorization. Copy Trading also requires Explorer access. Other tools still need live execution adapters.";
 
 export function deployedRuntimeReady(): boolean {
   return z
@@ -57,5 +58,8 @@ export async function assertAgentReady(user: SessionUser, agent: AgentSummary): 
   await synchronizePrivateInventory(db, user.id);
   if (agent.strategy.kind === "triggers") {
     await freshMarketPrice(agent.strategy.asset);
+  }
+  if (agent.strategy.kind === "copy_trading") {
+    await publicLeaderFeed();
   }
 }

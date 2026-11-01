@@ -10,7 +10,9 @@ import { listAgents } from "@/server/agents/records";
 import { requireUser } from "@/server/auth/session";
 import { database } from "@/server/db/client";
 import { readDelegatedKey } from "@/server/delegation/delegated-key";
+import { readUserRiskPolicy } from "@/server/guard/user-policy";
 import { readWalletBalance } from "@/server/portfolio/wallet-balance";
+import { readTelegramLinkState } from "@/server/telegram/linking";
 
 export const metadata: Metadata = { title: "Portfolio" };
 
@@ -18,10 +20,12 @@ export const metadata: Metadata = { title: "Portfolio" };
 // sections of neutral cards. Mint marks only status and actions.
 export default async function PortfolioPage() {
   const user = await requireUser();
-  const [wallet, agentKey, agents] = await Promise.all([
+  const [wallet, agentKey, agents, riskPolicy, telegram] = await Promise.all([
     readWalletBalance(user.accountId),
     readDelegatedKey(user),
     listAgents(database(), user.id),
+    readUserRiskPolicy(database(), user.id),
+    readTelegramLinkState(database(), user.id),
   ]);
   return (
     <div className="flex flex-col gap-12">
@@ -29,8 +33,9 @@ export default async function PortfolioPage() {
         <h1 className="font-display text-page-title">Portfolio</h1>
         <RefreshPortfolioButton />
       </header>
-      <div className="grid min-w-0 items-start gap-8 lg:grid-cols-2">
-        <PortfolioOverview wallet={wallet} agents={agents} />
+      {/* One gap token between and inside the columns; the pane stretches to the overview's height. */}
+      <div className="grid min-w-0 gap-stack lg:grid-cols-2">
+        <PortfolioOverview wallet={wallet} agents={agents} riskPolicy={riskPolicy} telegram={telegram} />
         <TradingAccessPane accountId={user.accountId} reading={agentKey} />
       </div>
       <PortfolioSection id="insights" title="Insights">

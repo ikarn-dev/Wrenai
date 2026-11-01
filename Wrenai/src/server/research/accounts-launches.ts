@@ -3,9 +3,9 @@ import { z } from "zod";
 import { callViewFunction, viewNearBalance } from "@/server/near/rpc";
 import type { ResearchInput, ResearchItem, ResearchSource } from "@/shared/research";
 import { displayDecimal } from "./decimal";
+import { publicLeaderResearch } from "./explorer-research";
 import { publicFills } from "./hyperliquid";
 import { intentTokens, selectToken } from "./intents";
-import { marketJson } from "./market-http";
 import { poolItems, rheaPools } from "./rhea";
 
 const nearAccount = z
@@ -41,17 +41,13 @@ export async function leaderResearch(
   const account = nearAccount.parse(input.accountId);
   const source: ResearchSource = {
     id: "near-leader",
-    label: "Public NEAR account and indexed transactions",
+    label: "Public NEAR account",
     url: `https://nearblocks.io/address/${account}`,
     observedAt: Date.now(),
   };
   const [balance, history] = await Promise.allSettled([
     viewNearBalance(account, signal),
-    marketJson(
-      "NEAR public transaction index",
-      `https://api.nearblocks.io/v1/account/${encodeURIComponent(account)}/txns?order=desc&page=1&per_page=5`,
-      { ...(signal ? { signal } : {}) },
-    ),
+    publicLeaderResearch(account),
   ]);
   const items: ResearchItem[] = [];
   if (balance.status === "fulfilled") {
@@ -74,46 +70,15 @@ export async function leaderResearch(
     });
   }
   if (history.status === "fulfilled") {
-    const parsed = z
-      .object({
-        txns: z
-          .array(
-            z.object({
-              transaction_hash: z.string().max(100),
-              receiver_account_id: z.string().max(64),
-              block_timestamp: z.string().regex(/^\d{1,20}$/),
-            }),
-          )
-          .max(100),
-      })
-      .safeParse(history.value.value);
-    if (parsed.success) {
-      for (const tx of parsed.data.txns.slice(0, 5)) {
-        items.push({
-          id: tx.transaction_hash,
-          title: `Transaction to ${tx.receiver_account_id}`,
-          kind: "account",
-          status: "observed",
-          metrics: [
-            { label: "Transaction", value: tx.transaction_hash },
-            {
-              label: "Chain time",
-              value: new Date(Number(BigInt(tx.block_timestamp) / 1_000_000n)).toISOString(),
-            },
-          ],
-          note: "An indexed transaction is not a decoded swap or confirmed trading signal; no opaque transaction is copied.",
-          sourceIds: [source.id],
-        });
-      }
-    }
+    items.push(...history.value.items);
   }
   return {
     items,
-    sources: [source],
+    sources: [source, ...(history.status === "fulfilled" ? [history.value.source] : [])],
     summary:
-      items.length > 1
-        ? "Public account and recent transaction records retrieved; no profitability or copyability is inferred."
-        : "Public account state retrieved; a usable transaction feed was not available, so leader trade history and performance are unknown.",
+      history.status === "fulfilled"
+        ? `Found ${history.value.items.length} confirmed matching public swaps in the bounded NEAR-origin 1Click feed. Whole-wallet history and total PnL are unknown. Copy Trading requires a separate reviewed and activated agent.`
+        : "The confirmed public swap feed is unavailable. Native account balance alone cannot establish leader trading history or performance.",
   };
 }
 

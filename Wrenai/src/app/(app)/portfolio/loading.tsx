@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 // Same grid as page.tsx, so nothing shifts when the data arrives.
 const PANEL = "min-w-0 card-shine rounded-lg p-card";
 const BLOCK = "rounded-xs bg-surface-2 motion-safe:animate-pulse";
-const TILES = ["agents", "pnl"] as const;
+const TILES = ["agents", "pnl", "limit", "telegram"] as const;
 const INSIGHTS = ["performance", "allocation", "activity"] as const;
 
 function TileSkeleton(): ReactElement {

@@ -17,6 +17,8 @@ import { synchronizePrivateInventory } from "@/server/execution/private-inventor
 import { databaseTime, executionEvent, ownedExecution, requireLease } from "@/server/execution/records";
 import { readKeyRegistration } from "@/server/intents/verifier";
 import { hashNep413Payload } from "@/server/near/nep413";
+import { currentAgentStrategy } from "./asset-review";
+import { copySubmissionCheck } from "./copy-reference";
 import { triggerSubmissionCheck } from "./trigger-reference";
 
 export interface IntentsExecutionResult {
@@ -114,7 +116,13 @@ export async function executeIntentsAction(
     );
   }
   await synchronizePrivateInventory(db, userId);
-  const checkMarket = await triggerSubmissionCheck(db, action, prepared, quote);
+  const current = await currentAgentStrategy(db, action.userId, action.agentId, action.agentRevision);
+  const checkMarket =
+    current.strategy.kind === "triggers"
+      ? await triggerSubmissionCheck(db, action, prepared, quote, current)
+      : current.strategy.kind === "copy_trading"
+        ? await copySubmissionCheck(db, action, prepared, quote, current)
+        : null;
   const payload = validated.intent.intent.payload;
   const signature = await commitSignedExecution(
     db,

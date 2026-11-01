@@ -25,6 +25,8 @@ const EXAMPLES = {
     "Keep 50% NEAR and 50% USDC. Rebalance when either asset drifts 5% from its target, checking every 5 minutes.",
   triggers:
     "Buy $10 of NEAR with USDC when NEAR rises above $4. Take profit at $4.60 and stop loss at $3.80. Stop after the exit.",
+  copy_trading:
+    "Follow public NEAR-origin 1Click swaps sent by leader.near, using only NEAR and USDC. Copy $10 per trade, ignore signals older than 120 seconds, and allow at most 1% worse exchange rates than the leader. Stop after seven days.",
 } as const;
 
 export function AgentEditor({
@@ -32,7 +34,7 @@ export function AgentEditor({
   setup,
 }: {
   readonly agent?: AgentSummary;
-  readonly setup?: { readonly pack: "rebalancer" | "triggers"; readonly brief: string };
+  readonly setup?: { readonly pack: AgentSummary["pack"]; readonly brief: string };
 }): ReactElement {
   const router = useRouter();
   const [pack, setPack] = useState(agent?.pack ?? setup?.pack ?? "rebalancer");
@@ -192,8 +194,8 @@ export function AgentEditor({
             </Button>
           </div>
           <p className="text-caption leading-relaxed text-fg-subtle">
-            Copy Trading, Yield Optimizer and Meme Hunter are planned separately. Strategies and limits stay
-            on this backend; inference is encrypted to an attested model.
+            Strategies and limits stay on this backend; inference is encrypted to an attested model. Copy
+            Trading follows supported public 1Click swaps, not arbitrary wallet transactions.
           </p>
         </form>
         {draft === null ? (

@@ -41,7 +41,7 @@ export function ChatComposer({
           event.preventDefault();
           onSend();
         }}
-        className="flex items-end gap-3 rounded-lg border border-line bg-surface-2 p-2.5 focus-within:border-line-strong sm:p-3"
+        className="flex items-end gap-2 card-shine rounded-lg p-2 transition-shadow duration-200 ease-ios focus-within:ring-1 focus-within:ring-line-strong"
       >
         <label htmlFor="chat-message" className="sr-only">
           Message Jarvis
@@ -57,7 +57,7 @@ export function ChatComposer({
           disabled={disabled || busy}
           placeholder="Ask Jarvis anything…"
           aria-describedby="chat-composer-help"
-          className="block max-h-[6lh] min-h-11 min-w-0 flex-1 resize-none overflow-y-auto bg-surface-2 py-2.5 pl-2 text-body leading-relaxed text-fg-strong outline-none placeholder:text-fg-subtle focus-visible:outline-none disabled:cursor-not-allowed"
+          className="block max-h-[6lh] min-h-10 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-2 pl-2.5 text-body text-fg-strong outline-none placeholder:text-fg-subtle focus-visible:outline-none disabled:cursor-not-allowed"
           data-lenis-prevent
           style={{ fieldSizing: "content" }}
         />
@@ -67,18 +67,18 @@ export function ChatComposer({
             aria-label={stopping ? "Stopping reply" : "Stop reply"}
             disabled={stopping}
             onClick={onStop}
-            className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-line-strong text-fg-strong transition-colors hover:bg-surface-3 disabled:cursor-progress"
+            className="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-sm bg-surface-3 text-fg-strong transition-[background-color,scale] duration-200 ease-ios hover:bg-void-600 active:scale-92 disabled:cursor-progress motion-reduce:active:scale-100 pointer-coarse:size-11"
           >
-            <Square size={16} fill="currentColor" aria-hidden="true" />
+            <Square size={14} fill="currentColor" aria-hidden="true" />
           </button>
         ) : (
           <button
             type="submit"
             aria-label="Send message"
             disabled={disabled || !value.trim()}
-            className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-accent text-accent-fg transition-colors hover:bg-accent-text disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-fg-disabled"
+            className="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-sm bg-accent text-accent-fg transition-[background-color,scale] duration-200 ease-ios hover:bg-accent-text active:scale-92 disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-fg-disabled motion-reduce:active:scale-100 pointer-coarse:size-11"
           >
-            <ArrowUp size={20} aria-hidden="true" />
+            <ArrowUp size={18} strokeWidth={2} aria-hidden="true" />
           </button>
         )}
       </form>

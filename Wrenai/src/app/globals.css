@@ -176,6 +176,9 @@
   --color-texture-hero: var(--mint-400);
 
   --radius-lg: var(--card-radius);
+  /* A card nested in a radius-lg card with an 8 px inset: the outer radius minus the inset, so corners stay
+     concentric at every breakpoint (16 → 8 px, 20 → 12 px). */
+  --radius-lg-inset: calc(var(--card-radius) - 8px);
 
   /* One family for titles, text and buttons; titles differ by weight and tracking, not by typeface. */
   --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;

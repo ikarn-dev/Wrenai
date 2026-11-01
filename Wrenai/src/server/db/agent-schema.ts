@@ -24,7 +24,7 @@ export const agents = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    pack: text("pack", { enum: ["rebalancer", "triggers"] }).notNull(),
+    pack: text("pack", { enum: ["rebalancer", "triggers", "copy_trading"] }).notNull(),
     status: text("status", { enum: ["paused", "running", "stopped", "error"] }).notNull(),
     reason: text("reason").notNull(),
     revision: integer("revision").notNull().default(1),
@@ -66,7 +66,7 @@ export const strategyDrafts = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     requestId: text("request_id").notNull(),
-    pack: text("pack", { enum: ["rebalancer", "triggers"] }).notNull(),
+    pack: text("pack", { enum: ["rebalancer", "triggers", "copy_trading"] }).notNull(),
     strategyText: text("strategy_text").notNull(),
     configJson: text("config_json").notNull(),
     attestationJson: text("attestation_json").notNull(),

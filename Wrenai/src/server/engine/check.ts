@@ -10,6 +10,7 @@ import { currentAgentStrategy } from "@/server/execution/asset-review";
 import { ExecutionError } from "@/server/execution/contracts";
 import { prepareSwapExecution } from "@/server/execution/intents-order";
 import { databaseTime } from "@/server/execution/records";
+import { ExplorerFeedPending } from "@/server/research/explorer-contracts";
 import { advanceIntentsAction } from "./action";
 import { planStrategyCheck, type StrategyCheckPlan } from "./planning";
 import { claimStrategyCheck, finishStrategyCheck, readAgentRuntime } from "./runtime";
@@ -78,14 +79,14 @@ export async function checkAgentCycle(
     reason = planned.reason;
     if (planned.signal) {
       const action = await prepareSwapExecution(db, runtime.userId, {
-        requestId,
+        requestId: planned.requestId ?? requestId,
         agentId: runtime.agentId,
         expectedRevision: runtime.agentRevision,
         ...planned.signal,
       });
       actionId = action.id;
       if (progress) {
-        progress = { ...progress, triggerState: { ...progress.triggerState, pendingActionId: action.id } };
+        progress = { ...progress, strategyState: { ...progress.strategyState, pendingActionId: action.id } };
       }
       reason =
         action.approvedAt === null
@@ -105,12 +106,16 @@ export async function checkAgentCycle(
         ? "The reviewed strategy or provider data could not be validated."
         : error.message;
     failed = error instanceof z.ZodError || error.code === "not_ready";
+    if (error instanceof ExplorerFeedPending) {
+      intervalSeconds = 5;
+    }
   }
+  const delay = Math.min(intervalSeconds, agent.pack === "triggers" ? 5 : 60);
   await finishStrategyCheck(
     db,
     activationId,
     claim.token,
-    Math.max(now + intervalSeconds * 1000, Date.now() + (agent.pack === "triggers" ? 5000 : 60_000)),
+    Math.max(now + intervalSeconds * 1000, Date.now() + delay * 1000),
     reason,
     failed,
     progress,
@@ -118,9 +123,5 @@ export async function checkAgentCycle(
   if (progress?.completed) {
     return null;
   }
-  return actionId === null
-    ? agent.pack === "triggers"
-      ? 5
-      : 60
-    : advanceIntentsAction(db, runtime.userId, actionId);
+  return actionId === null ? delay : advanceIntentsAction(db, runtime.userId, actionId);
 }

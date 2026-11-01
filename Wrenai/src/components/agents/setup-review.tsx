@@ -6,6 +6,7 @@ import { ResearchCards } from "@/components/chat/research-cards";
 import { Button } from "@/components/ui/button";
 import { saveChatAgentSetup } from "@/server/chat/draft-actions";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
+import { packSchema } from "@/shared/agents";
 import type { AgentSetupDraft } from "@/shared/research";
 
 export function AgentSetupReview({ draft }: { readonly draft: AgentSetupDraft }): ReactElement {
@@ -25,7 +26,11 @@ export function AgentSetupReview({ draft }: { readonly draft: AgentSetupDraft })
         if (discard) {
           router.push("/agents");
         } else {
-          setMessage(reviewed ? "Setup reviewed. Execution remains unavailable." : "Setup saved.");
+          setMessage(
+            reviewed
+              ? "Setup reviewed. Nothing starts until an agent is separately reviewed and activated."
+              : "Setup saved.",
+          );
           router.refresh();
         }
       } catch {
@@ -33,7 +38,7 @@ export function AgentSetupReview({ draft }: { readonly draft: AgentSetupDraft })
       }
     });
   }
-  const supported = draft.tool === "rebalancer" || draft.tool === "triggers";
+  const supported = packSchema.safeParse(draft.tool).success;
   return (
     <div className="mx-auto flex max-w-reading flex-col gap-6">
       <Link href="/agents" className="text-small text-fg-muted hover:text-fg">
@@ -42,7 +47,8 @@ export function AgentSetupReview({ draft }: { readonly draft: AgentSetupDraft })
       <header className="space-y-2">
         <h1 className="text-h1">{AGENT_CATALOG[draft.tool].name} setup</h1>
         <p className="text-small text-fg-muted">
-          {draft.reviewState === "reviewed" ? "Reviewed setup" : "Draft"} · execution unavailable
+          {draft.reviewState === "reviewed" ? "Reviewed setup" : "Draft"} ·{" "}
+          {supported ? "not activated" : "execution unavailable"}
         </p>
       </header>
       <p className="text-body leading-relaxed text-fg-muted">
