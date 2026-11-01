@@ -2,7 +2,7 @@
 
 import { ArrowDown, History, Info, Orbit, Plus, X } from "lucide-react";
 import { AlertDialog, Dialog, Popover, ScrollArea } from "radix-ui";
-import { type ReactElement, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
+import { type ReactElement, useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { loadChatHistory, removeConversation } from "@/server/chat/actions";
 import { type Conversation, type ConversationSummary, MAX_CHAT_TURNS } from "@/shared/chat";
@@ -96,7 +96,7 @@ export function ChatScreen({
     setAtBottom(value);
   }
 
-  function refreshHistory(): void {
+  const refreshHistory = useCallback((): void => {
     startTransition(async () => {
       try {
         const result = await loadChatHistory();
@@ -109,7 +109,7 @@ export function ChatScreen({
         chat.setError("Chat history could not be refreshed. Try again.");
       }
     });
-  }
+  }, [chat.setHistory, chat.setError]);
 
   function deleteChat(): void {
     if (!deletion) {
@@ -133,10 +133,17 @@ export function ChatScreen({
     });
   }
 
-  function newChat(): void {
-    setFollowing(true);
+  const newChat = useCallback((): void => {
+    following.current = true;
+    setAtBottom(true);
     chat.newChat();
-  }
+  }, [chat.newChat]);
+
+  const chooseDeletion = useCallback((item: ConversationSummary): void => {
+    setManagementError(null);
+    setDeletion(item);
+  }, []);
+  const closeHistory = useCallback((): void => setHistoryOpen(false), []);
 
   const historyProps = {
     items: chat.history,
@@ -145,10 +152,7 @@ export function ChatScreen({
     refreshing: managing,
     onNew: newChat,
     onRefresh: refreshHistory,
-    onDelete: (item: ConversationSummary) => {
-      setManagementError(null);
-      setDeletion(item);
-    },
+    onDelete: chooseDeletion,
   };
 
   return (
@@ -232,7 +236,7 @@ export function ChatScreen({
                     Open or delete a saved conversation, or start a new chat.
                   </Dialog.Description>
                   <div className="min-h-0 flex-1">
-                    <ChatHistory {...historyProps} onNavigate={() => setHistoryOpen(false)} />
+                    <ChatHistory {...historyProps} onNavigate={closeHistory} />
                   </div>
                 </Dialog.Content>
               </Dialog.Portal>
@@ -299,8 +303,8 @@ export function ChatScreen({
                         conversationId={chat.conversationId}
                         turn={turn}
                         last={turn.id === last?.id}
-                        busy={chat.busy}
-                        onRetry={() => chat.retry(turn)}
+                        busy={turn.id === last?.id && chat.busy}
+                        onRetry={chat.retry}
                         pendingReply={
                           turn.id === last?.id && chat.busy
                             ? {

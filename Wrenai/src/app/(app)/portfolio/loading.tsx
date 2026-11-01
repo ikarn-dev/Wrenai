@@ -32,10 +32,7 @@ export default function PortfolioLoading(): ReactElement {
         Loading portfolio
       </span>
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div className="flex flex-col gap-1.5">
-          <h1 className="font-display text-h1">Portfolio</h1>
-          <p className="text-small text-fg-muted">Balances, agents and trading access</p>
-        </div>
+        <h1 className="font-display text-page-title">Portfolio</h1>
         <div aria-hidden="true" className={`${BLOCK} h-10 w-32 pointer-coarse:h-11`} />
       </header>
       <div aria-hidden="true" className="flex min-w-0 flex-col gap-12">

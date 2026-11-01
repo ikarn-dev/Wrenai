@@ -40,17 +40,23 @@ interface NearAmountProps {
   readonly amount: bigint;
   /** Compact (1.2K) for tight spots such as stat tiles; exact to 4 decimals otherwise. */
   readonly compact?: boolean;
+  /** The key figure of a card (the wallet total): num-xl with a small unit. */
+  readonly large?: boolean;
 }
 
 /** A NEAR amount in mono with its unit; the full 24-decimal value is in the tooltip and for screen readers. */
-export function NearAmount({ amount, compact = false }: NearAmountProps): ReactElement {
+export function NearAmount({ amount, compact = false, large = false }: NearAmountProps): ReactElement {
   const exact = formatUnits(amount, { decimals: NEAR_DECIMALS, fractionDigits: NEAR_DECIMALS });
   return (
     <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
-      <span aria-hidden="true" title={`${exact} NEAR`} className="font-mono tabular-nums text-fg-strong">
+      <span
+        aria-hidden="true"
+        title={`${exact} NEAR`}
+        className={`font-mono tabular-nums text-fg-strong ${large ? "text-num-xl" : ""}`}
+      >
         {displayNear(amount, compact)}
       </span>
-      <span aria-hidden="true" className="text-caption text-fg-muted">
+      <span aria-hidden="true" className={`text-fg-muted ${large ? "text-small" : "text-caption"}`}>
         NEAR
       </span>
       <span className="sr-only">{exact} NEAR</span>

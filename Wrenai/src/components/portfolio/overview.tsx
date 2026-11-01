@@ -24,13 +24,13 @@ function agentCount(agents: readonly AgentSummary[]): string {
  */
 export function PortfolioOverview({ wallet, agents }: PortfolioOverviewProps): ReactElement {
   return (
-    <div className="grid h-full auto-rows-fr gap-stack sm:grid-cols-2">
+    <div className="grid content-start gap-stack sm:grid-cols-2">
       <div className="sm:col-span-2">
         <StatTile icon={Wallet} label="NEAR wallet" meta={<ReadTime reading={wallet} />}>
           {wallet.kind === "unavailable" ? (
             <span className="text-fg-muted">Unavailable</span>
           ) : (
-            <NearAmount amount={wallet.kind === "balance" ? wallet.yocto : 0n} compact />
+            <NearAmount amount={wallet.kind === "balance" ? wallet.yocto : 0n} large />
           )}
         </StatTile>
       </div>

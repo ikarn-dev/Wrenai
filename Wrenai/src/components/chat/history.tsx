@@ -1,7 +1,7 @@
 "use client";
 
 import { MessageSquare, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
-import { type ReactElement, useState } from "react";
+import { memo, type ReactElement, useMemo, useState } from "react";
 import type { ConversationSummary } from "@/shared/chat";
 
 interface HistoryProps {
@@ -15,7 +15,7 @@ interface HistoryProps {
   readonly onNavigate?: () => void;
 }
 
-export function ChatHistory({
+export const ChatHistory = memo(function ChatHistory({
   items,
   currentId,
   refreshing,
@@ -26,9 +26,10 @@ export function ChatHistory({
   onSelect,
 }: HistoryProps): ReactElement {
   const [query, setQuery] = useState("");
-  const filtered = items.filter((item) =>
-    item.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
-  );
+  const filtered = useMemo(() => {
+    const search = query.trim().toLocaleLowerCase();
+    return items.filter((item) => item.title.toLocaleLowerCase().includes(search));
+  }, [items, query]);
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
@@ -109,4 +110,4 @@ export function ChatHistory({
       </nav>
     </div>
   );
-}
+});

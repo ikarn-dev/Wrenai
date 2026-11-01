@@ -67,6 +67,11 @@
   --text-h1--line-height: 1.2;
   --text-h1--letter-spacing: -0.021em;
   --text-h1--font-weight: 600;
+  /* App page titles (Portfolio, Agents): 28 → 36 px, one step above h1, below the landing display sizes. */
+  --text-page-title: clamp(1.75rem, 1.583rem + 0.741vw, 2.25rem);
+  --text-page-title--line-height: 1.15;
+  --text-page-title--letter-spacing: -0.022em;
+  --text-page-title--font-weight: 600;
   --text-h2: clamp(1.125rem, 1.083rem + 0.185vw, 1.25rem);
   --text-h2--line-height: 1.3;
   --text-h2--letter-spacing: -0.017em;
@@ -444,11 +449,25 @@
   }
 }
 
-/* Flat panels share a neutral fill and a quiet inset edge, with no elevation or lit highlights.
-   The inset edge preserves dimensions and works inside clipped surfaces such as the account menu. */
+/* Every card: a neutral fill with an iOS-style lit edge. The edge is a 1 px gradient border painted as a second
+   background on the border box (the fill covers only the padding box), so it needs no pseudo-element or
+   positioning and, with border-box sizing, keeps the card's size. Brightest at the top-left, faint along the sides,
+   a soft glint at the bottom-right; a small shadow lifts the card off the page. */
 @utility card-shine {
-  background-color: var(--color-surface-card);
-  box-shadow: inset 0 0 0 1px var(--color-line-card);
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--color-surface-card), var(--color-surface-card)) padding-box,
+    linear-gradient(
+      150deg,
+      color-mix(in oklab, var(--void-50) 22%, var(--color-line-card)),
+      var(--color-line-card) 30%,
+      var(--color-line-card) 70%,
+      color-mix(in oklab, var(--void-50) 10%, var(--color-line-card))
+    )
+    border-box;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--void-50) 5%, transparent),
+    0 1px 2px rgb(0 0 0 / 0.35);
 }
 
 /* The active nav item: a surface-2 pill lit like an iOS control. A soft top-to-bottom shine, a 1 px top highlight,
@@ -464,6 +483,34 @@
     inset 0 1px 0 color-mix(in oklab, var(--void-50) 12%, transparent),
     inset 0 0 0 1px color-mix(in oklab, var(--void-50) 6%, transparent),
     0 1px 2px rgb(0 0 0 / 0.45);
+}
+
+/* Badge lit edge, like the cards': a 1 px light gradient over the badge's own ring, brightest at the top-left,
+   gone along the sides, a faint glint at the bottom-right. A pseudo-element masked to the border, so the label and
+   fill are untouched; white at low strength reads on every tone. Not on badge-buttons, whose pseudo-elements carry
+   the hover glow. */
+@utility badge-shine {
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    pointer-events: none;
+    background-image: linear-gradient(
+      150deg,
+      color-mix(in oklab, var(--void-50) 34%, transparent),
+      transparent 40%,
+      transparent 65%,
+      color-mix(in oklab, var(--void-50) 14%, transparent)
+    );
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
 }
 
 /* Dot grid (Docs/DESIGN.md → Dot grid): 1 px void-700 dots every 16 px, fading out toward the edges. Decoration for

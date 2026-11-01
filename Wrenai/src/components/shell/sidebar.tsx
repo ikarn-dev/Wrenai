@@ -4,8 +4,7 @@ import { ChevronsLeft, ChevronsRight, TriangleAlert } from "lucide-react";
 import { m } from "motion/react";
 import Link from "next/link";
 import { Tooltip } from "radix-ui";
-import { type ReactElement, useCallback, useId, useState, useTransition } from "react";
-import { rememberSidebar } from "@/server/preferences/actions";
+import { type ReactElement, useCallback, useId, useState } from "react";
 import { Brand } from "./brand";
 import { NAV_ITEMS } from "./nav-items";
 import { NavigationItems, NavigationTooltip } from "./navigation-items";
@@ -14,7 +13,7 @@ const MAIN_ITEMS = NAV_ITEMS.filter((item) => item.group === "main");
 const SETTINGS_ITEMS = NAV_ITEMS.filter((item) => item.group === "settings");
 const SAVE_ERROR = "Couldn't save sidebar layout. Try again.";
 const CONTROL =
-  "inline-flex size-9 shrink-0 cursor-pointer items-center justify-center text-fg-muted transition-colors duration-300 ease-ios hover:bg-surface-3 hover:text-fg-strong disabled:cursor-progress pointer-coarse:size-11";
+  "inline-flex size-9 shrink-0 cursor-pointer items-center justify-center text-fg-muted transition-colors duration-300 ease-ios hover:bg-surface-3 hover:text-fg-strong pointer-coarse:size-11";
 
 function SidebarSurface(): ReactElement {
   const [radius, setRadius] = useState("var(--radius-md)");
@@ -40,27 +39,29 @@ function SidebarSurface(): ReactElement {
 export function Sidebar({ initiallyCollapsed }: { readonly initiallyCollapsed: boolean }): ReactElement {
   const [collapsed, setCollapsed] = useState(initiallyCollapsed);
   const [saveFailed, setSaveFailed] = useState(false);
-  const [saving, startTransition] = useTransition();
   const navigationId = useId();
   const toggleLabel = collapsed ? "Expand sidebar" : "Collapse sidebar";
   const ToggleIcon = collapsed ? ChevronsRight : ChevronsLeft;
 
-  function toggle(): void {
-    if (saving) {
-      return;
-    }
-    const previous = collapsed;
-    const next = !previous;
-    setCollapsed(next);
+  // The width changes at once; saving only decides the width of the next full load, so it runs in the
+  // background and never blocks the button. A failed save keeps the chosen width and offers a retry.
+  async function save(next: boolean): Promise<void> {
     setSaveFailed(false);
-    startTransition(async () => {
-      // Both a refused save and a lost connection restore the saved width and offer the same retry.
-      const result = await rememberSidebar({ collapsed: next }).catch(() => ({ ok: false }));
-      if (!result.ok) {
-        setCollapsed(previous);
-        setSaveFailed(true);
-      }
-    });
+    const saved = await fetch("/api/preferences/sidebar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ collapsed: next }),
+    }).then(
+      (response) => response.ok,
+      () => false,
+    );
+    setSaveFailed(!saved);
+  }
+
+  function toggle(): void {
+    const next = !collapsed;
+    setCollapsed(next);
+    void save(next);
   }
 
   return (
@@ -88,11 +89,9 @@ export function Sidebar({ initiallyCollapsed }: { readonly initiallyCollapsed: b
                 initial={false}
                 type="button"
                 onClick={toggle}
-                disabled={saving}
                 aria-label={toggleLabel}
                 aria-expanded={!collapsed}
                 aria-controls={navigationId}
-                aria-busy={saving}
                 className={`${CONTROL} absolute inset-y-0 my-auto ${collapsed ? "-right-6.5 rounded-full bg-surface-card pointer-coarse:-right-7.5" : "right-1 rounded-sm"}`}
               >
                 <ToggleIcon aria-hidden="true" size={18} strokeWidth={1.75} absoluteStrokeWidth />
@@ -113,8 +112,9 @@ export function Sidebar({ initiallyCollapsed }: { readonly initiallyCollapsed: b
                 <NavigationTooltip label={SAVE_ERROR} shown={collapsed}>
                   <button
                     type="button"
-                    onClick={toggle}
-                    disabled={saving}
+                    onClick={() => {
+                      void save(collapsed);
+                    }}
                     aria-label={`${SAVE_ERROR} Retry`}
                     className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-sm text-small text-warn pointer-coarse:min-h-11 ${collapsed ? "w-10 justify-center pointer-coarse:w-11" : "px-3 text-left"}`}
                   >

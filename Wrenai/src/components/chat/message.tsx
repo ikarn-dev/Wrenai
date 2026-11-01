@@ -1,5 +1,5 @@
 import { Orbit, RotateCcw } from "lucide-react";
-import type { ReactElement } from "react";
+import { memo, type ReactElement } from "react";
 import type { ChatTurn } from "@/shared/chat";
 import { CopyButton } from "./copy-button";
 import { ChatMarkdown } from "./markdown";
@@ -19,7 +19,7 @@ interface ChatMessageProps {
   readonly turn: ChatTurn;
   readonly last: boolean;
   readonly busy: boolean;
-  readonly onRetry: () => void;
+  readonly onRetry: (turn: ChatTurn) => void;
   readonly pendingReply: {
     readonly content: string;
     readonly status: string;
@@ -28,7 +28,7 @@ interface ChatMessageProps {
   } | null;
 }
 
-export function ChatMessage({
+export const ChatMessage = memo(function ChatMessage({
   conversationId,
   turn,
   last,
@@ -124,7 +124,7 @@ export function ChatMessage({
           {last ? (
             <button
               type="button"
-              onClick={onRetry}
+              onClick={() => onRetry(turn)}
               disabled={busy}
               className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-3 text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg-strong disabled:cursor-not-allowed disabled:text-fg-disabled"
             >
@@ -136,4 +136,4 @@ export function ChatMessage({
       ) : null}
     </article>
   );
-}
+});

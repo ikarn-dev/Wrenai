@@ -70,13 +70,19 @@ interface StatTileProps {
  */
 export function StatTile({ icon: Icon, label, children, meta }: StatTileProps): ReactElement {
   return (
-    <dl className="flex h-full min-h-32 min-w-0 flex-col gap-2 card-shine rounded-lg p-4">
+    // The label row sits at the top; the value and its caption stay together at the bottom, so a stretched card
+    // never leaves a hole between a figure and the line that explains it.
+    // Sized to its content: label row, the value right under it, its caption right under that. No stretching,
+    // so no empty band anywhere in the card.
+    <dl className="flex min-w-0 flex-col gap-3 card-shine rounded-lg p-4">
       <div className="flex items-center justify-between gap-3">
         <dt className="font-mono text-eyebrow uppercase text-fg-muted">{label}</dt>
         <Icon {...ICON} size={16} className="shrink-0 text-fg-subtle" />
       </div>
-      <dd className="min-w-0 truncate text-lead text-fg-strong">{children}</dd>
-      {meta === undefined ? null : <dd className="mt-auto text-caption text-fg-subtle">{meta}</dd>}
+      <div className="flex min-w-0 flex-col gap-1">
+        <dd className="min-w-0 truncate text-lead text-fg-strong">{children}</dd>
+        {meta === undefined ? null : <dd className="text-caption text-fg-subtle">{meta}</dd>}
+      </div>
     </dl>
   );
 }

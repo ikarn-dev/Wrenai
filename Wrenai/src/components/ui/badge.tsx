@@ -32,7 +32,7 @@ interface BadgeProps {
 
 export function Badge({ tone, dot = false, children }: BadgeProps) {
   return (
-    <span className={`${SHAPE} ${TONES[tone]} h-6 px-2.5`}>
+    <span className={`${SHAPE} ${TONES[tone]} badge-shine h-6 px-2.5`}>
       {dot ? <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-current" /> : null}
       {children}
     </span>

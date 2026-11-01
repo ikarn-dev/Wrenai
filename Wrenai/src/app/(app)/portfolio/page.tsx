@@ -26,13 +26,10 @@ export default async function PortfolioPage() {
   return (
     <div className="flex flex-col gap-12">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div className="flex flex-col gap-1.5">
-          <h1 className="font-display text-h1">Portfolio</h1>
-          <p className="text-small text-fg-muted">Balances, agents and trading access</p>
-        </div>
+        <h1 className="font-display text-page-title">Portfolio</h1>
         <RefreshPortfolioButton />
       </header>
-      <div className="grid min-w-0 gap-8 lg:grid-cols-2">
+      <div className="grid min-w-0 items-start gap-8 lg:grid-cols-2">
         <PortfolioOverview wallet={wallet} agents={agents} />
         <TradingAccessPane accountId={user.accountId} reading={agentKey} />
       </div>

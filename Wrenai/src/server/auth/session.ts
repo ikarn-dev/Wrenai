@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt, lt } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { database } from "@/server/db/client";
 import { sessions, users } from "@/server/db/schema";
 import { serverEnv } from "@/server/env";
@@ -37,8 +38,8 @@ export async function startSession(userId: string): Promise<void> {
   });
 }
 
-/** The signed-in user, or null when there is no valid session. */
-export async function currentUser(): Promise<SessionUser | null> {
+// React discards this cache between server requests; authorization never enters a shared process cache.
+const readSessionUser = cache(async (): Promise<SessionUser | null> => {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (token === undefined) {
     return null;
@@ -50,6 +51,11 @@ export async function currentUser(): Promise<SessionUser | null> {
     .where(and(eq(sessions.tokenHash, hashToken(token)), gt(sessions.expiresAt, Date.now())))
     .limit(1);
   return row ?? null;
+});
+
+/** The signed-in user, or null when there is no valid session. */
+export async function currentUser(): Promise<SessionUser | null> {
+  return readSessionUser();
 }
 
 /** The signed-in user; redirects to sign-in when there is none. */
