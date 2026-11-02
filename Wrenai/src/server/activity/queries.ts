@@ -25,6 +25,7 @@ const rowSchema = z.object({
   deleted: z.boolean(),
 });
 const titles: Readonly<Record<string, string>> = {
+  whale_alert: "Watched wallet movement",
   strategy_saved: "Strategy saved",
   cloned: "Agent cloned",
   pause: "Agent paused",

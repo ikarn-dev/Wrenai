@@ -142,7 +142,7 @@ export function TradingRecovery({
     return <p className="text-small text-fg-muted">Save an agent before setting up a trading account.</p>;
   }
   const field =
-    "min-h-11 w-full rounded-sm border border-line-strong bg-surface-1 px-3 text-small disabled:text-fg-disabled";
+    "min-h-11 w-full rounded-sm border border-line-strong bg-sunken px-3 text-small disabled:text-fg-disabled";
   return (
     <div className="space-y-4">
       <p className="text-small text-fg-muted">

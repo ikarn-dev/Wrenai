@@ -17,8 +17,10 @@ import { synchronizePrivateInventory } from "@/server/execution/private-inventor
 import { databaseTime, executionEvent, ownedExecution, requireLease } from "@/server/execution/records";
 import { readKeyRegistration } from "@/server/intents/verifier";
 import { hashNep413Payload } from "@/server/near/nep413";
+import { isRemovedExecutablePack, REMOVED_AGENT_MESSAGE } from "@/shared/agent-scope";
 import { currentAgentStrategy } from "./asset-review";
 import { copySubmissionCheck } from "./copy-reference";
+import { instructionSubmissionCheck } from "./instruction-reference";
 import { triggerSubmissionCheck } from "./trigger-reference";
 
 export interface IntentsExecutionResult {
@@ -67,6 +69,13 @@ export async function executeIntentsAction(
   }
   if (action.status !== "reserved") {
     return { actionId, status: action.status };
+  }
+  const currentScope = await currentAgentStrategy(db, userId, action.agentId, action.agentRevision);
+  if (
+    isRemovedExecutablePack(currentScope.agent.pack) ||
+    isRemovedExecutablePack(currentScope.strategy.kind)
+  ) {
+    throw new ExecutionError("not_ready", REMOVED_AGENT_MESSAGE);
   }
   requireLease(action, leaseToken, await databaseTime(db));
   if (action.scope !== "confidential") {
@@ -117,6 +126,7 @@ export async function executeIntentsAction(
   }
   await synchronizePrivateInventory(db, userId);
   const current = await currentAgentStrategy(db, action.userId, action.agentId, action.agentRevision);
+  const checkInstruction = await instructionSubmissionCheck(db, current, prepared.signal, quote, action.id);
   const checkMarket =
     current.strategy.kind === "triggers"
       ? await triggerSubmissionCheck(db, action, prepared, quote, current)
@@ -142,6 +152,7 @@ export async function executeIntentsAction(
         key,
       );
     },
+    checkInstruction ?? undefined,
   );
   try {
     const response = await oneClickJson("/v0/submit-intent", {

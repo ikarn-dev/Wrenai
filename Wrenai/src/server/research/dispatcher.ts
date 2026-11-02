@@ -2,173 +2,134 @@ import "server-only";
 import { z } from "zod";
 import type { ChatToolDefinition } from "@/server/ai/verified-chat-stream";
 import {
+  type ActiveAgentTool,
+  activeAgentToolSchema,
+  isActiveAgentTool,
+  REMOVED_AGENT_MESSAGE,
+} from "@/shared/agent-scope";
+import {
   RESEARCH_TOOLS,
   type ResearchInput,
   type ResearchReport,
-  type ResearchTool,
   researchInputSchema,
   researchReportSchema,
   researchToolSchema,
 } from "@/shared/research";
 import { researchInputIssue } from "@/shared/research-input";
-import { leaderResearch, memeResearch, paymentResearch } from "./accounts-launches";
-import { arbitrageScan } from "./arbitrage";
+import { memeResearch, paymentResearch } from "./accounts-launches";
 import { DECISION_GUIDANCE } from "./decision-guidance";
-import { perpBook, perpMarkets } from "./hyperliquid";
-import { drySwapQuote, intentTokens, tokenPriceItems } from "./intents";
+import { perpMarkets } from "./hyperliquid";
+import { drySwapQuote } from "./intents";
 import { researchNews } from "./news";
-import { perpAnalysis } from "./perp-analysis";
-import { poolItems, rheaPools } from "./rhea";
-import { lendingMarkets, stakingReadings } from "./staking-lending";
+import { perpTechnicalAnalysis } from "./perp-technicals";
+import { whaleResearch } from "./whales";
 
-export const RESEARCH_DEFINITIONS: readonly ChatToolDefinition[] = Object.entries(RESEARCH_TOOLS).map(
-  ([tool, info]) => ({
+export const RESEARCH_DEFINITIONS: readonly ChatToolDefinition[] = activeAgentToolSchema.options.map(
+  (tool) => ({
     type: "function",
     function: {
       name: `research_${tool}`,
-      description: `${info.description} ${DECISION_GUIDANCE[researchToolSchema.parse(tool)]} Use this tool for current/live requests in this category. Public data only; accountId must be explicitly provided. Amounts are decimal strings with amountAsset identifying the unit; omitted amount means a labeled sample, not a user budget.`,
+      description: `${RESEARCH_TOOLS[tool].description} ${DECISION_GUIDANCE[tool]} Public data only. Account must be explicit; decimal amounts must identify their asset. No signing or execution.`,
       parameters: z.toJSONSchema(researchInputSchema, { unrepresentable: "any" }),
       strict: false,
     },
   }),
 );
 
+type PublicReport = Omit<ResearchReport, "items" | "sources" | "limitations"> & {
+  readonly items: readonly ResearchReport["items"][number][];
+  readonly sources: readonly ResearchReport["sources"][number][];
+  readonly limitations: readonly string[];
+};
 async function toolReport(
-  tool: ResearchTool,
+  tool: ActiveAgentTool,
   input: ResearchInput,
   signal: AbortSignal,
-): Promise<
-  Omit<ResearchReport, "items" | "sources" | "limitations"> & {
-    readonly items: readonly ResearchReport["items"][number][];
-    readonly sources: readonly ResearchReport["sources"][number][];
-    readonly limitations: readonly string[];
-  }
-> {
+): Promise<PublicReport> {
   const base = { tool, observedAt: Date.now(), status: "ok" as const, limitations: [] };
   switch (tool) {
-    case "arbitrage":
-      return { ...base, ...(await arbitrageScan(input, signal)) };
     case "perps": {
       const data = await perpMarkets(input.symbols, signal);
-      const first = data.markets[0];
-      const [book, trend] = await Promise.allSettled([
-        first ? perpBook(first.market.name, signal) : Promise.reject(new Error("No market")),
-        first ? perpAnalysis(first, signal) : Promise.reject(new Error("No market")),
-      ]);
+      const analyses = await Promise.allSettled(
+        data.markets.map((market) => perpTechnicalAnalysis(market, signal)),
+      );
+      const verified = analyses.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
+      const missing = input.symbols.filter(
+        (symbol) => !data.markets.some((market) => market.market.name.toUpperCase() === symbol.toUpperCase()),
+      );
+      const failed = data.markets
+        .filter((_market, index) => analyses[index]?.status !== "fulfilled")
+        .map((market) => market.market.name);
       return {
         ...base,
-        status: trend.status === "fulfilled" ? "ok" : "partial",
+        status: !missing.length && !failed.length && verified.length ? "ok" : "partial",
         summary:
           "Analyze the closed-candle trend together with live funding and available book liquidity. Give long/short/wait with reasons and invalidation; funding alone does not establish direction.",
-        items: [
-          ...(trend.status === "fulfilled" ? [trend.value.item] : []),
-          ...data.items,
-          ...(book.status === "fulfilled" ? [book.value] : []),
-        ],
-        sources: [data.source, ...(trend.status === "fulfilled" ? [trend.value.source] : [])],
+        items: [...verified.map((analysis) => analysis.item), ...data.items],
+        sources: [data.source, ...verified.flatMap((analysis) => analysis.sources)],
+        technicals: verified.map((analysis) => analysis.technical),
         assessment:
-          trend.status === "fulfilled"
-            ? trend.value.assessment
-            : {
-                decision: "wait",
-                summary:
-                  "Price history could not be validated; no directional technical signal is established.",
-                reasons: ["A current mark/funding snapshot alone is insufficient to choose long or short."],
-                conditions: ["Obtain fresh consecutive closed candles before choosing a side."],
-                sourceIds: [data.source.id],
-              },
-        limitations: book.status === "fulfilled" ? [] : ["Order-book liquidity was unavailable."],
+          verified.length === 1 && verified[0]
+            ? verified[0].assessment
+            : verified.length > 1
+              ? {
+                  decision: "compare",
+                  summary: verified
+                    .map((analysis) => analysis.assessment.summary)
+                    .join(" ")
+                    .slice(0, 400),
+                  reasons: verified.slice(0, 4).map((analysis) => analysis.assessment.summary),
+                  conditions: [
+                    "Assess each market separately using its 15m, 1h and 4h frames and recent news. Do not apply one market's signal to another.",
+                  ],
+                  sourceIds: [data.source.id],
+                }
+              : {
+                  decision: "wait",
+                  summary:
+                    "Price history could not be validated; no directional technical signal is established.",
+                  reasons: ["A current mark/funding snapshot alone is insufficient to choose long or short."],
+                  conditions: ["Obtain fresh consecutive closed candles before choosing a side."],
+                  sourceIds: [data.source.id],
+                },
+        limitations: [
+          "Chart-derived setups require a fresh size-specific execution quote and user loss limits; these are not orders.",
+          ...(missing.length ? [`Requested markets unavailable: ${missing.join(", ")}.`] : []),
+          ...(failed.length
+            ? [
+                `Closed-bar evidence unavailable for: ${failed.join(", ")}; no technical signal is supported for those markets.`,
+              ]
+            : []),
+        ],
       };
     }
 
-    case "lp_manager": {
-      const data = await rheaPools(signal);
-      const pools = input.poolId ? data.pools.filter((pool) => pool.id === input.poolId) : data.pools;
-      return {
-        ...base,
-        summary:
-          "Current RHEA pool liquidity and fee tiers. LP ownership, accrued rewards and range profitability are not inferred from aggregate pool data.",
-        items: poolItems(pools, input.symbols),
-        sources: [data.source],
-      };
-    }
     case "meme_hunter":
-      return { ...base, ...(await memeResearch(input, signal)) };
-    case "lending_margin":
-      return {
-        ...base,
-        summary:
-          "Current RHEA protocol supply/borrow APR fields and eligibility flags, excluding farming incentives. Account liquidation health requires separate verified positions/oracles.",
-        ...(await lendingMarkets(input, signal)),
-      };
-    case "yield_optimizer": {
-      const [lending, staking, registry] = await Promise.allSettled([
-        lendingMarkets(input, signal),
-        stakingReadings(signal),
-        intentTokens(signal),
-      ]);
-      const items = [
-        ...(lending.status === "fulfilled" ? lending.value.items : []),
-        ...(staking.status === "fulfilled" ? staking.value.map((item) => item.item) : []),
-      ];
-      const sources = [
-        ...(lending.status === "fulfilled" ? lending.value.sources : []),
-        ...(staking.status === "fulfilled" ? staking.value.map((item) => item.source) : []),
-      ];
-      if (registry.status === "fulfilled") {
-        const receipts = registry.value.tokens.filter((token) =>
-          ["gtUSDCp", "TLO", "kV-gtSOLb"].includes(token.symbol),
-        );
-        for (const token of receipts.slice(0, 3)) {
-          items.push({
-            id: token.assetId,
-            title: `Earn receipt · ${token.symbol}`,
-            kind: "protocol",
-            status: "observed",
-            metrics: [
-              { label: "Chain", value: token.blockchain },
-              { label: "Current registry", value: "Listed" },
-            ],
-            note: "Listed receipt token only; live deposit/withdraw quotes and protocol APY must be checked separately.",
-            sourceIds: [registry.value.source.id],
-          });
-        }
-        sources.push(registry.value.source);
-      }
-      return {
-        ...base,
-        status: items.length ? "partial" : "unavailable",
-        summary:
-          "Retrieved available RHEA APRs, liquid-staking redemption/liquidity state and currently listed Earn receipts. Do not treat exchange rates as APY or compare unlike return fields.",
-        items: items.slice(0, 12),
-        sources: sources.slice(0, 20),
-        limitations: [
-          "Staking APYs, incentive valuation, entry/exit costs and future rate changes are not fully established.",
-        ],
-      };
-    }
+      return { ...base, status: "partial", ...(await memeResearch(input, signal)) };
     case "private_payments":
-      return { ...base, ...(await paymentResearch(input, signal)) };
-    case "copy_trading":
-      return { ...base, ...(await leaderResearch(input, signal)) };
-    case "triggers": {
+      return { ...base, status: "partial", ...(await paymentResearch(input, signal)) };
+    case "whale_tracker":
+      return { ...base, status: "partial", ...(await whaleResearch(input, signal)) };
+    case "dca":
+    case "spot_trader":
+    case "buy_the_dip":
+    case "sell_the_top": {
       const data = await drySwapQuote(input, signal);
+      const limits =
+        tool === "spot_trader"
+          ? "A fresh spot quote is information, not an order. Exact action, owned inventory, allocated budget, exits and limits need separate review."
+          : tool === "dca"
+            ? "A live pair quote does not create a schedule; schedule, timezone, budget and missed-run behavior need review."
+            : tool === "buy_the_dip"
+              ? "A quote alone does not establish a dip. The reference price/window and threshold must be supplied and validated."
+              : "A quote alone does not establish profit. Confirmed entry cost, attributed inventory and net-profit targets are required.";
       return {
         ...base,
-        summary:
-          "A fresh dry swap preview for the requested pair/amount. A trigger/DCA agent still needs explicit entry/schedule/exit rules and user-reviewed limits.",
+        status: "partial",
+        summary: "Current size-specific spot quote for the requested pair. No trade was placed.",
         items: [data.item],
-        sources: [...data.sources],
-      };
-    }
-    case "rebalancer": {
-      const data = await intentTokens(signal);
-      return {
-        ...base,
-        summary:
-          "Supported asset reference prices for allocation research. No wallet holdings, drift or target allocation is assumed; request those details before making a rebalance plan.",
-        items: tokenPriceItems(data.tokens, input.symbols),
-        sources: [data.source],
+        sources: data.sources,
+        limitations: [limits],
       };
     }
     default: {
@@ -184,72 +145,49 @@ export async function runResearchTool(
   signal: AbortSignal,
 ): Promise<ResearchReport> {
   const tool = researchToolSchema.parse(name.startsWith("research_") ? name.slice("research_".length) : name);
-  const parsed = researchInputSchema.safeParse(
-    (() => {
-      try {
-        return JSON.parse(rawArguments);
-      } catch {
-        return null;
-      }
-    })(),
-  );
+  const unavailable = (summary: string): ResearchReport => ({
+    tool,
+    status: "unavailable",
+    summary,
+    observedAt: Date.now(),
+    items: [],
+    sources: [],
+    limitations: ["No validated live conclusion is supported."],
+  });
+  if (!isActiveAgentTool(tool)) {
+    return unavailable(REMOVED_AGENT_MESSAGE);
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(rawArguments);
+  } catch {
+    return unavailable("Specify valid public assets, account and amount units.");
+  }
+  const parsed = researchInputSchema.safeParse(raw);
   if (!parsed.success) {
-    return {
-      tool,
-      status: "unavailable",
-      summary:
-        "Required research inputs could not be validated. Ask for the missing public asset/account or amount unit.",
-      observedAt: Date.now(),
-      items: [],
-      sources: [],
-      limitations: ["No live conclusion is supported by invalid inputs."],
-    };
+    return unavailable("Specify valid public assets, account and amount units.");
   }
   const issue = researchInputIssue(tool, parsed.data);
   if (issue) {
-    return {
-      tool,
-      status: "unavailable",
-      summary: issue,
-      observedAt: Date.now(),
-      items: [],
-      sources: [],
-      limitations: ["Clarify the required input before requesting live data."],
-    };
+    return unavailable(issue);
   }
   const [market, news] = await Promise.allSettled([
     toolReport(tool, parsed.data, signal),
     researchNews(tool, parsed.data, signal),
   ]);
+  signal.throwIfAborted();
   const newsData = news.status === "fulfilled" ? news.value : undefined;
   const result =
     market.status === "fulfilled"
       ? market.value
-      : {
-          tool,
-          status: "unavailable" as const,
-          summary: `${RESEARCH_TOOLS[tool].label} market data could not be validated. Explain what is missing rather than inventing results.`,
-          observedAt: Date.now(),
-          items: [],
-          sources: [],
-          limitations: ["The requested live market data is unavailable."],
-        };
+      : unavailable(`${RESEARCH_TOOLS[tool].label} data is unavailable. Try again shortly.`);
   const validated = researchReportSchema.safeParse({
     ...result,
-    status: result.items.length ? result.status : result.status === "unavailable" ? "unavailable" : "partial",
+    status: result.items.length ? result.status : "unavailable",
     observedAt: Date.now(),
     ...(newsData ? { news: newsData } : {}),
   });
   return validated.success
     ? validated.data
-    : {
-        tool,
-        status: "unavailable",
-        summary: "The market response did not pass validation. No market conclusion is supported.",
-        observedAt: Date.now(),
-        items: [],
-        sources: [],
-        limitations: ["Validated market evidence is required before choosing an action."],
-        ...(newsData ? { news: newsData } : {}),
-      };
+    : unavailable("The market data did not pass validation. No conclusion is supported.");
 }

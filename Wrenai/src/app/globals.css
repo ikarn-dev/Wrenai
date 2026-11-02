@@ -176,6 +176,8 @@
   --color-accent: var(--mint-400);
   --color-accent-fg: var(--void-950);
   --color-accent-text: var(--mint-300);
+  /* Active nav label and icon: one step calmer than accent-text (mint-300). 7.53:1 on surface-3. */
+  --color-accent-nav: var(--mint-400);
   --color-accent-soft: var(--mint-950);
   --color-accent-line: var(--mint-600);
   --color-gain: var(--mint-400);

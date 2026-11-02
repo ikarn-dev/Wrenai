@@ -11,6 +11,7 @@ import { generateAgentKey } from "@/server/delegation/agent-key";
 import { advanceIntentsAction } from "@/server/engine/action";
 import { checkAgentCycle } from "@/server/engine/check";
 import { readAgentRuntime } from "@/server/engine/runtime";
+import { INITIAL_TRIGGER_STATE } from "@/server/engine/trigger";
 import { executeIntentsAction } from "@/server/execution/intents-executor";
 import { prepareSwapExecution } from "@/server/execution/intents-order";
 import { reconcileIntentsAction } from "@/server/execution/intents-reconciliation";
@@ -53,22 +54,35 @@ beforeEach(async () => {
   vi.spyOn(records, "databaseTime").mockResolvedValue(now);
   context = await executionTestContext({ maxProviderFeeBps: 20 });
   await context.db.update(users).set({ accountId: "intents.near" }).where(eq(users.id, "owner"));
-  const [version] = await context.db
-    .select()
-    .from(strategyVersions)
-    .where(eq(strategyVersions.agentId, context.agentId));
-  if (!version?.resolvedAssetsJson) {
-    throw new Error("Missing fixture strategy.");
-  }
+  const activeStrategy = strategySchema.parse({
+    kind: "triggers",
+    asset: "NEAR",
+    quoteAsset: "USDC",
+    condition: "buy_above",
+    triggerPriceUsd: "4.35",
+    orderSizeUsd: "9.9983",
+    takeProfitPriceUsd: "5",
+    stopLossPriceUsd: "4",
+    trailingStopBps: 500,
+    maxChaseBps: 100,
+    confirmationSeconds: 0,
+    expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    rearm: false,
+  });
+  await context.db.update(agents).set({ pack: "triggers" }).where(eq(agents.id, context.agentId));
   await context.db
     .update(strategyVersions)
     .set({
-      resolvedAssetsJson: version.resolvedAssetsJson.replace(
-        "nep141:usdc.test-fixture.near",
-        fixture.request.originAsset,
-      ),
+      configJson: JSON.stringify(activeStrategy),
+      resolvedAssetsJson: JSON.stringify({
+        strategyHash: records.executionHash(activeStrategy),
+        assets: [
+          { symbol: "NEAR", assetId: fixture.request.destinationAsset },
+          { symbol: "USDC", assetId: fixture.request.originAsset },
+        ],
+      }),
     })
-    .where(eq(strategyVersions.id, version.id));
+    .where(eq(strategyVersions.agentId, context.agentId));
   const syncToken = await beginInventorySync(context.db, "owner", "confidential");
   await finishInventorySync(context.db, "owner", {
     scope: "confidential",
@@ -184,6 +198,25 @@ afterEach(async () => {
 });
 
 async function prepare(): Promise<Awaited<ReturnType<typeof prepareSwapExecution>>> {
+  await context.db
+    .insert(agentRuntimes)
+    .values({
+      agentId: context.agentId,
+      userId: "owner",
+      activationId: crypto.randomUUID(),
+      inputHash: "a".repeat(64),
+      agentRevision: 1,
+      strategyVersion: 1,
+      workflowRunId: "offline-signer-run",
+      segment: 0,
+      nextCheckAt: Date.now(),
+      failures: 0,
+      state: "active",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      strategyStateJson: JSON.stringify({ ...INITIAL_TRIGGER_STATE, confirmationSince: Date.now() }),
+    })
+    .onConflictDoNothing();
   return prepareSwapExecution(context.db, "owner", {
     requestId: crypto.randomUUID(),
     agentId: context.agentId,
@@ -191,10 +224,25 @@ async function prepare(): Promise<Awaited<ReturnType<typeof prepareSwapExecution
     inputAssetId: fixture.request.originAsset,
     outputAssetId: fixture.request.destinationAsset,
     inputUnits: fixture.request.amount,
+    purpose: "trigger_entry",
+    referenceOutputPriceMicroUsd: "4350000",
+    outputDecimals: 24,
   });
 }
 
 describe("Vercel Intents execution with real quote evidence and offline keys", () => {
+  it.each(["rebalancer", "copy_trading"] as const)(
+    "blocks new %s signatures even for a previously prepared order",
+    async (pack) => {
+      const action = await prepare();
+      const worker = await claimExecution(context.db, "owner", action.id);
+      await context.db.update(agents).set({ pack }).where(eq(agents.id, context.agentId));
+      await expect(executeIntentsAction(context.db, "owner", action.id, worker.token)).rejects.toMatchObject({
+        code: "not_ready",
+      });
+      expect(transport.request.mock.calls.filter((call) => call[0] === "/v0/submit-intent")).toHaveLength(0);
+    },
+  );
   it("verifies the exact signed transfer, commits before submission and never submits twice", async () => {
     const action = await prepare();
     const worker = await claimExecution(context.db, "owner", action.id);

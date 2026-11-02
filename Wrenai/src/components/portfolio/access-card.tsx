@@ -120,7 +120,7 @@ export function TradingAccessPane({ accountId, reading }: TradingAccessPaneProps
         <div className="grid">
           {reading.state.kind === "active" ? (
             <Link
-              href="/settings"
+              href="/settings/trading-access"
               className="inline-flex h-10 items-center justify-center gap-1.5 rounded-sm bg-surface-4 text-body font-medium text-fg-strong ring-1 ring-line-strong/50 ring-inset transition-colors duration-300 ease-ios hover:bg-surface-5 pointer-coarse:h-11"
             >
               Manage access

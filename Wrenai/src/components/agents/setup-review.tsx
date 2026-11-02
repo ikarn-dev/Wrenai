@@ -2,24 +2,40 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactElement, useState, useTransition } from "react";
+import { TokenBudget } from "@/components/agents/token-budget";
 import { ResearchCards } from "@/components/chat/research-cards";
 import { Button } from "@/components/ui/button";
 import { useToastState } from "@/components/ui/toast";
 import { saveChatAgentSetup } from "@/server/chat/draft-actions";
+import { type AgentBudgetInput, budgetTokenAmount } from "@/shared/agent-budget";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
+import { isActiveAgentTool } from "@/shared/agent-scope";
 import { packSchema } from "@/shared/agents";
 import type { AgentSetupDraft } from "@/shared/research";
 
 export function AgentSetupReview({ draft }: { readonly draft: AgentSetupDraft }): ReactElement {
   const router = useRouter();
   const [brief, setBrief] = useState(draft.brief);
+  const [budget, setBudget] = useState<AgentBudgetInput | null>(
+    draft.budget
+      ? {
+          assetId: draft.budget.assetId,
+          amount: budgetTokenAmount(draft.budget.units, draft.budget.decimals),
+        }
+      : null,
+  );
   const [busy, startTransition] = useTransition();
   const [, setMessage] = useToastState("info");
   function save(discard: boolean, reviewed = false): void {
     setMessage(null);
     startTransition(async () => {
       try {
-        const result = await saveChatAgentSetup({ id: draft.id, brief: discard ? null : brief, reviewed });
+        const result = await saveChatAgentSetup({
+          id: draft.id,
+          brief: discard ? null : brief,
+          reviewed,
+          ...(discard ? {} : { budget }),
+        });
         if (!result.ok) {
           setMessage(result.message);
           return;
@@ -39,7 +55,25 @@ export function AgentSetupReview({ draft }: { readonly draft: AgentSetupDraft })
       }
     });
   }
-  const supported = packSchema.safeParse(draft.tool).success;
+  const active = isActiveAgentTool(draft.tool);
+  const supported = active && packSchema.safeParse(draft.tool).success;
+  if (draft.agentId) {
+    return (
+      <div className="mx-auto flex max-w-reading flex-col gap-4">
+        <h1 className="text-h1">{AGENT_CATALOG[draft.tool].name}</h1>
+        <p className="text-small text-fg-muted">
+          This setup has been saved as an agent. Its allocation is retained until changed through the agent's
+          funding flow.
+        </p>
+        <Link
+          href={`/agents/${draft.agentId}`}
+          className="inline-flex min-h-11 items-center text-small text-accent-text"
+        >
+          Manage agent
+        </Link>
+      </div>
+    );
+  }
   return (
     <div className="mx-auto flex max-w-reading flex-col gap-6">
       <Link href="/agents" className="text-small text-fg-muted hover:text-fg">
@@ -49,7 +83,11 @@ export function AgentSetupReview({ draft }: { readonly draft: AgentSetupDraft })
         <h1 className="text-h1">{AGENT_CATALOG[draft.tool].name} setup</h1>
         <p className="text-small text-fg-muted">
           {draft.reviewState === "reviewed" ? "Reviewed setup" : "Draft"} ·{" "}
-          {supported ? "not activated" : "execution unavailable"}
+          {!active
+            ? "removed agent type · history only"
+            : supported
+              ? "not activated"
+              : "execution unavailable"}
         </p>
       </header>
       <p className="text-body leading-relaxed text-fg-muted">
@@ -72,6 +110,9 @@ export function AgentSetupReview({ draft }: { readonly draft: AgentSetupDraft })
           className="rounded-sm border border-line bg-surface-1 p-3 text-body leading-relaxed"
         />
       </label>
+      {active && draft.tool !== "whale_tracker" ? (
+        <TokenBudget value={budget} onChange={setBudget} excludeId={draft.id} disabled={busy} />
+      ) : null}
       <div className="flex flex-wrap gap-3">
         <Button disabled={busy || !brief.trim()} onClick={() => save(false)}>
           {busy ? "Saving…" : "Save setup"}

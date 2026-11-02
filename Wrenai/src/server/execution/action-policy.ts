@@ -22,7 +22,7 @@ export async function recheckLedgerAction(
       return current.policy;
     }
     await checkReservationLimits(db, action.userId, plan, current, now, action.id);
-    await checkSubmissionRate(db, action, current.policy, now);
+    await checkSubmissionRate(db, action, current.policy, now, current.riskReducingExit);
     if ((await availableInventory(db, action.userId, action.scope, swap.inputAssetId, now)) < 0n) {
       throw new ExecutionError("insufficient_funds", "Current inventory no longer covers its reservations.");
     }
@@ -33,7 +33,7 @@ export async function recheckLedgerAction(
   if (mode === "claim") {
     return current.policy;
   }
-  await checkSubmissionRate(db, action, current.policy, now);
+  await checkSubmissionRate(db, action, current.policy, now, current.riskReducingExit);
   for (const cash of plan.cash) {
     if ((await availableInventory(db, action.userId, action.scope, cash.assetId, now)) < 0n) {
       throw new ExecutionError(

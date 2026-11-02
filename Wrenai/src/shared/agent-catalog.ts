@@ -1,7 +1,62 @@
 import type { ResearchTool } from "./research";
 
-/** These are reviewed setup types. None authorizes live execution. */
+/** Eight active setup types plus display-only historical metadata. None authorizes live execution. */
 export const AGENT_CATALOG = {
+  spot_trader: {
+    name: "Spot Trader Agent",
+    description: "Plan spot buys, sells and profit-taking with your allocated tokens and limits.",
+    prompt:
+      "Review a spot buy or sell with the exact token pair, size, current quote, costs and any take-profit, stop-loss or trailing rules. Chat does not submit the trade.",
+    fields: [
+      "Buy or sell, exact tokens and chain",
+      "Size, amount unit and order conditions",
+      "Take-profit, stop-loss, trailing rules and expiry",
+    ],
+  },
+  dca: {
+    name: "DCA Agent",
+    description: "Plan recurring spot purchases with a fixed budget and schedule.",
+    prompt:
+      "Review a DCA purchase pair, schedule, costs and spending limits. Ask for essential missing details.",
+    fields: [
+      "Buy asset, pay asset and amount per purchase",
+      "Schedule, timezone, start and end",
+      "Total budget, slippage and missed-run rule",
+    ],
+  },
+  whale_tracker: {
+    name: "Whale / Smart Money Tracker",
+    description: "Watch confirmed public wallet movements and evidence-backed trading patterns.",
+    prompt:
+      "Research confirmed public movements for a watched account. Distinguish transfers from trades and show what can actually be established.",
+    fields: [
+      "Watched public accounts, chain and tokens",
+      "Transfer threshold with asset or USD unit",
+      "Alert conditions and duplicate/cooldown rules",
+    ],
+  },
+  buy_the_dip: {
+    name: "Buy the Dip Agent",
+    description: "Plan spot buys when a defined price or drawdown condition is reached.",
+    prompt:
+      "Review a spot buy-the-dip setup with an explicit reference price or rolling-high window, threshold, sizing and risk limits.",
+    fields: [
+      "Buy/pay assets, chain and dip reference",
+      "Price or percentage threshold and reference window",
+      "Order size, total budget, cooldown and expiry",
+    ],
+  },
+  sell_the_top: {
+    name: "Sell the Top Agent",
+    description: "Plan spot exits at your profit targets, with optional trailing protection.",
+    prompt:
+      "Review profit-target spot exits using confirmed cost basis, all known fees, sell percentages and optional trailing stop. Do not claim to identify the actual top.",
+    fields: [
+      "Owned asset, chain and confirmed cost basis",
+      "Net-profit targets and percentage to sell at each",
+      "Trailing rule, minimum output and expiry",
+    ],
+  },
   rebalancer: {
     name: "Rebalancing Agent",
     description: "Plan target allocations and when to rebalance your assets.",
@@ -66,13 +121,13 @@ export const AGENT_CATALOG = {
   },
   perps: {
     name: "Perpetuals Agent",
-    description: "Assess long, short or wait using trend, funding, liquidity and news.",
+    description: "Analyze directional setups and plan trades with take-profit, stop-loss and trailing rules.",
     prompt:
-      "Analyze NEAR perpetuals using price history, funding, liquidity and recent news. Recommend long, short or wait, with reasons and invalidation conditions.",
+      "Analyze the specified perpetual market and horizon with chart indicators, funding, liquidity and recent news. Give the supported long/short bias, strength, entry, TP, SL and invalidation; separate analysis from trade eligibility.",
     fields: [
       "Market and time horizon",
       "Long, short or conditional entry",
-      "Position size, leverage, stop-loss and take-profit",
+      "Position size, leverage, take-profit, stop-loss and trailing rule",
     ],
   },
   arbitrage: {

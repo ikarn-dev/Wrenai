@@ -2,6 +2,7 @@ import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import type { ReactElement } from "react";
 import { Badge } from "@/components/ui/badge";
+import { isRemovedExecutablePack } from "@/shared/agent-scope";
 import { type AgentSummary, PACKS, parseUsd } from "@/shared/agents";
 import { formatCompactMicroUsd } from "@/shared/money";
 import { AgentAvatar } from "./avatar";
@@ -33,6 +34,7 @@ export function AgentCard({ agent }: { readonly agent: AgentSummary }): ReactEle
             </h3>
             <p className="text-caption text-fg-subtle">
               {PACKS[agent.pack].label} · v{agent.version}
+              {isRemovedExecutablePack(agent.pack) ? " · Removed" : ""}
             </p>
           </div>
         </div>

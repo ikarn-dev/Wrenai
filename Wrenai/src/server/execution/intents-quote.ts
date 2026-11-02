@@ -1,4 +1,5 @@
 import "server-only";
+import { QuoteRequest } from "@defuse-protocol/one-click-sdk-typescript";
 import { z } from "zod";
 import { positiveTokenUnitsSchema } from "@/shared/token-units";
 import type { TradeQuote } from "@/shared/trade-preview";
@@ -24,6 +25,12 @@ export const intentsOrderRequestSchema = z.strictObject({
   inputUnits: positiveTokenUnitsSchema,
   slippageBps: z.number().int().min(1).max(500),
   maximumProviderFeeBps: z.number().int().min(0).max(2000),
+  paymentRecipient: z
+    .string()
+    .min(2)
+    .max(64)
+    .regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/)
+    .optional(),
 });
 const depositSchema = z.object({
   quote: z.object({
@@ -41,9 +48,17 @@ export interface PreparedIntentsOrder {
 }
 
 /** Creates an unfunded provider quote and unsigned payload. The Signer must independently recheck authorization and Guard limits. */
-export async function prepareIntentsOrder(raw: unknown, signal?: AbortSignal): Promise<PreparedIntentsOrder> {
+export async function prepareIntentsOrder(
+  raw: unknown,
+  signal?: AbortSignal,
+  sessionToken?: string,
+): Promise<PreparedIntentsOrder> {
   const input = intentsOrderRequestSchema.parse(raw);
-  if (input.inputAssetId === input.outputAssetId) {
+  if (
+    input.paymentRecipient
+      ? input.inputAssetId !== input.outputAssetId || input.paymentRecipient === input.accountId
+      : input.inputAssetId === input.outputAssetId
+  ) {
     throw new ExecutionError("not_ready", "A swap requires different reviewed assets.");
   }
   const request = {
@@ -57,8 +72,11 @@ export async function prepareIntentsOrder(raw: unknown, signal?: AbortSignal): P
       Date.now(),
     ),
     dry: false,
+    ...(input.paymentRecipient
+      ? { recipient: input.paymentRecipient, swapType: QuoteRequest.swapType.EXACT_OUTPUT }
+      : {}),
   };
-  const providerQuote = await oneClickJson("/v0/quote", request, signal);
+  const providerQuote = await oneClickJson("/v0/quote", request, signal, sessionToken);
   const quote = verifiedProviderQuote(providerQuote, request, "confidential", Date.now(), input.slippageBps);
   const deposit = depositSchema.parse(providerQuote).quote;
   if (quote.appFeeBps > input.maximumProviderFeeBps) {
@@ -74,6 +92,7 @@ export async function prepareIntentsOrder(raw: unknown, signal?: AbortSignal): P
         depositAddress: deposit.depositAddress,
       },
       signal,
+      undefined,
     ),
   );
   const validated = validateGeneratedIntent(generated, {
@@ -81,7 +100,7 @@ export async function prepareIntentsOrder(raw: unknown, signal?: AbortSignal): P
     scope: "confidential",
     depositAddress: deposit.depositAddress,
     inputAssetId: input.inputAssetId,
-    inputUnits: input.inputUnits,
+    inputUnits: quote.inputUnits,
     providerDeadline: deposit.deadline,
     maximumValidityMs: MAX_PROVIDER_INTENT_VALIDITY_MS,
     now: Date.now(),

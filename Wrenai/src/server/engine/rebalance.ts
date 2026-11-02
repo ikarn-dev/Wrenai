@@ -1,9 +1,9 @@
 import { decimal } from "@/server/research/decimal";
-import { type AgentPolicy, type AssetSymbol, parseUsd, type Strategy } from "@/shared/agents";
+import { type AgentPolicy, parseUsd, type Strategy } from "@/shared/agents";
 import { minimumUnits } from "@/shared/token-units";
 
 export interface PricedHolding {
-  readonly symbol: AssetSymbol;
+  readonly symbol: string;
   readonly assetId: string;
   readonly decimals: number;
   readonly units: bigint;

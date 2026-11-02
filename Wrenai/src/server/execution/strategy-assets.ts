@@ -3,7 +3,8 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { strategyVersions } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
-import { strategySchema, strategySymbols, symbolSchema } from "@/shared/agents";
+import { instructionAssets } from "@/shared/agent-instructions";
+import { strategySchema, strategySymbols } from "@/shared/agents";
 import { ExecutionError, type ExecutionPlan, hashSchema } from "./contracts";
 import { executionHash } from "./records";
 
@@ -13,7 +14,7 @@ const bindingsSchema = z.strictObject({
   assets: z
     .array(
       z.strictObject({
-        symbol: symbolSchema,
+        symbol: z.string().min(1).max(180),
         assetId: z
           .string()
           .min(3)
@@ -21,7 +22,7 @@ const bindingsSchema = z.strictObject({
           .regex(/^[^\s:*]+:[^\s*]+$/),
       }),
     )
-    .min(2)
+    .min(1)
     .max(6),
 });
 
@@ -45,6 +46,21 @@ export async function checkStrategyAssets(
   }
   const strategy = strategySchema.parse(JSON.parse(version.configJson));
   const bindings = bindingsSchema.parse(JSON.parse(version.resolvedAssetsJson));
+  if ("format" in strategy) {
+    const expected = instructionAssets(strategy);
+    if (
+      bindings.strategyHash !== executionHash(strategy) ||
+      bindings.assets.length !== expected.length ||
+      new Set(bindings.assets.map((asset) => asset.assetId)).size !== expected.length ||
+      bindings.assets.some((asset) => !expected.includes(asset.assetId) || asset.symbol !== asset.assetId)
+    ) {
+      throw new ExecutionError("not_ready", "The resolved tokens do not match the reviewed instruction.");
+    }
+    if (!expected.includes(plan.inputAssetId) || !expected.includes(plan.outputAssetId)) {
+      throw new ExecutionError("limit", "The trade includes a token outside the reviewed instruction.");
+    }
+    return;
+  }
   const symbols = new Set(strategySymbols(strategy));
   const assetIds = new Set(bindings.assets.map((asset) => asset.assetId));
   if (
@@ -52,7 +68,7 @@ export async function checkStrategyAssets(
     assetIds.size !== symbols.size ||
     new Set(bindings.assets.map((asset) => asset.symbol)).size !== symbols.size ||
     bindings.assets.length !== symbols.size ||
-    bindings.assets.some((asset) => !symbols.has(asset.symbol))
+    bindings.assets.some((asset) => ![...symbols].some((symbol) => symbol === asset.symbol))
   ) {
     throw new ExecutionError("not_ready", "The resolved assets do not match the reviewed strategy.");
   }

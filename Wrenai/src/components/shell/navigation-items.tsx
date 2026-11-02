@@ -42,9 +42,9 @@ export function NavigationTooltip({
 const ITEM_BASE =
   "flex min-w-0 items-center rounded-sm text-body transition-colors duration-200 ease-ios focus-visible:-outline-offset-2";
 // Clean, like a dashboard sidebar: regular weight throughout. Idle is quiet grey text that only brightens on
-// hover; active is the one item on a pill, the next surface step up (surface-2), with strong text.
+// hover; active is the one item on a pill (surface-3) with its label and icon in the calm nav mint.
 const ITEM_IDLE = "cursor-pointer text-fg-muted hover:text-fg-strong";
-const ITEM_ACTIVE = "cursor-pointer nav-active text-fg-strong";
+const ITEM_ACTIVE = "cursor-pointer nav-active text-accent-nav";
 const ITEM_UNAVAILABLE = "cursor-not-allowed text-fg-disabled";
 
 // Expanded and collapsed share one box, so the icon keeps its left offset while the sidebar's width animates and

@@ -1,9 +1,8 @@
 import { z } from "zod";
-import { symbolSchema } from "./agents";
 import { positiveTokenUnitsSchema, tokenUnitsSchema } from "./token-units";
 
 export const tradeAssetSchema = z.strictObject({
-  symbol: symbolSchema,
+  symbol: z.string().trim().min(1).max(180),
   assetId: z.string().min(3).max(256),
   tokenSymbol: z.string().min(1).max(80),
   blockchain: z.string().min(1).max(40),
@@ -20,7 +19,7 @@ export const reviewAgentAssetsSchema = agentAssetInputSchema.extend({
   requestId: z.uuid(),
   assets: z
     .array(tradeAssetSchema.pick({ symbol: true, assetId: true }))
-    .min(2)
+    .min(1)
     .max(6),
 });
 export const tradePreviewInputSchema = agentAssetInputSchema
@@ -30,6 +29,7 @@ export const tradePreviewInputSchema = agentAssetInputSchema
     outputAssetId: z.string().min(3).max(256),
     inputUnits: positiveTokenUnitsSchema,
     slippageBps: z.number().int().min(1).max(500),
+    purpose: z.enum(["trade", "funding"]).optional(),
   })
   .refine((input) => input.inputAssetId !== input.outputAssetId, "Choose different input and output assets.");
 export type TradePreviewInput = z.infer<typeof tradePreviewInputSchema>;
@@ -89,6 +89,7 @@ export const tradePreviewSchema = z.strictObject({
     .min(1)
     .max(20),
   executionEnabled: z.literal(false),
+  purpose: z.enum(["trade", "funding"]).optional(),
   evidenceHash: z.string().regex(/^[a-f0-9]{64}$/),
 });
 export type TradePreview = z.infer<typeof tradePreviewSchema>;
@@ -98,8 +99,9 @@ export interface AgentTradeAssets {
   readonly revision: number;
   readonly strategyVersion: number;
   readonly choices: readonly {
-    readonly symbol: z.infer<typeof symbolSchema>;
+    readonly symbol: string;
     readonly candidates: readonly TradeAsset[];
   }[];
   readonly reviewed: readonly TradeAsset[];
+  readonly fundingReference?: TradeAsset;
 }

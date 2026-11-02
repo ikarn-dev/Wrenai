@@ -14,6 +14,7 @@ import type { TradeQuote } from "@/shared/trade-preview";
 vi.mock("server-only", () => ({}));
 vi.mock("@/server/execution/oneclick-quote", () => ({ freshDryQuote: vi.fn() }));
 vi.mock("@/server/execution/private-inventory", () => ({ synchronizePrivateInventory: vi.fn() }));
+vi.mock("@/server/execution/balance-session", () => ({ privateBalanceToken: async () => "offline-session" }));
 vi.mock("@/server/research/intents", () => ({
   intentTokens: async () => ({
     source: {
@@ -67,7 +68,6 @@ afterEach(async () => context.postgres.close());
 async function input(): Promise<{
   readonly requestId: string;
   readonly previewId: string;
-  readonly sharedCapitalUsd: string;
   readonly agentCapitalUsd: string;
 }> {
   const preview = await createTradePreview(
@@ -102,7 +102,6 @@ async function input(): Promise<{
   return {
     requestId: crypto.randomUUID(),
     previewId: preview.id,
-    sharedCapitalUsd: "100",
     agentCapitalUsd: "100",
   };
 }
@@ -141,7 +140,7 @@ describe("explicit owner-approved private balance allocation", () => {
       allocatePreviewBalance(context.db, "owner", { ...request, agentCapitalUsd: "4" }),
     ).rejects.toMatchObject({ code: "limit" });
     expect(await context.db.select().from(positionLots)).toHaveLength(0);
-    expect((await context.db.select().from(capitalAccounts))[0]?.limitMicroUsd).toBe(1_000_000_000n);
+    expect((await context.db.select().from(capitalAccounts))[0]?.limitMicroUsd).toBe(100_000_000n);
     expect((await context.db.select().from(agentCapital))[0]?.limitMicroUsd).toBe(100_000_000n);
   });
 });

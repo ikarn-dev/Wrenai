@@ -1,8 +1,9 @@
-import { ChartNoAxesCombined, MessageCircle, ShieldCheck, Wallet, Waypoints } from "lucide-react";
+import { BrainCircuit, ChartNoAxesCombined, MessageCircle, ShieldCheck, Wallet } from "lucide-react";
 import type { ReactElement } from "react";
+import type { PortfolioPerformance } from "@/server/portfolio/performance";
 import type { WalletBalanceReading } from "@/server/portfolio/wallet-balance";
 import type { AgentSummary } from "@/shared/agents";
-import type { UserRiskPolicyRecord } from "@/shared/risk-policy";
+import { formatCompactMicroUsd } from "@/shared/money";
 import type { TelegramLinkState } from "@/shared/telegram";
 import { StatTile } from "./panel";
 import { NearAmount, ReadTime } from "./wallet-cards";
@@ -10,8 +11,8 @@ import { NearAmount, ReadTime } from "./wallet-cards";
 interface PortfolioOverviewProps {
   readonly wallet: WalletBalanceReading;
   readonly agents: readonly AgentSummary[];
-  readonly riskPolicy: UserRiskPolicyRecord | null;
   readonly telegram: TelegramLinkState;
+  readonly performance: PortfolioPerformance;
 }
 
 function Quiet({ children }: { readonly children: string }): ReactElement {
@@ -49,14 +50,13 @@ function telegramValue(telegram: TelegramLinkState): ReactElement {
 }
 
 /**
- * What a user checks first: the wallet, then four facts in a 2×2 grid (agents, PnL, the spending limit every
- * agent trades inside, and whether Telegram alerts reach them). Trading access lives in the pane beside this.
+ * Wallet and agent facts. Different token budgets cannot be added into a fictional shared USD balance.
  */
 export function PortfolioOverview({
   wallet,
   agents,
-  riskPolicy,
   telegram,
+  performance,
 }: PortfolioOverviewProps): ReactElement {
   return (
     <div className="grid content-start gap-stack sm:grid-cols-2">
@@ -69,14 +69,22 @@ export function PortfolioOverview({
           )}
         </StatTile>
       </div>
-      <StatTile icon={Waypoints} label="Agents" meta="Each agent has its own budget">
+      <StatTile icon={BrainCircuit} label="Agents" meta="Each agent has its own budget">
         {agentCount(agents)}
       </StatTile>
-      <StatTile icon={ChartNoAxesCombined} label="Net PnL" meta="From recorded fills">
-        <Quiet>No trades yet</Quiet>
+      <StatTile
+        icon={ChartNoAxesCombined}
+        label="Realized PnL"
+        meta="From recorded fills; excludes unrealized changes"
+      >
+        {performance.totalMicroUsd !== null ? (
+          formatCompactMicroUsd(performance.totalMicroUsd)
+        ) : (
+          <Quiet>{performance.count ? "Incomplete cost data" : "No recorded fills"}</Quiet>
+        )}
       </StatTile>
-      <StatTile icon={ShieldCheck} label="Daily limit" meta="Shared by all your agents">
-        {riskPolicy === null ? <Quiet>Not set</Quiet> : `$${riskPolicy.policy.dailyCapUsd} per day`}
+      <StatTile icon={ShieldCheck} label="Budgets" meta="Exact tokens allocated during agent setup">
+        Per agent
       </StatTile>
       <StatTile icon={MessageCircle} label="Telegram" meta="Alerts and approvals">
         {telegramValue(telegram)}

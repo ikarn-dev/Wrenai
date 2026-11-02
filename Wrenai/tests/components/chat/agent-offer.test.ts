@@ -23,7 +23,7 @@ const turn: ChatTurn = {
     historyTrimmed: false,
     research: [
       {
-        tool: "arbitrage",
+        tool: "perps",
         status: "partial",
         summary: "No net edge confirmed",
         observedAt: 1000,
@@ -36,7 +36,7 @@ const turn: ChatTurn = {
 };
 describe("one agent suggestion per completed analysis", () => {
   it("offers the exact researched tool even if its execution is still a planning draft", () => {
-    expect(latestAgentOffer("conversation", turn)).toMatchObject({ turnId: turn.id, tool: "arbitrage" });
+    expect(latestAgentOffer("conversation", turn)).toMatchObject({ turnId: turn.id, tool: "perps" });
     expect(latestAgentOffer("other", turn)?.key).not.toBe(latestAgentOffer("conversation", turn)?.key);
   });
   it("does not offer provisional, failed, stopped, unavailable or general replies", () => {
@@ -60,6 +60,15 @@ describe("one agent suggestion per completed analysis", () => {
     ).toBeNull();
   });
   it("does not substitute another agent when the selected tool has no saved research", () => {
-    expect(latestAgentOffer("conversation", { ...turn, tool: "perps" })).toBeNull();
+    expect(latestAgentOffer("conversation", { ...turn, tool: "dca" })).toBeNull();
+  });
+  it("never offers a removed family from saved historical research", () => {
+    if (!turn.reply) {
+      throw new Error("Missing reply fixture");
+    }
+    const research = turn.reply.research?.map((report) => ({ ...report, tool: "arbitrage" as const })) ?? [];
+    expect(
+      latestAgentOffer("conversation", { ...turn, tool: "arbitrage", reply: { ...turn.reply, research } }),
+    ).toBeNull();
   });
 });

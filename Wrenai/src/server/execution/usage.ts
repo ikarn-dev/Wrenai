@@ -34,6 +34,7 @@ export async function readSpendingUsage(
     .where(
       and(
         eq(executionActions.userId, userId),
+        sql`coalesce(${executionActions.planJson}::jsonb ->> 'reduceOnly', 'false') <> 'true'`,
         isNull(executionActions.reservationReleasedAt),
         excludeActionId === undefined ? undefined : ne(executionActions.id, excludeActionId),
       ),
@@ -60,7 +61,13 @@ export async function readSpendingUsage(
     })
     .from(executionReceipts)
     .innerJoin(executionActions, eq(executionActions.id, executionReceipts.actionId))
-    .where(and(eq(executionReceipts.userId, userId), gte(executionReceipts.recordedAt, now - 86_400_000)));
+    .where(
+      and(
+        eq(executionReceipts.userId, userId),
+        gte(executionReceipts.recordedAt, now - 86_400_000),
+        sql`coalesce(${executionActions.planJson}::jsonb ->> 'reduceOnly', 'false') <> 'true'`,
+      ),
+    );
   return {
     userSpent24hMicroUsd: BigInt(spent?.user ?? "0"),
     agentSpent24hMicroUsd: BigInt(spent?.agent ?? "0"),

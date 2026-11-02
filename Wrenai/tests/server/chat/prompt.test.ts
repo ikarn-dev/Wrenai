@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { chatPrompt } from "@/server/chat/prompt";
+import { activeAgentToolSchema } from "@/shared/agent-scope";
 import { type ChatTurn, chatInputSchema } from "@/shared/chat";
-import { RESEARCH_TOOLS, researchToolSchema } from "@/shared/research";
+import { RESEARCH_TOOLS } from "@/shared/research";
 
 describe("read-only chat input and context boundaries", () => {
-  it.each(researchToolSchema.options)(
+  it.each(activeAgentToolSchema.options)(
     "validates and scopes the selected %s tool without granting actions",
     (tool) => {
       const raw = {
@@ -50,7 +51,7 @@ describe("read-only chat input and context boundaries", () => {
     expect(prompt.messages.at(-1)).toEqual({ role: "user", content: text });
     expect(prompt.messages[0]?.content).toContain("cannot execute");
     expect(prompt.messages[0]?.content).toContain("Chat never activates or executes an agent");
-    expect(prompt.messages[0]?.content).toContain("Copy Trading requires Explorer access");
+    expect(prompt.messages[0]?.content).toContain("The only active agent families");
     expect(prompt.messages[0]?.content).toContain("backend processes plaintext");
     expect(prompt.messages[0]?.content).toContain("No fresh account context");
     expect(prompt.messages.filter((message) => message.role === "system")).toHaveLength(1);

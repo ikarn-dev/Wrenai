@@ -1,9 +1,11 @@
-import { Waypoints } from "lucide-react";
+import { BrainCircuit } from "lucide-react";
 import Link from "next/link";
 import type { ReactElement } from "react";
 import { AgentStatus } from "@/components/agents/agent-card";
 import { AgentAvatar } from "@/components/agents/avatar";
+import type { PortfolioPerformance } from "@/server/portfolio/performance";
 import type { AgentSummary } from "@/shared/agents";
+import { formatCompactMicroUsd, formatUnits } from "@/shared/money";
 import { PortfolioPanel } from "./panel";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -13,7 +15,13 @@ const MONTH_LABEL = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
-export function AgentPerformanceCard({ agents }: { readonly agents: readonly AgentSummary[] }): ReactElement {
+export function AgentPerformanceCard({
+  agents,
+  performance,
+}: {
+  readonly agents: readonly AgentSummary[];
+  readonly performance: PortfolioPerformance;
+}): ReactElement {
   return (
     <PortfolioPanel
       id="agent-performance"
@@ -47,35 +55,54 @@ export function AgentPerformanceCard({ agents }: { readonly agents: readonly Age
           </thead>
           <tbody>
             {agents.length > 0 ? (
-              agents.map((agent) => (
-                <tr key={agent.id} className="border-b border-line-card last:border-0">
-                  <th scope="row" className="py-4 text-left font-normal">
-                    <Link
-                      href={`/agents/${agent.id}`}
-                      className="inline-flex items-center gap-3 rounded-xs hover:text-accent-text"
-                    >
-                      <AgentAvatar running={agent.status === "running"} />
-                      {agent.name}
-                    </Link>
-                  </th>
-                  <td className="py-4 pl-4">
-                    <AgentStatus agent={agent} />
-                  </td>
-                  <td className="py-4 pl-4 text-right font-mono text-fg-muted">
-                    <span aria-hidden="true">—</span>
-                    <span className="sr-only">No recorded fills</span>
-                  </td>
-                  <td className="py-4 pl-4 text-right font-mono text-fg-muted">
-                    <span aria-hidden="true">—</span>
-                    <span className="sr-only">Unavailable</span>
-                  </td>
-                </tr>
-              ))
+              agents.map((agent) => {
+                const value = performance.agents.find((row) => row.agentId === agent.id);
+                const pnl = value?.realizedPnlMicroUsd;
+                const basis = value?.basisMicroUsd;
+                return (
+                  <tr key={agent.id} className="border-b border-line-card last:border-0">
+                    <th scope="row" className="py-4 text-left font-normal">
+                      <Link
+                        href={`/agents/${agent.id}`}
+                        className="inline-flex items-center gap-3 rounded-xs hover:text-accent-text"
+                      >
+                        <AgentAvatar running={agent.status === "running"} />
+                        {agent.name}
+                      </Link>
+                    </th>
+                    <td className="py-4 pl-4">
+                      <AgentStatus agent={agent} />
+                    </td>
+                    <td className="py-4 pl-4 text-right font-mono text-fg-muted">
+                      {pnl === null || pnl === undefined ? (
+                        <span title={value?.count ? "Incomplete cost or fee data" : "No recorded fills"}>
+                          —
+                        </span>
+                      ) : (
+                        <span className={pnl < 0n ? "text-loss" : pnl > 0n ? "text-gain" : ""}>
+                          {formatCompactMicroUsd(pnl)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-4 pl-4 text-right font-mono text-fg-muted">
+                      {pnl !== null &&
+                      pnl !== undefined &&
+                      basis !== null &&
+                      basis !== undefined &&
+                      basis > 0n ? (
+                        `${formatUnits((pnl * 10_000n) / basis, { decimals: 2, fractionDigits: 2 })}%`
+                      ) : (
+                        <span title="Unavailable">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
             ) : (
               <tr>
                 <td colSpan={4} className="py-8 text-center align-middle">
                   <div className="mx-auto flex max-w-xs flex-col items-center gap-3">
-                    <Waypoints
+                    <BrainCircuit
                       aria-hidden="true"
                       size={24}
                       strokeWidth={1.75}
@@ -97,7 +124,11 @@ export function AgentPerformanceCard({ agents }: { readonly agents: readonly Age
   );
 }
 
-export function PnlCalendarCard(): ReactElement {
+export function PnlCalendarCard({
+  performance,
+}: {
+  readonly performance: PortfolioPerformance;
+}): ReactElement {
   const today = new Date();
   const year = today.getUTCFullYear();
   const month = today.getUTCMonth();
@@ -121,25 +152,48 @@ export function PnlCalendarCard(): ReactElement {
           ))}
         </div>
         <ol
-          aria-label={`${MONTH_LABEL.format(today)}. PnL data is unavailable.`}
+          aria-label={`${MONTH_LABEL.format(today)} realized PnL, in UTC.`}
           className="grid min-h-53 grid-cols-7 grid-rows-6 gap-1 font-mono text-small tabular-nums"
         >
           {WEEKDAYS.slice(0, offset).map((day) => (
             <li key={`offset-${day}`} aria-hidden="true" />
           ))}
-          {dates.map(({ day, iso }) => (
-            <li
-              key={iso}
-              aria-current={day === today.getUTCDate() ? "date" : undefined}
-              className={`flex min-h-8 items-center justify-center rounded-xs ${day === today.getUTCDate() ? "text-accent-text ring-1 ring-accent-line ring-inset" : "text-fg-muted"}`}
-            >
-              <time dateTime={iso}>{day}</time>
-            </li>
-          ))}
+          {dates.map(({ day, iso }) => {
+            const record = performance.days.find((value) => value.date === iso);
+            return (
+              <li
+                key={iso}
+                aria-current={day === today.getUTCDate() ? "date" : undefined}
+                title={
+                  record
+                    ? record.pnlMicroUsd === null
+                      ? `${iso}: incomplete cost or fee data`
+                      : `${iso}: ${formatCompactMicroUsd(record.pnlMicroUsd)} realized`
+                    : `${iso}: no recorded fills`
+                }
+                className={`flex min-h-8 items-center justify-center rounded-xs ${day === today.getUTCDate() ? "text-accent-text ring-1 ring-accent-line ring-inset" : "text-fg-muted"}`}
+              >
+                <time dateTime={iso} className="flex flex-col items-center gap-1">
+                  <span>{day}</span>
+                  {record ? (
+                    <span
+                      className={`text-eyebrow ${record.pnlMicroUsd !== null && record.pnlMicroUsd < 0n ? "text-loss" : "text-fg-muted"}`}
+                    >
+                      {record.pnlMicroUsd === null ? "—" : formatCompactMicroUsd(record.pnlMicroUsd)}
+                    </span>
+                  ) : null}
+                </time>
+              </li>
+            );
+          })}
         </ol>
       </div>
       <div className="mt-auto flex items-center justify-between gap-3 text-caption">
-        <p className="text-fg-subtle">PnL data unavailable</p>
+        <p className="text-fg-subtle">
+          {performance.days.length
+            ? "Recorded realized PnL · hover for details"
+            : "No recorded fills this month"}
+        </p>
         <span className="text-fg-subtle">UTC</span>
       </div>
     </PortfolioPanel>

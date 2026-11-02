@@ -12,6 +12,7 @@ export async function unreservedOwnedUnits(
   agentId: string,
   scope: ExecutionScope,
   assetId: string,
+  excludeActionId?: string,
 ): Promise<bigint> {
   const [owned] = await db
     .select({ units: sql<string>`coalesce(sum(${positionLots.remainingUnits}), 0)::text` })
@@ -33,6 +34,7 @@ export async function unreservedOwnedUnits(
         eq(positionReservations.agentId, agentId),
         eq(positionReservations.scope, scope),
         eq(positionReservations.assetId, assetId),
+        excludeActionId ? sql`${positionReservations.actionId} <> ${excludeActionId}` : undefined,
       ),
     );
   return BigInt(owned?.units ?? "0") - BigInt(held?.units ?? "0");
@@ -47,7 +49,7 @@ export function proportionalCost(cost: bigint, quantity: bigint, total: bigint):
 }
 
 /** Requires the caller's owner transaction. Receipt order determines FIFO, not untrusted provider timestamps. */
-export async function consumeFifoLots(
+export async function previewFifoLots(
   db: AppDatabase,
   userId: string,
   agentId: string,
@@ -82,15 +84,6 @@ export async function consumeFifoLots(
         ? null
         : proportionalCost(lot.remainingBasisMicroUsd, take, lot.remainingUnits);
     const capital = proportionalCost(lot.remainingPrincipalMicroUsd, take, lot.remainingUnits);
-    await db
-      .update(positionLots)
-      .set({
-        remainingUnits: lot.remainingUnits - take,
-        remainingBasisMicroUsd:
-          cost === null || lot.remainingBasisMicroUsd === null ? null : lot.remainingBasisMicroUsd - cost,
-        remainingPrincipalMicroUsd: lot.remainingPrincipalMicroUsd - capital,
-      })
-      .where(eq(positionLots.id, lot.id));
     entries.push({ lotId: lot.id, quantityUnits: take, basisMicroUsd: cost, principalMicroUsd: capital });
     basis = basis === null || cost === null ? null : basis + cost;
     principal += capital;
@@ -103,4 +96,30 @@ export async function consumeFifoLots(
     );
   }
   return { entries, basisMicroUsd: basis, principalMicroUsd: principal };
+}
+
+/** Requires the same owner lock as the preview so no allocation can change between planning and applying FIFO. */
+export async function consumeFifoLots(
+  db: AppDatabase,
+  userId: string,
+  agentId: string,
+  scope: ExecutionScope,
+  assetId: string,
+  quantity: bigint,
+): Promise<ConsumedLots> {
+  const result = await previewFifoLots(db, userId, agentId, scope, assetId, quantity);
+  for (const entry of result.entries) {
+    await db
+      .update(positionLots)
+      .set({
+        remainingUnits: sql`${positionLots.remainingUnits} - ${entry.quantityUnits}`,
+        remainingBasisMicroUsd:
+          entry.basisMicroUsd === null
+            ? null
+            : sql`${positionLots.remainingBasisMicroUsd} - ${entry.basisMicroUsd}`,
+        remainingPrincipalMicroUsd: sql`${positionLots.remainingPrincipalMicroUsd} - ${entry.principalMicroUsd}`,
+      })
+      .where(eq(positionLots.id, entry.lotId));
+  }
+  return result;
 }

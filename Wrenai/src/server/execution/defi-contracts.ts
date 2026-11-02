@@ -47,7 +47,9 @@ const defiPlanFields = z.strictObject({
   agentId: z.uuid(),
   agentRevision: z.number().int().positive(),
   strategyVersion: z.number().int().positive(),
-  riskPolicyRevision: z.number().int().positive(),
+  riskPolicyRevision: z.number().int().nonnegative(),
+  budgetMode: z.literal("per_agent").optional(),
+  reduceOnly: z.literal(true).optional(),
   scope: scopeSchema,
   operation: operationSchema,
   venueId: reference,
@@ -79,6 +81,15 @@ const operationPositionKinds = {
 } as const;
 export const defiPlanSchema = defiPlanFields.pipe(
   defiPlanFields.superRefine((plan, ctx) => {
+    if (plan.reduceOnly && (plan.budgetMode !== "per_agent" || plan.operation !== "perp_reduce")) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Only position-reducing per-agent exits can request the protection exception.",
+      });
+    }
+    if (plan.budgetMode === "per_agent" ? plan.riskPolicyRevision !== 0 : plan.riskPolicyRevision <= 0) {
+      ctx.addIssue({ code: "custom", message: "An action must explicitly bind its budget policy." });
+    }
     if (
       new Set(plan.cash.map((a) => a.assetId)).size !== plan.cash.length ||
       new Set(plan.positions.map((p) => p.positionId)).size !== plan.positions.length ||
@@ -148,7 +159,7 @@ export const defiReceiptSchema = z.strictObject({
   providerEventId: reference,
   riskDebitMicroUsd: positiveTokenUnitsSchema,
   // Fee metadata is already included in riskDebitMicroUsd and is never charged a second time.
-  feeMicroUsd: tokenUnitsSchema,
+  feeMicroUsd: tokenUnitsSchema.nullable(),
   cash: z
     .array(
       z.strictObject({

@@ -19,12 +19,15 @@ const calls = vi.hoisted(() => ({
   ready: vi.fn(),
   start: vi.fn(),
   refresh: vi.fn(),
+  draft: vi.fn(),
 }));
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ refresh: calls.refresh }));
 vi.mock("@/server/auth/session", () => ({ currentUser: calls.user }));
 vi.mock("@/server/http/rate-limit", () => ({ consumeRateLimit: calls.rate }));
-vi.mock("@/server/db/client", () => ({ database: () => ({}) }));
+vi.mock("@/server/db/client", () => ({
+  database: () => ({ select: () => ({ from: () => ({ where: () => ({ limit: calls.draft }) }) }) }),
+}));
 vi.mock("@/server/agents/drafts", () => ({ prepareStrategyDraft: calls.parse }));
 vi.mock("@/server/agents/mutations", () => ({
   saveAgent: calls.save,
@@ -40,6 +43,8 @@ describe("agent action authorization and fail-closed launch", () => {
     vi.resetAllMocks();
     calls.user.mockResolvedValue({ id: "owner", accountId: "owner.near" });
     calls.rate.mockResolvedValue("allowed");
+    calls.draft.mockResolvedValue([]);
+    calls.read.mockResolvedValue({ pack: "spot_trader" });
   });
 
   it("requires a session before parsing, saving, managing or stopping agents", async () => {
@@ -68,13 +73,26 @@ describe("agent action authorization and fail-closed launch", () => {
     expect(calls.parse).not.toHaveBeenCalled();
     expect(calls.save).not.toHaveBeenCalled();
   });
+  it.each(["rebalancer", "copy_trading", "triggers"])(
+    "rejects a retired %s parse before inference",
+    async (pack) => {
+      expect(
+        await parseAgentStrategy({
+          requestId: crypto.randomUUID(),
+          pack,
+          strategyText: "Review this old strategy with explicit limits.",
+        }),
+      ).toMatchObject({ ok: false, code: "not_ready" });
+      expect(calls.parse).not.toHaveBeenCalled();
+    },
+  );
 
   it("rate limits parsing before calling the model", async () => {
     calls.rate.mockResolvedValue("limited");
     expect(
       await parseAgentStrategy({
         requestId: crypto.randomUUID(),
-        pack: "rebalancer",
+        pack: "spot_trader",
         strategyText: "Keep NEAR and USDC equally weighted.",
       }),
     ).toMatchObject({ ok: false, code: "rate_limited" });
@@ -87,7 +105,7 @@ describe("agent action authorization and fail-closed launch", () => {
     const input = { requestId, draftId, policy: DEFAULT_POLICY, agentId: null, expectedRevision: null };
     calls.save.mockReturnValue("created-agent");
     expect(await saveAgentStrategy(input)).toEqual({ ok: true, value: { agentId: "created-agent" } });
-    expect(calls.save).toHaveBeenCalledWith({}, "owner", input);
+    expect(calls.save).toHaveBeenCalledWith(expect.any(Object), "owner", input);
     expect(await saveAgentStrategy({ ...input, userId: "someone-else" })).toMatchObject({
       ok: false,
       code: "invalid_input",
@@ -100,7 +118,7 @@ describe("agent action authorization and fail-closed launch", () => {
     expect(
       await parseAgentStrategy({
         requestId: crypto.randomUUID(),
-        pack: "rebalancer",
+        pack: "spot_trader",
         strategyText: "Keep equal allocations in NEAR and USDC.",
       }),
     ).toMatchObject({ ok: false, code: "unavailable" });
@@ -112,7 +130,7 @@ describe("agent action authorization and fail-closed launch", () => {
     expect(
       await parseAgentStrategy({
         requestId: crypto.randomUUID(),
-        pack: "rebalancer",
+        pack: "spot_trader",
         strategyText: "Keep equal NEAR and USDC allocations.",
       }),
     ).toMatchObject({ ok: false, code: "in_progress" });
@@ -131,6 +149,18 @@ describe("agent action authorization and fail-closed launch", () => {
     expect(calls.refresh).not.toHaveBeenCalled();
     expect(calls.start).not.toHaveBeenCalled();
   });
+  it("requires a separate reviewed token budget before duplicating an active agent type", async () => {
+    expect(
+      await manageAgent({
+        requestId: crypto.randomUUID(),
+        agentId: crypto.randomUUID(),
+        expectedRevision: 1,
+        command: "clone",
+      }),
+    ).toMatchObject({ ok: false, code: "not_ready", message: expect.stringContaining("own token budget") });
+    expect(calls.command).not.toHaveBeenCalled();
+    expect(calls.start).not.toHaveBeenCalled();
+  });
 
   it("keeps the emergency stop available when ordinary management is rate limited", async () => {
     calls.rate.mockResolvedValue("limited");
@@ -139,7 +169,7 @@ describe("agent action authorization and fail-closed launch", () => {
       ok: true,
       value: null,
     });
-    expect(calls.stop).toHaveBeenCalledWith({}, "owner", true, requestId, 0);
+    expect(calls.stop).toHaveBeenCalledWith(expect.any(Object), "owner", true, requestId, 0);
     expect(calls.rate).not.toHaveBeenCalled();
     expect(
       await changeGlobalStop({ requestId: crypto.randomUUID(), engaged: false, expectedRevision: 0 }),

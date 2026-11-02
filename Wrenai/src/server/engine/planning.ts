@@ -1,23 +1,23 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
 import type { z } from "zod";
 import type { agentRuntimes } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
-import { executionActions } from "@/server/db/execution-schema";
 import { type currentAgentStrategy, resolvedTradeAssets } from "@/server/execution/asset-review";
 import { ExecutionError } from "@/server/execution/contracts";
 import type { swapSignalSchema } from "@/server/execution/intents-order";
 import { synchronizePrivateInventory } from "@/server/execution/private-inventory";
 import { unreservedOwnedUnits } from "@/server/positions/lots";
-import { publicLeaderFeed } from "@/server/research/explorer";
 import { intentTokens } from "@/server/research/intents";
+import { isRemovedExecutablePack, REMOVED_AGENT_MESSAGE } from "@/shared/agent-scope";
 import { policySchema } from "@/shared/agents";
-import { copyDecision, copyRequestId, copyStateSchema, INITIAL_COPY_STATE } from "./copy";
+import { planSpotInstruction } from "./instruction-planning";
 import { freshMarketPrice } from "./market-price";
-import { type PricedHolding, rebalanceSignal } from "./rebalance";
+import { planPaymentCheck } from "./payment-check";
+import type { PricedHolding } from "./rebalance";
 import type { RuntimeStrategyState } from "./strategy-state";
 import { INITIAL_TRIGGER_STATE, triggerDecision, triggerStateSchema } from "./trigger";
 import { applyTriggerReceipt } from "./trigger-receipt";
+import { planWhaleCheck } from "./whale-check";
 
 export interface StrategyCheckPlan {
   readonly signal: Omit<
@@ -27,6 +27,7 @@ export interface StrategyCheckPlan {
   readonly intervalSeconds: number;
   readonly reason: string;
   readonly requestId?: string;
+  readonly paymentRequestId?: string;
   readonly progress?: { readonly strategyState: RuntimeStrategyState; readonly completed: boolean };
 }
 type CurrentStrategy = Awaited<ReturnType<typeof currentAgentStrategy>>;
@@ -85,62 +86,30 @@ export async function planStrategyCheck(
   runtime: typeof agentRuntimes.$inferSelect,
   requestId: string,
 ): Promise<StrategyCheckPlan> {
-  const policy = policySchema.parse(JSON.parse(current.agent.policyJson));
-  if (current.strategy.kind === "rebalancer") {
-    return {
-      signal: rebalanceSignal(current.strategy, policy, await ownedHoldings(db, current)),
-      intervalSeconds: current.strategy.intervalSeconds,
-      reason: "Within the reviewed allocation band.",
-    };
+  if (isRemovedExecutablePack(current.agent.pack)) {
+    throw new ExecutionError("not_ready", REMOVED_AGENT_MESSAGE);
   }
-  if (current.strategy.kind === "copy_trading") {
-    const state =
-      runtime.strategyStateJson === null
-        ? INITIAL_COPY_STATE
-        : copyStateSchema.parse(JSON.parse(runtime.strategyStateJson));
-    const readings =
-      Date.now() >= Date.parse(current.strategy.expiresAt)
-        ? null
-        : await Promise.allSettled([publicLeaderFeed(), ownedHoldings(db, current)]);
-    const feed = readings?.[0],
-      holdings = readings?.[1];
-    if (feed?.status === "rejected") {
-      if (feed.reason instanceof ExecutionError) {
-        throw feed.reason;
-      }
-      throw new ExecutionError("not_ready", "The public leader feed is unavailable.");
+  const policy = policySchema.parse(JSON.parse(current.agent.policyJson));
+  if ("format" in current.strategy) {
+    const instruction = current.strategy;
+    if (instruction.kind === "private_payments") {
+      return planPaymentCheck(db, runtime, instruction);
     }
-    if (holdings?.status === "rejected") {
-      throw new ExecutionError("not_ready", "The follower's allocated holdings could not be refreshed.");
+    if (instruction.kind === "whale_tracker") {
+      return planWhaleCheck(db, runtime, instruction);
     }
-    const decision = copyDecision(
-      current.strategy,
-      policy,
-      state,
-      feed?.status === "fulfilled" ? feed.value : { capturedAt: Date.now(), swaps: [] },
-      holdings?.status === "fulfilled" ? holdings.value : [],
-      runtime.createdAt,
-      Date.now(),
-    );
-    const request = decision.signal
-      ? copyRequestId(current.agent.id, current.agent.version, decision.signal.copyTrade.eventId)
-      : undefined;
-    const [existing] = request
-      ? await db
-          .select({ id: executionActions.id })
-          .from(executionActions)
-          .where(
-            and(eq(executionActions.userId, current.agent.userId), eq(executionActions.requestId, request)),
-          )
-          .limit(1)
-      : [];
-    return {
-      signal: existing ? null : decision.signal,
-      ...(request ? { requestId: request } : {}),
-      intervalSeconds: 60,
-      reason: existing ? "This leader swap already has a follower execution record." : decision.reason,
-      progress: { strategyState: decision.state, completed: decision.completed },
-    };
+    if (
+      instruction.kind === "spot_trader" ||
+      instruction.kind === "dca" ||
+      instruction.kind === "buy_the_dip" ||
+      instruction.kind === "sell_the_top"
+    ) {
+      return planSpotInstruction(db, current, instruction, runtime.strategyStateJson);
+    }
+    throw new ExecutionError("not_ready", "This instruction's venue adapter has not been enabled.");
+  }
+  if (current.strategy.kind !== "triggers") {
+    throw new ExecutionError("not_ready", REMOVED_AGENT_MESSAGE);
   }
   const strategy = current.strategy;
   const state =

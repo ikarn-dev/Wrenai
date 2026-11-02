@@ -41,6 +41,7 @@ export async function oneClickJson(
     | "/v0/submit-intent",
   body: unknown,
   signal?: AbortSignal,
+  sessionToken?: string,
 ): Promise<unknown> {
   const credential = z.object({ ONECLICK_JWT: z.string().trim().min(1).max(8000) }).safeParse(process.env);
   const response = await fetch(`https://1click.chaindefuser.com${path}`, {
@@ -49,6 +50,7 @@ export async function oneClickJson(
       "Content-Type": "application/json",
       "User-Agent": "wrenai/0.1",
       ...(credential.success ? { "X-API-Key": credential.data.ONECLICK_JWT } : {}),
+      ...(sessionToken ? { "User-Session": sessionToken } : {}),
     },
     body: JSON.stringify(body),
     redirect: "error",
@@ -111,7 +113,7 @@ export function verifiedProviderQuote(
       signature: z.string().max(512),
       quoteRequest: z.looseObject({
         dry: z.literal(request.dry),
-        swapType: z.literal(QuoteRequest.swapType.EXACT_INPUT),
+        swapType: z.literal(request.swapType),
         slippageTolerance: z.literal(request.slippageTolerance),
         originAsset: z.literal(request.originAsset),
         destinationAsset: z.literal(request.destinationAsset),
@@ -163,9 +165,17 @@ export function verifiedProviderQuote(
     throw new ExecutionError("not_ready", "The quote signature or freshness check failed.");
   }
   const quote = parsed.quote;
-  const minimum = (BigInt(quote.amountOut) * BigInt(10_000 - maximumSlippageBps) + 9999n) / 10_000n;
+  const exactOutput = request.swapType === QuoteRequest.swapType.EXACT_OUTPUT;
+  const minimum = exactOutput
+    ? BigInt(request.amount)
+    : (BigInt(quote.amountOut) * BigInt(10_000 - maximumSlippageBps) + 9999n) / 10_000n;
   if (
-    quote.amountIn !== request.amount ||
+    (exactOutput
+      ? quote.amountOut !== request.amount ||
+        BigInt(quote.minAmountIn) <= 0n ||
+        BigInt(quote.amountIn) * 10_000n >
+          BigInt(quote.minAmountIn) * BigInt(10_000 + maximumSlippageBps) + 10_000n
+      : quote.amountIn !== request.amount) ||
     BigInt(quote.minAmountOut) < minimum ||
     BigInt(quote.minAmountOut) > BigInt(quote.amountOut)
   ) {
@@ -217,6 +227,7 @@ export async function freshDryQuote(
   slippageBps: number,
   scope: ExecutionScope,
   signal?: AbortSignal,
+  sessionToken?: string,
 ): Promise<TradeQuote> {
   const request = dryQuoteRequest(
     accountId,
@@ -229,7 +240,7 @@ export async function freshDryQuote(
     Date.now(),
   );
   return verifiedDryQuote(
-    await oneClickJson("/v0/quote", request, signal),
+    await oneClickJson("/v0/quote", request, signal, sessionToken),
     request,
     scope,
     Date.now(),

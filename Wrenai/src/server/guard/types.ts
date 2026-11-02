@@ -33,7 +33,8 @@ export type AgentStatus = "running" | "paused" | "stopped";
 
 export interface GuardLimits {
   readonly maxTradeMicroUsd: bigint;
-  readonly userDailyCapMicroUsd: bigint;
+  /** Null only for explicit per-agent plans; historical plans retain their original account policy. */
+  readonly userDailyCapMicroUsd: bigint | null;
   readonly agentDailyCapMicroUsd: bigint;
   readonly maxSlippageBps: number;
   readonly maxProviderFeeBps?: number;
@@ -61,6 +62,8 @@ export interface GuardContext {
   readonly requiresPositiveEdge: boolean;
   /** Incremental principal from trusted attribution logic. An already-funded owned-asset swap uses zero. */
   readonly newCapitalMicroUsd: bigint;
+  /** Trusted Signer validation of a bound position reduction, never a proposal/model-selected flag. */
+  readonly riskReducingExit?: boolean;
   readonly allowedAssetIds: ReadonlySet<string>;
   readonly allowedChains: ReadonlySet<string>;
   readonly limits: GuardLimits;

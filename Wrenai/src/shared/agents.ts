@@ -1,7 +1,26 @@
 import { z } from "zod";
 import { AGENT_CATALOG } from "./agent-catalog";
+import { agentInstructionSchema } from "./agent-instructions";
+import { activeAgentToolSchema } from "./agent-scope";
 
 export const PACKS = {
+  private_payments: {
+    label: AGENT_CATALOG.private_payments.name,
+    description: AGENT_CATALOG.private_payments.description,
+  },
+  dca: { label: AGENT_CATALOG.dca.name, description: AGENT_CATALOG.dca.description },
+  spot_trader: { label: AGENT_CATALOG.spot_trader.name, description: AGENT_CATALOG.spot_trader.description },
+  perps: { label: AGENT_CATALOG.perps.name, description: AGENT_CATALOG.perps.description },
+  meme_hunter: { label: AGENT_CATALOG.meme_hunter.name, description: AGENT_CATALOG.meme_hunter.description },
+  whale_tracker: {
+    label: AGENT_CATALOG.whale_tracker.name,
+    description: AGENT_CATALOG.whale_tracker.description,
+  },
+  buy_the_dip: { label: AGENT_CATALOG.buy_the_dip.name, description: AGENT_CATALOG.buy_the_dip.description },
+  sell_the_top: {
+    label: AGENT_CATALOG.sell_the_top.name,
+    description: AGENT_CATALOG.sell_the_top.description,
+  },
   rebalancer: { label: AGENT_CATALOG.rebalancer.name, description: AGENT_CATALOG.rebalancer.description },
   triggers: { label: AGENT_CATALOG.triggers.name, description: AGENT_CATALOG.triggers.description },
   copy_trading: {
@@ -12,7 +31,13 @@ export const PACKS = {
 
 export const symbolSchema = z.enum(["NEAR", "BTC", "ETH", "SOL", "USDC", "USDT"]);
 export type AssetSymbol = z.infer<typeof symbolSchema>;
-export const packSchema = z.enum(["rebalancer", "triggers", "copy_trading"]);
+export const AGENT_PACK_NAMES = [
+  "rebalancer",
+  "triggers",
+  "copy_trading",
+  ...activeAgentToolSchema.options,
+] as const;
+export const packSchema = z.enum(AGENT_PACK_NAMES);
 export const approvalSchema = z.enum(["autonomous", "above_size", "every_action"]);
 export const statusSchema = z.enum(["paused", "running", "stopped", "error"]);
 
@@ -79,7 +104,7 @@ const strategyFieldsSchema = z.discriminatedUnion("kind", [
 ]);
 // Object-level refinements can run after a child reports a continuable error. A pipeline keeps
 // all financial comparisons behind complete structural and decimal validation.
-export const strategySchema = strategyFieldsSchema.pipe(
+const legacyStrategySchema = strategyFieldsSchema.pipe(
   strategyFieldsSchema.superRefine((config, context) => {
     if (config.kind === "rebalancer") {
       if (new Set(config.targets.map((target) => target.symbol)).size !== config.targets.length) {
@@ -101,9 +126,13 @@ export const strategySchema = strategyFieldsSchema.pipe(
     }
   }),
 );
+export const strategySchema = z.union([legacyStrategySchema, agentInstructionSchema]);
 export type Strategy = z.infer<typeof strategySchema>;
 
 export function strategySymbols(strategy: Strategy): readonly AssetSymbol[] {
+  if ("format" in strategy) {
+    return [];
+  }
   switch (strategy.kind) {
     case "rebalancer":
       return strategy.targets.map((target) => target.symbol);
@@ -128,6 +157,7 @@ const policyFieldsSchema = z.strictObject({
   maxProviderFeeBps: z.number().int().min(0).max(2000),
   maxTradesPerHour: z.number().int().min(1).max(60),
   cooldownSeconds: z.number().int().min(0).max(86400),
+  allowRiskReducingExits: z.boolean().optional(),
 });
 const reviewedPolicySchema = policyFieldsSchema.pipe(
   policyFieldsSchema.superRefine((policy, context) => {
@@ -187,6 +217,11 @@ export const saveAgentSchema = z.strictObject({
   policy: policySchema,
   agentId: z.uuid().nullable(),
   expectedRevision: z.number().int().positive().nullable(),
+  setupId: z.uuid().optional(),
+  setupHash: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
 });
 export const agentCommandSchema = z.strictObject({
   requestId: z.uuid(),

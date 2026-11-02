@@ -51,7 +51,7 @@ const checkTier: Check = (proposal) => {
 };
 
 const checkMaxTrade: Check = (proposal, context) =>
-  proposal.amountMicroUsd > context.limits.maxTradeMicroUsd
+  !context.riskReducingExit && proposal.amountMicroUsd > context.limits.maxTradeMicroUsd
     ? block(
         "max_trade",
         `Blocked: ${formatMicroUsd(proposal.amountMicroUsd)} is over your ${formatMicroUsd(context.limits.maxTradeMicroUsd)} per-trade limit`,
@@ -59,9 +59,12 @@ const checkMaxTrade: Check = (proposal, context) =>
     : null;
 
 const checkDailyCap: Check = (proposal, context) => {
+  if (context.riskReducingExit) {
+    return null;
+  }
   const { limits, usage } = context;
   const userTotal = usage.userSpent24hMicroUsd + proposal.amountMicroUsd;
-  if (userTotal > limits.userDailyCapMicroUsd) {
+  if (limits.userDailyCapMicroUsd !== null && userTotal > limits.userDailyCapMicroUsd) {
     return block(
       "daily_cap",
       `Blocked: this trade would bring your 24-hour total to ${formatMicroUsd(userTotal)}, over your ${formatMicroUsd(limits.userDailyCapMicroUsd)} cap`,
@@ -91,6 +94,9 @@ const checkBudget: Check = (_proposal, context) => {
 };
 
 const checkCooldown: Check = (_proposal, context) => {
+  if (context.riskReducingExit) {
+    return null;
+  }
   const { agentLastTradeAt, agentCooldownMs } = context.usage;
   if (agentLastTradeAt === null || agentCooldownMs === 0) {
     return null;
@@ -133,7 +139,7 @@ const checkEdge: Check = (proposal, context) => {
 };
 
 const checkRateLimit: Check = (_proposal, context) =>
-  context.usage.agentTradesLastHour >= context.limits.maxTradesPerHour
+  !context.riskReducingExit && context.usage.agentTradesLastHour >= context.limits.maxTradesPerHour
     ? block(
         "rate_limit",
         `Blocked: the agent already made ${context.usage.agentTradesLastHour} trades in the last hour, its limit is ${context.limits.maxTradesPerHour}`,

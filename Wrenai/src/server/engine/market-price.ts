@@ -53,6 +53,10 @@ export async function freshMarketPrice(symbol: AssetSymbol): Promise<MarketPrice
   if (symbol === "USDC" || symbol === "USDT") {
     throw new ExecutionError("not_ready", "This trigger needs a supported underlying USD market.");
   }
+  return freshAssetUsdPrice(symbol);
+}
+
+export async function freshAssetUsdPrice(symbol: AssetSymbol): Promise<MarketPrice> {
   const book = await marketBook(symbol);
   const capturedAt = Date.now();
   const marketAt = Date.parse(book.time);

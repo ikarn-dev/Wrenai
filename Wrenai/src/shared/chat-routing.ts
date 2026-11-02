@@ -1,7 +1,26 @@
+import { isActiveAgentTool, REMOVED_AGENT_MESSAGE } from "./agent-scope";
 import { RESEARCH_TOOLS, type ResearchTool } from "./research";
 
 // Deliberately explicit cues only. Ambiguous follow-ups stay with the selected tool and history.
 const TOPICS: readonly { readonly tool: ResearchTool; readonly pattern: RegExp }[] = [
+  {
+    tool: "spot_trader",
+    pattern: /\b(?:spot trad(?:e|er|ing)|spot buy|spot sell|buy and sell|manual spot)\b/i,
+  },
+  {
+    tool: "dca",
+    pattern: /\b(?:dca|dollar[- ]cost|recurring (?:purchases?|buys?)|buy (?:every|weekly|daily))\b/i,
+  },
+  { tool: "buy_the_dip", pattern: /\b(?:buy (?:the )?dips?|dip buying|buy below|drawdown entry)\b/i },
+  {
+    tool: "sell_the_top",
+    pattern:
+      /\b(?:sell (?:the )?top|profit targets?|take[- ]profit|profit threshold|sell when|exit ladder)\b/i,
+  },
+  {
+    tool: "whale_tracker",
+    pattern: /\b(?:whales?|smart money|wallet movements?|on[- ]chain movements?|large transfers?)\b/i,
+  },
   {
     tool: "arbitrage",
     pattern: /\b(?:arbitrage|arb|price gaps?|price discrepancies|round[- ]trip spreads?)\b/i,
@@ -17,8 +36,7 @@ const TOPICS: readonly { readonly tool: ResearchTool; readonly pattern: RegExp }
   },
   {
     tool: "triggers",
-    pattern:
-      /\b(?:dca|dollar[- ]cost|triggers?|limit orders?|stop[- ]loss|take[- ]profit|swap quotes?|buy (?:every|when)|sell when)\b/i,
+    pattern: /\b(?:price trigger agent|generic trigger agent)\b/i,
   },
   {
     tool: "meme_hunter",
@@ -51,6 +69,12 @@ const TOPICS: readonly { readonly tool: ResearchTool; readonly pattern: RegExp }
 
 function clauseTools(clause: string): readonly ResearchTool[] {
   const tools = TOPICS.filter(({ pattern }) => pattern.test(clause)).map(({ tool }) => tool);
+  if (tools.includes("perps")) {
+    return tools.filter((tool) => tool !== "sell_the_top");
+  }
+  if (tools.includes("spot_trader")) {
+    return tools.filter((tool) => tool !== "sell_the_top");
+  }
   // These umbrella requests naturally mention their underlying instruments.
   if (tools.includes("arbitrage")) {
     return ["arbitrage"];
@@ -86,10 +110,19 @@ export function requestedResearchTools(message: string): readonly ResearchTool[]
 
 /** Cheap preflight shared by the composer and server. Never silently change an explicit selection. */
 export function chatRoutingIssue(message: string, selected: ResearchTool | null): string | null {
+  if (selected && !isActiveAgentTool(selected)) {
+    return REMOVED_AGENT_MESSAGE;
+  }
+  const requested = requestedResearchTools(message);
+  if (
+    requested.some((tool) => !isActiveAgentTool(tool)) &&
+    (selected !== null || /\b(?:live|current|opportunities|find|scan|create|agent|trade)\b/i.test(message))
+  ) {
+    return REMOVED_AGENT_MESSAGE;
+  }
   if (!selected) {
     return null;
   }
-  const requested = requestedResearchTools(message);
   if (!requested.length) {
     return /\b(?:poem|recipe|translate|debug|weather|capital of|write (?:an? )?(?:email|story|letter|song|python|javascript))\b/i.test(
       message,

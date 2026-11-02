@@ -44,6 +44,7 @@ export const activityAmountSchema = z.discriminatedUnion("kind", [
     units: tokenUnitsSchema,
     decimals: z.number().int().min(0).max(36).nullable(),
     symbol: z.string().min(1).max(32),
+    assetId: z.string().min(1).max(256).optional(),
     direction: z.enum(["in", "out", "none"]),
   }),
 ]);

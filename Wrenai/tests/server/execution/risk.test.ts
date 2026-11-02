@@ -82,7 +82,7 @@ describe("account-wide execution risk enforcement", () => {
     const other = await addTestAgent(context.db, "stranger");
     await expect(reserveExecution(context.db, "stranger", executionPlan(other))).rejects.toMatchObject({
       code: "not_ready",
-      message: "Set your account-wide trading limits before activation.",
+      message: "The original action's account policy is unavailable. Review a new plan.",
     });
     await expect(
       reserveExecution(
@@ -112,6 +112,32 @@ describe("account-wide execution risk enforcement", () => {
     await expect(
       reserveExecution(context.db, "owner", executionPlan(other, { notionalMicroUsd: "10000001" })),
     ).rejects.toMatchObject({ code: "limit" });
+  });
+
+  it("uses explicit per-agent budgets for new plans while keeping legacy policy bindings unchanged", async () => {
+    const other = await otherFundedAgent();
+    const mode = { budgetMode: "per_agent", riskPolicyRevision: 0 } as const;
+    const action = await reserveExecution(context.db, "owner", executionPlan(context.agentId, mode));
+    await reserveExecution(context.db, "owner", executionPlan(other, mode));
+    expect(
+      (await readSpendingUsage(context.db, "owner", other, await databaseTime(context.db)))
+        .userPendingMicroUsd,
+    ).toBe(20_000_000n);
+    await revisePolicy();
+    expect((await claimExecution(context.db, "owner", action.id)).mode).toBe("submit");
+    await expect(
+      reserveExecution(context.db, "owner", executionPlan(other, { ...mode, notionalMicroUsd: "10000001" })),
+    ).rejects.toMatchObject({ code: "limit" });
+    await expect(
+      reserveExecution(context.db, "owner", executionPlan(other, { riskPolicyRevision: 0 })),
+    ).rejects.toThrow();
+    await expect(
+      reserveExecution(
+        context.db,
+        "owner",
+        executionPlan(other, { budgetMode: "per_agent", riskPolicyRevision: 2 }),
+      ),
+    ).rejects.toThrow();
   });
 
   it("serializes competing reservations across agents under one owner", async () => {

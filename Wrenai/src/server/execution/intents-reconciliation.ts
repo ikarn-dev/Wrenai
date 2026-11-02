@@ -14,7 +14,7 @@ import { databaseTime, executionEvent, executionHash, ownedExecution, requireLea
 import { tradingResponseJson } from "./trading-http";
 
 const decimal = z.string().regex(/^(?:0|[1-9]\d{0,15})(?:\.\d{1,36})?$/);
-const statusSchema = z.object({
+export const intentsStatusSchema = z.object({
   quoteResponse: z.unknown(),
   status: z.enum([
     "PENDING_DEPOSIT",
@@ -36,7 +36,7 @@ const statusSchema = z.object({
   }),
 });
 
-async function providerStatus(depositAddress: string): Promise<unknown> {
+export async function readIntentsProviderStatus(depositAddress: string): Promise<unknown> {
   const { ONECLICK_JWT } = process.env;
   const credential = z.string().trim().min(1).max(8000).safeParse(ONECLICK_JWT);
   if (!credential.success) {
@@ -77,7 +77,7 @@ export async function reconcileIntentsAction(
   const prepared = await readPreparedOrder(db, action);
   const owner = z.object({ quoteRequest: z.object({ recipient: z.string() }) }).parse(prepared.providerQuote)
     .quoteRequest.recipient;
-  const status = statusSchema.parse(await providerStatus(prepared.depositAddress));
+  const status = intentsStatusSchema.parse(await readIntentsProviderStatus(prepared.depositAddress));
   // Revalidate the original quote at its recorded signing time; recovery must work after quote/key expiry or stop.
   verifiedStoredQuote(action, { ...prepared, providerQuote: status.quoteResponse }, owner, prepared.quotedAt);
   const deposit = z

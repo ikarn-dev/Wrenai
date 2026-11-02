@@ -1,12 +1,12 @@
 import {
   ArrowDownLeft,
   ArrowUpRight,
+  BrainCircuit,
   CircleAlert,
   History,
   ShieldCheck,
   SlidersHorizontal,
   Wallet,
-  Waypoints,
 } from "lucide-react";
 import Link from "next/link";
 import type { ReactElement } from "react";
@@ -15,7 +15,7 @@ import { formatActivityAmount } from "@/shared/activity-format";
 
 const icons = {
   wallet: Wallet,
-  agent: Waypoints,
+  agent: BrainCircuit,
   trade: History,
   funding: Wallet,
   settings: SlidersHorizontal,

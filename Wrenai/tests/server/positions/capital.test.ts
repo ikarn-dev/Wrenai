@@ -10,7 +10,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { commandAgent } from "@/server/agents/mutations";
 import { agents } from "@/server/db/agent-schema";
-import { capitalEvents, positionLots } from "@/server/db/position-schema";
+import { capitalAccounts, capitalEvents, positionLots } from "@/server/db/position-schema";
 import { delegatedKeys } from "@/server/db/schema";
 import { beginSubmission, claimExecution } from "@/server/execution/ownership";
 import { cancelReservedExecution, reserveExecution } from "@/server/execution/reservations";
@@ -45,7 +45,7 @@ describe("owner capital allocation and attributed inventory", () => {
     );
   });
 
-  it("keeps shared limits across agents rather than allocating each agent the entire wallet", async () => {
+  it("derives the capital summary from individual ceilings without using it as a shared user limit", async () => {
     await setUserCapitalLimit(context.db, "owner", {
       requestId: crypto.randomUUID(),
       amountMicroUsd: "100000000",
@@ -56,7 +56,8 @@ describe("owner capital allocation and attributed inventory", () => {
       amountMicroUsd: "60000000",
     });
     const second = await addTestAgent(context.db);
-    await expect(allocateTestAgent(context.db, second, "40000001")).rejects.toMatchObject({ code: "limit" });
+    await allocateTestAgent(context.db, second, "40000001");
+    expect((await context.db.select().from(capitalAccounts))[0]?.limitMicroUsd).toBe(100_000_001n);
     await allocateTestAgent(context.db, second, "40000000");
     await expect(
       setUserCapitalLimit(context.db, "owner", {
@@ -66,7 +67,7 @@ describe("owner capital allocation and attributed inventory", () => {
     ).rejects.toMatchObject({ code: "limit" });
   });
 
-  it("serializes overlapping allocations against the user ceiling", async () => {
+  it("serializes concurrent independent ceilings while deriving the correct total", async () => {
     await allocateTestAgent(context.db, context.agentId, "0");
     await setUserCapitalLimit(context.db, "owner", {
       requestId: crypto.randomUUID(),
@@ -77,8 +78,8 @@ describe("owner capital allocation and attributed inventory", () => {
       allocateTestAgent(context.db, context.agentId, "60000000"),
       allocateTestAgent(context.db, second, "60000000"),
     ]);
-    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
-    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(2);
+    expect((await context.db.select().from(capitalAccounts))[0]?.limitMicroUsd).toBe(120_000_000n);
   });
 
   it("replays identical allocation requests and rejects changed request payloads", async () => {

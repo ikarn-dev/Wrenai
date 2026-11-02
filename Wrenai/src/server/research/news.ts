@@ -20,6 +20,11 @@ const ASSETS: Readonly<Record<string, string>> = {
   HYPE: "Hyperliquid",
 };
 const TOPICS: Record<ResearchTool, string> = {
+  spot_trader: "NEAR spot crypto markets",
+  dca: "crypto market news",
+  whale_tracker: "NEAR onchain movements security",
+  buy_the_dip: "crypto market catalysts",
+  sell_the_top: "crypto market catalysts",
   rebalancer: "crypto markets",
   triggers: "crypto markets",
   copy_trading: "Hyperliquid NEAR security",

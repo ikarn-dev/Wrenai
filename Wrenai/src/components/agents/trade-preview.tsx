@@ -14,6 +14,7 @@ import {
   requestPrivateBalanceConnection,
   saveAgentTradeAssets,
 } from "@/server/execution/preview-actions";
+import { instructionFundingAsset } from "@/shared/agent-instructions";
 import type { AgentSummary } from "@/shared/agents";
 import { parseTokenAmount } from "@/shared/token-units";
 import type { AgentTradeAssets, TradeAsset, TradePreview } from "@/shared/trade-preview";
@@ -94,15 +95,23 @@ function QuoteForm({
   agent,
   assets,
   accountId,
+  reference,
 }: {
   readonly agent: AgentSummary;
   readonly assets: readonly TradeAsset[];
   readonly accountId: string;
+  readonly reference?: TradeAsset | undefined;
 }): ReactElement {
   const [busy, startTransition] = useTransition();
   const [, setError] = useToastState("warn");
   const [preview, setPreview] = useState<TradePreview | null>(null);
   const attemptId = useRef<{ readonly hash: string; readonly id: string } | null>(null);
+  const funding = "format" in agent.strategy;
+  const quoteAssets =
+    reference && !assets.some((asset) => asset.assetId === reference.assetId)
+      ? [...assets, reference]
+      : assets;
+  const fundingAsset = "format" in agent.strategy ? instructionFundingAsset(agent.strategy) : null;
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -118,6 +127,7 @@ function QuoteForm({
         outputAssetId: String(data.get("output") ?? ""),
         inputUnits: parseTokenAmount(String(data.get("amount") ?? ""), origin.decimals).toString(),
         slippageBps: agent.policy.maxSlippageBps,
+        ...(funding ? { purpose: "funding" as const } : {}),
       };
       const hash = JSON.stringify(input);
       if (attemptId.current?.hash !== hash) {
@@ -192,10 +202,35 @@ function QuoteForm({
         <div className="grid gap-4 sm:grid-cols-2">
           {(["input", "output"] as const).map((name) => (
             <label key={name} className="flex min-w-0 flex-col gap-2 text-small">
-              <span>{name === "input" ? "Pay with" : "Receive"}</span>
-              <select name={name} required disabled={busy} className={field} defaultValue="">
+              <span>
+                {name === "input"
+                  ? funding
+                    ? "Allocate token"
+                    : "Pay with"
+                  : funding
+                    ? "Valuation reference · no swap"
+                    : "Receive"}
+              </span>
+              <select
+                name={name}
+                required
+                disabled={busy}
+                className={field}
+                defaultValue={
+                  funding
+                    ? name === "input"
+                      ? (fundingAsset ?? "")
+                      : (reference?.assetId ??
+                        assets.find((asset) => asset.assetId !== fundingAsset)?.assetId ??
+                        "")
+                    : ""
+                }
+              >
                 <option value="">Choose token</option>
-                {assets.map((asset) => (
+                {(name === "input"
+                  ? assets.filter((asset) => !funding || asset.assetId === fundingAsset)
+                  : quoteAssets
+                ).map((asset) => (
                   <option key={asset.assetId} value={asset.assetId}>
                     {asset.tokenSymbol} · {asset.blockchain}
                   </option>
@@ -220,7 +255,7 @@ function QuoteForm({
         </label>
         <div className="flex flex-wrap gap-3">
           <Button type="submit" disabled={busy}>
-            {busy ? "Checking…" : "Preview trade"}
+            {busy ? "Checking…" : funding ? "Review funding" : "Preview trade"}
           </Button>
           <Button type="button" disabled={busy} onClick={() => startTransition(connectBalance)}>
             Connect private balance
@@ -262,7 +297,7 @@ export function AgentTradePreview({
   return (
     <PortfolioPanel
       id="trade-preview"
-      title="Trade preview"
+      title={"format" in agent.strategy ? "Funding review" : "Trade preview"}
       aside={<Button onClick={() => setOpen((value) => !value)}>{open ? "Hide" : "Review trade"}</Button>}
     >
       {open ? (
@@ -279,7 +314,12 @@ export function AgentTradePreview({
           </div>
         ) : query.data ? (
           assets.length ? (
-            <QuoteForm agent={agent} assets={assets} accountId={accountId} />
+            <QuoteForm
+              agent={agent}
+              assets={assets}
+              accountId={accountId}
+              reference={query.data.fundingReference}
+            />
           ) : (
             <AssetReview assets={query.data} onReviewed={setReviewed} />
           )

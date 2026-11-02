@@ -7,10 +7,10 @@ import type { AppDatabase } from "@/server/db/client";
 import { tradePreviews } from "@/server/db/preview-schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import { evaluateGuard } from "@/server/guard/evaluate";
-import { readUserRiskPolicy } from "@/server/guard/user-policy";
 import { assignedCapitalLimit, committedCapital } from "@/server/positions/capital-records";
 import { unreservedOwnedUnits } from "@/server/positions/lots";
 import { intentTokens } from "@/server/research/intents";
+import { instructionFundingAsset } from "@/shared/agent-instructions";
 import { parseUsd, policySchema } from "@/shared/agents";
 import { minimumUnits } from "@/shared/token-units";
 import {
@@ -21,7 +21,8 @@ import {
   tradePreviewInputSchema,
   tradePreviewSchema,
 } from "@/shared/trade-preview";
-import { currentAgentStrategy, resolvedTradeAssets } from "./asset-review";
+import { currentAgentStrategy, registryTradeAsset, resolvedTradeAssets } from "./asset-review";
+import { privateBalanceToken } from "./balance-session";
 import { freshTradingBalances } from "./balances";
 import { ExecutionError } from "./contracts";
 import { freshDryQuote } from "./oneclick-quote";
@@ -93,8 +94,13 @@ export async function latestTradePreview(
 interface PreviewProviders {
   readonly balances: typeof freshTradingBalances;
   readonly quote: typeof freshDryQuote;
+  readonly session?: typeof privateBalanceToken;
 }
-const liveProviders: PreviewProviders = { balances: freshTradingBalances, quote: freshDryQuote };
+const liveProviders: PreviewProviders = {
+  balances: freshTradingBalances,
+  quote: freshDryQuote,
+  session: privateBalanceToken,
+};
 
 export async function createTradePreview(
   db: AppDatabase,
@@ -113,18 +119,33 @@ export async function createTradePreview(
   const strategyHash = executionHash(current.strategy);
   const assets = resolvedTradeAssets(current.strategy, current.version.resolvedAssetsJson, registry.tokens);
   const origin = assets.find((asset) => asset.assetId === input.inputAssetId);
-  const destination = assets.find((asset) => asset.assetId === input.outputAssetId);
+  const funding = input.purpose === "funding";
+  const reference = funding
+    ? registry.tokens.find((token) => token.assetId === input.outputAssetId)
+    : undefined;
+  const destination = reference
+    ? registryTradeAsset(reference)
+    : assets.find((asset) => asset.assetId === input.outputAssetId);
   if (!origin || !destination) {
     throw new ExecutionError("not_ready", "Review the strategy's exact input and output assets first.");
   }
+  if (
+    funding &&
+    "format" in current.strategy &&
+    instructionFundingAsset(current.strategy) !== origin.assetId
+  ) {
+    throw new ExecutionError("not_ready", "Only the reviewed spending token can fund this agent.");
+  }
+  const balanceAssets = [...new Set([...assets.map((asset) => asset.assetId), destination.assetId])];
+  if (balanceAssets.length > 6) {
+    throw new ExecutionError(
+      "not_ready",
+      "This funding review exceeds the balance provider's supported token count.",
+    );
+  }
+  const sessionToken = await providers.session?.(db, user.id);
   const readings = await Promise.allSettled([
-    providers.balances(
-      db,
-      user.id,
-      user.accountId,
-      assets.map((asset) => asset.assetId),
-      "confidential",
-    ),
+    providers.balances(db, user.id, user.accountId, balanceAssets, "confidential", sessionToken ?? undefined),
     providers.quote(
       user.accountId,
       origin.assetId,
@@ -132,6 +153,8 @@ export async function createTradePreview(
       input.inputUnits,
       input.slippageBps,
       "confidential",
+      undefined,
+      sessionToken ?? undefined,
     ),
   ]);
   const balance: TradeBalance =
@@ -157,7 +180,6 @@ export async function createTradePreview(
     }
     const now = await databaseTime(tx);
     const policy = policySchema.parse(JSON.parse(current.agent.policyJson));
-    const risk = await readUserRiskPolicy(tx, user.id);
     const spending = await readSpendingUsage(tx, user.id, input.agentId, now);
     const submission = await readSubmissionUsage(tx, user.id, input.agentId, now);
     const principal = await committedCapital(tx, user.id, input.agentId);
@@ -194,18 +216,12 @@ export async function createTradePreview(
       },
       {
         id: "ownership",
-        status: owned >= BigInt(input.inputUnits) ? "passed" : "blocked",
-        reason:
-          owned >= BigInt(input.inputUnits)
+        status: funding || owned >= BigInt(input.inputUnits) ? "passed" : "blocked",
+        reason: funding
+          ? "No units are assigned until you confirm this funding review."
+          : owned >= BigInt(input.inputUnits)
             ? "The agent owns sufficient unreserved input units."
             : "Allocate confirmed funds to this agent before execution.",
-      },
-      {
-        id: "account_limits",
-        status: risk ? "passed" : "blocked",
-        reason: risk
-          ? "Account-wide limits are configured."
-          : "Set the account-wide spending cap in Settings.",
       },
       {
         id: "valuation",
@@ -216,17 +232,22 @@ export async function createTradePreview(
       },
       {
         id: "capital",
-        status:
-          ceiling > 0n &&
-          principal <= minimumUnits(ceiling, parseUsd(policy.budgetUsd)) &&
-          spending.agentPendingMicroUsd + BigInt(quote?.inputMicroUsd ?? "0") <=
-            minimumUnits(ceiling, parseUsd(policy.budgetUsd))
+        status: funding
+          ? principal + BigInt(quote?.inputMicroUsd ?? "0") <= parseUsd(policy.budgetUsd)
+            ? "passed"
+            : "blocked"
+          : ceiling > 0n &&
+              principal <= minimumUnits(ceiling, parseUsd(policy.budgetUsd)) &&
+              spending.agentPendingMicroUsd + BigInt(quote?.inputMicroUsd ?? "0") <=
+                minimumUnits(ceiling, parseUsd(policy.budgetUsd))
             ? "passed"
             : "blocked",
-        reason: "Confirmed principal and pending commitments must fit the agent's assigned capital ceiling.",
+        reason: funding
+          ? "The allocation must fit this agent's reviewed capital risk ceiling."
+          : "Confirmed principal and pending commitments must fit the agent's assigned capital ceiling.",
       },
     ];
-    if (risk && quote?.inputMicroUsd) {
+    if (!funding && quote?.inputMicroUsd) {
       const verdict = evaluateGuard(
         {
           id: input.requestId,
@@ -252,7 +273,7 @@ export async function createTradePreview(
           allowedChains: new Set(),
           limits: {
             maxTradeMicroUsd: parseUsd(policy.maxTradeUsd),
-            userDailyCapMicroUsd: parseUsd(risk.policy.dailyCapUsd),
+            userDailyCapMicroUsd: null,
             agentDailyCapMicroUsd: parseUsd(policy.dailyCapUsd),
             maxSlippageBps: policy.maxSlippageBps,
             maxProviderFeeBps: policy.maxProviderFeeBps,
@@ -289,7 +310,7 @@ export async function createTradePreview(
       agentId: input.agentId,
       agentRevision: current.agent.revision,
       strategyVersion: current.agent.version,
-      riskPolicyRevision: risk?.revision ?? 0,
+      riskPolicyRevision: 0,
       createdAt: now,
       expiresAt: Math.max(now, Math.min(now + 15_000, quote?.expiresAt ?? now)),
       input: origin,
@@ -303,6 +324,7 @@ export async function createTradePreview(
           : "allowed",
       checks,
       executionEnabled: false,
+      ...(input.purpose ? { purpose: input.purpose } : {}),
     };
     const normalized = tradePreviewSchema.omit({ evidenceHash: true }).parse(body);
     const result: TradePreview = { ...normalized, evidenceHash: executionHash(normalized) };

@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import { type AgentPolicy, parseUsd, type Strategy } from "@/shared/agents";
 import { formatExactMicroUsd } from "@/shared/money";
+import { InstructionSummary } from "./instruction-summary";
 
 export const APPROVAL_LABELS = {
   autonomous: "Autonomous within limits",
@@ -24,6 +25,9 @@ function Detail({
 }
 
 export function StrategySummary({ strategy }: { readonly strategy: Strategy }): ReactElement {
+  if ("format" in strategy) {
+    return <InstructionSummary instruction={strategy} />;
+  }
   return (
     <dl className="divide-y divide-line/60">
       {strategy.kind === "rebalancer" ? (
@@ -104,6 +108,9 @@ export function PolicySummary({ policy }: { readonly policy: AgentPolicy }): Rea
       <Detail label="Partner fee cap">{policy.maxProviderFeeBps} bps</Detail>
       <Detail label="Trades per hour">{policy.maxTradesPerHour}</Detail>
       <Detail label="Cooldown">{policy.cooldownSeconds} seconds</Detail>
+      {policy.allowRiskReducingExits === true ? (
+        <Detail label="Protective exits">Owned position only · independent of entry spending caps</Detail>
+      ) : null}
     </dl>
   );
 }

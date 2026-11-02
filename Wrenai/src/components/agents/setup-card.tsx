@@ -7,6 +7,7 @@ import { type ReactElement, useTransition } from "react";
 import { notify } from "@/components/ui/toast";
 import { removeAgentSetup } from "@/server/chat/draft-actions";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
+import { isActiveAgentTool } from "@/shared/agent-scope";
 import type { AgentSetupDraft } from "@/shared/research";
 import { AgentAvatar } from "./avatar";
 
@@ -49,7 +50,11 @@ export function SetupCard({ setup }: { readonly setup: AgentSetupDraft }): React
         </span>
         <span className="line-clamp-2 text-small text-fg-muted">{setup.brief}</span>
         <span className="mt-auto font-mono text-eyebrow uppercase text-fg-subtle">
-          {setup.reviewState === "reviewed" ? "Reviewed" : "Draft"}
+          {!isActiveAgentTool(setup.tool)
+            ? "Removed · history only"
+            : setup.reviewState === "reviewed"
+              ? "Reviewed"
+              : "Draft"}
         </span>
       </Link>
       <button

@@ -12,7 +12,11 @@ import { userTransaction } from "@/server/db/user-transaction";
 import { ExecutionError } from "@/server/execution/contracts";
 import { databaseTime, executionHash } from "@/server/execution/records";
 import type { agentCommandSchema } from "@/shared/agents";
-import { hasOpenTriggerPosition, runtimeStrategyStateSchema } from "./strategy-state";
+import {
+  hasOpenTriggerPosition,
+  type RuntimeStrategyState,
+  runtimeStrategyStateSchema,
+} from "./strategy-state";
 
 export async function prepareAgentRuntime(
   db: AppDatabase,
@@ -193,6 +197,40 @@ export async function claimStrategyCheck(
       .set({ leaseToken: token, leaseExpiresAt: now + 90_000, updatedAt: now })
       .where(eq(agentRuntimes.agentId, runtime.agentId));
     return { token, slot: runtime.nextCheckAt };
+  });
+}
+
+/** Persist the observed slot before reserving an order so a crash cannot lose its authorization state. */
+export async function recordStrategyProgress(
+  db: AppDatabase,
+  activationId: string,
+  token: string,
+  state: RuntimeStrategyState,
+): Promise<void> {
+  const initial = await readAgentRuntime(db, activationId);
+  if (!initial) {
+    throw new ExecutionError("not_found", "The agent runtime is unavailable.");
+  }
+  await userTransaction(db, initial.userId, async (tx) => {
+    const runtime = await readAgentRuntime(tx, activationId),
+      now = await databaseTime(tx);
+    const agent = await ownedAgent(tx, initial.userId, initial.agentId);
+    if (
+      !runtime ||
+      runtime.leaseToken !== token ||
+      runtime.leaseExpiresAt === null ||
+      runtime.leaseExpiresAt <= now ||
+      runtime.state !== "active" ||
+      agent.status !== "running" ||
+      agent.revision !== runtime.agentRevision ||
+      agent.version !== runtime.strategyVersion
+    ) {
+      throw new ExecutionError("lease_lost", "This decision no longer owns the current agent lifecycle.");
+    }
+    await tx
+      .update(agentRuntimes)
+      .set({ strategyStateJson: JSON.stringify(runtimeStrategyStateSchema.parse(state)), updatedAt: now })
+      .where(eq(agentRuntimes.agentId, runtime.agentId));
   });
 }
 

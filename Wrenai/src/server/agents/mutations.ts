@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import type { z } from "zod";
 import { attestationReceiptSchema } from "@/server/ai/attestation-receipt";
+import type { ChatCipher } from "@/server/chat/cipher";
 import {
   agentRequests,
   agentRuntimes,
@@ -34,6 +35,7 @@ import {
   ownedAgent,
   stopUserAgents,
 } from "./records";
+import { bindAgentSetup } from "./setup-binding";
 
 function requestHash(input: unknown): string {
   return createHash("sha256").update(JSON.stringify(input)).digest("hex");
@@ -112,6 +114,7 @@ export async function saveAgent(
   db: AppDatabase,
   userId: string,
   input: z.infer<typeof saveAgentSchema>,
+  cipher?: ChatCipher,
 ): Promise<string> {
   return userTransaction(db, userId, async (tx) => {
     const repeated = await repeatRequest(tx, userId, input.requestId, input);
@@ -133,6 +136,9 @@ export async function saveAgent(
         "unavailable",
         "The saved strategy pack does not match its rules. Parse it again.",
       );
+    }
+    if ("format" in config && Date.parse(config.expiresAt) <= Date.now()) {
+      throw new AgentError("invalid_input", "The instruction expired. Review a new expiry.");
     }
     if (config.kind === "triggers" && Date.parse(config.expiresAt) <= Date.now()) {
       throw new AgentError("invalid_input", "The trigger has expired. Choose a future expiry.");
@@ -209,6 +215,9 @@ export async function saveAgent(
       createdAt: Date.now(),
     });
     await tx.update(strategyDrafts).set({ consumedAt: Date.now() }).where(eq(strategyDrafts.id, draft.id));
+    if ("format" in config && input.agentId === null) {
+      await bindAgentSetup(tx, userId, agent.id, input.setupId, input.setupHash, config, cipher);
+    }
     await auditAgent(
       tx,
       userId,

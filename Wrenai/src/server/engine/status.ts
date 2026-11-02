@@ -5,7 +5,7 @@ import { agentRuntimes } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { executionActions } from "@/server/db/execution-schema";
 import type { AgentRuntimeStatus } from "@/shared/agent-runtime";
-import { advanceIntentsAction } from "./action";
+import { advanceLedgerAction } from "./ledger-action";
 
 export async function agentRuntimeStatus(
   db: AppDatabase,
@@ -51,6 +51,6 @@ export async function agentRuntimeStatus(
 export async function reconcileAgentOrders(db: AppDatabase, userId: string, agentId: string): Promise<void> {
   const snapshot = await agentRuntimeStatus(db, userId, agentId);
   for (const action of snapshot.pending) {
-    await advanceIntentsAction(db, userId, action.id, "reconcile_only");
+    await advanceLedgerAction(db, userId, action.id, "reconcile_only");
   }
 }

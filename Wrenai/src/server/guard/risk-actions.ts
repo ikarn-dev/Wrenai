@@ -1,14 +1,13 @@
 "use server";
 
-import { refresh } from "next/cache";
 import { z } from "zod";
 import { AgentError, agentFailure } from "@/server/agents/errors";
 import { currentUser } from "@/server/auth/session";
 import { database } from "@/server/db/client";
 import { consumeRateLimit } from "@/server/http/rate-limit";
 import type { AgentResult } from "@/shared/agents";
-import type { UserRiskPolicyRecord } from "@/shared/risk-policy";
-import { readUserRiskPolicy, setUserRiskPolicy } from "./user-policy";
+import { saveUserRiskPolicySchema, type UserRiskPolicyRecord } from "@/shared/risk-policy";
+import { readUserRiskPolicy } from "./user-policy";
 
 async function riskAction<T>(run: (userId: string) => Promise<T>): Promise<AgentResult<T>> {
   try {
@@ -47,9 +46,11 @@ export async function readAccountRiskPolicy(raw: unknown): Promise<AgentResult<U
 }
 
 export async function saveAccountRiskPolicy(raw: unknown): Promise<AgentResult<UserRiskPolicyRecord>> {
-  return riskAction(async (userId) => {
-    const saved = await setUserRiskPolicy(database(), userId, raw);
-    refresh();
-    return saved;
+  return riskAction(async () => {
+    saveUserRiskPolicySchema.parse(raw);
+    throw new AgentError(
+      "not_ready",
+      "Global budgets have been removed. Allocate tokens in each agent's setup.",
+    );
   });
 }

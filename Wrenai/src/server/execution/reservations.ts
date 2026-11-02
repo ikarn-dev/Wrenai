@@ -99,7 +99,7 @@ export async function reserveExecution(
     await invalidateInventory(tx, userId, plan.scope);
     await executionEvent(tx, action, "reserved", now, {
       planHash,
-      riskPolicyRevision: current.riskPolicy.revision,
+      riskPolicyRevision: current.riskPolicy?.revision ?? 0,
       approval: approved ? "policy" : "required",
     });
     return swap;

@@ -27,7 +27,6 @@ export function AgentFunding({
     const data = new FormData(event.currentTarget);
     const values = {
       previewId: preview.id,
-      sharedCapitalUsd: String(data.get("sharedCapitalUsd") ?? ""),
       agentCapitalUsd: String(data.get("agentCapitalUsd") ?? ""),
     };
     const input = JSON.stringify(values);
@@ -64,12 +63,7 @@ export function AgentFunding({
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        {(
-          [
-            { name: "sharedCapitalUsd", label: "Total capital limit · USD" },
-            { name: "agentCapitalUsd", label: "This agent’s limit · USD" },
-          ] as const
-        ).map((field) => (
+        {([{ name: "agentCapitalUsd", label: "This agent’s limit · USD" }] as const).map((field) => (
           <label key={field.name} className="flex flex-col gap-2 text-small">
             <span>{field.label}</span>
             <input

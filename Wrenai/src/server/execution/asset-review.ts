@@ -6,6 +6,7 @@ import { agentEvents, strategyVersions } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { userTransaction } from "@/server/db/user-transaction";
 import { type IntentToken, intentTokens } from "@/server/research/intents";
+import { instructionAssets } from "@/shared/agent-instructions";
 import { type AssetSymbol, type Strategy, strategySchema, strategySymbols } from "@/shared/agents";
 import {
   type AgentTradeAssets,
@@ -26,6 +27,29 @@ const aliases: Readonly<Record<AssetSymbol, readonly string[]>> = {
 };
 export function strategyAssetSymbols(strategy: Strategy): readonly AssetSymbol[] {
   return strategySymbols(strategy);
+}
+
+export function registryTradeAsset(token: IntentToken): TradeAsset {
+  return tradeAssetSchema.parse({
+    symbol: token.assetId,
+    assetId: token.assetId,
+    tokenSymbol: token.symbol,
+    blockchain: token.blockchain,
+    decimals: token.decimals,
+    contractAddress: token.contractAddress ?? null,
+  });
+}
+function instructionTradeAssets(
+  strategy: Extract<Strategy, { format: 2 }>,
+  tokens: readonly IntentToken[],
+): readonly TradeAsset[] {
+  return instructionAssets(strategy).map((assetId) => {
+    const token = tokens.find((candidate) => candidate.assetId === assetId);
+    if (!token) {
+      throw new ExecutionError("not_ready", `The reviewed token ${assetId} has no supported route.`);
+    }
+    return registryTradeAsset(token);
+  });
 }
 export function assetCandidates(tokens: readonly IntentToken[], symbol: AssetSymbol): readonly TradeAsset[] {
   return tokens
@@ -78,7 +102,7 @@ const storedBindings = z.strictObject({
     .optional(),
   assets: z
     .array(tradeAssetSchema.pick({ symbol: true, assetId: true }))
-    .min(2)
+    .min(1)
     .max(6),
 });
 export function resolvedTradeAssets(
@@ -90,6 +114,24 @@ export function resolvedTradeAssets(
     return [];
   }
   const bindings = storedBindings.parse(JSON.parse(stored));
+  if ("format" in strategy) {
+    const assets = instructionTradeAssets(strategy, tokens);
+    if (
+      bindings.strategyHash !== executionHash(strategy) ||
+      bindings.assets.length !== assets.length ||
+      new Set(bindings.assets.map((a) => a.assetId)).size !== assets.length ||
+      assets.some(
+        (asset) =>
+          !bindings.assets.some(
+            (binding) => binding.assetId === asset.assetId && binding.symbol === asset.assetId,
+          ),
+      ) ||
+      (bindings.metadataHash !== undefined && bindings.metadataHash !== executionHash(assets))
+    ) {
+      throw new ExecutionError("not_ready", "The reviewed token identities or metadata changed.");
+    }
+    return assets;
+  }
   const symbols = strategyAssetSymbols(strategy);
   if (
     bindings.strategyHash !== executionHash(strategy) ||
@@ -127,6 +169,27 @@ export async function readAgentTradeAssets(
 ): Promise<AgentTradeAssets> {
   const current = await currentAgentStrategy(db, userId, agentId, revision);
   const { tokens } = await intentTokens();
+  if ("format" in current.strategy) {
+    const ids = instructionAssets(current.strategy);
+    const reference =
+      tokens.find(
+        (token) =>
+          token.blockchain.toLowerCase() === "near" &&
+          token.symbol.toUpperCase() === "USDC" &&
+          !ids.includes(token.assetId),
+      ) ?? tokens.find((token) => token.assetId === "nep141:wrap.near" && !ids.includes(token.assetId));
+    return {
+      agentId,
+      revision,
+      strategyVersion: current.agent.version,
+      ...(reference ? { fundingReference: registryTradeAsset(reference) } : {}),
+      choices: instructionTradeAssets(current.strategy, tokens).map((asset) => ({
+        symbol: asset.assetId,
+        candidates: [asset],
+      })),
+      reviewed: resolvedTradeAssets(current.strategy, current.version.resolvedAssetsJson, tokens),
+    };
+  }
   return {
     agentId,
     revision,

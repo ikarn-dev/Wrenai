@@ -2,6 +2,7 @@ import { testDatabase } from "@tests/server/db/test-database";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { userRiskPolicies } from "@/server/db/risk-schema";
 import { readAccountRiskPolicy, saveAccountRiskPolicy } from "@/server/guard/risk-actions";
+import { setUserRiskPolicy } from "@/server/guard/user-policy";
 import type { UserRiskPolicy } from "@/shared/risk-policy";
 
 const calls = vi.hoisted(() => ({ user: vi.fn(), rate: vi.fn(), database: vi.fn(), refresh: vi.fn() }));
@@ -50,9 +51,11 @@ describe("account risk settings Server Actions", () => {
     },
   );
 
-  it("persists the authenticated owner's exact policy and never accepts another owner", async () => {
+  it("keeps history owner-scoped but refuses new global budget writes", async () => {
     expect(await readAccountRiskPolicy({})).toEqual({ ok: true, value: null });
-    expect(await saveAccountRiskPolicy(request())).toMatchObject({ ok: true, value: { revision: 1 } });
+    expect(await saveAccountRiskPolicy(request())).toMatchObject({ ok: false, code: "not_ready" });
+    expect(await context.db.select().from(userRiskPolicies)).toHaveLength(0);
+    await setUserRiskPolicy(context.db, "owner", request());
     const [row] = await context.db.select().from(userRiskPolicies);
     expect(row?.userId).toBe("owner");
     expect(row?.dailyCapMicroUsd).toBe(10_000_001n);
@@ -69,9 +72,9 @@ describe("account risk settings Server Actions", () => {
     expect(await context.db.select().from(userRiskPolicies)).toHaveLength(1);
   });
 
-  it("returns a typed revision conflict without losing the newer policy", async () => {
-    await saveAccountRiskPolicy(request());
-    expect(await saveAccountRiskPolicy(request())).toMatchObject({ ok: false, code: "conflict" });
+  it("does not mutate historical approvals through the retired endpoint", async () => {
+    await setUserRiskPolicy(context.db, "owner", request());
+    expect(await saveAccountRiskPolicy(request())).toMatchObject({ ok: false, code: "not_ready" });
     expect(await readAccountRiskPolicy({})).toMatchObject({ ok: true, value: { revision: 1 } });
     expect(await context.db.select().from(userRiskPolicies)).toHaveLength(1);
   });
@@ -90,7 +93,7 @@ describe("account risk settings Server Actions", () => {
   it.each(["{", "{}"])(
     "reports malformed stored policy %s as unavailable, not an input error",
     async (policyJson) => {
-      await saveAccountRiskPolicy(request());
+      await setUserRiskPolicy(context.db, "owner", request());
       const [row] = await context.db.select().from(userRiskPolicies);
       if (row === undefined) {
         throw new Error("The risk policy fixture was not saved.");
@@ -101,7 +104,7 @@ describe("account risk settings Server Actions", () => {
       expect(await readAccountRiskPolicy({})).toMatchObject({ ok: false, code: "unavailable" });
       expect(await saveAccountRiskPolicy({ ...request(), expectedRevision: 2 })).toMatchObject({
         ok: false,
-        code: "unavailable",
+        code: "not_ready",
       });
       expect(await context.db.select().from(userRiskPolicies)).toHaveLength(2);
     },

@@ -27,7 +27,7 @@ function validateReceipt(plan: DefiPlan, receipt: DefiReceipt): void {
     new Set(receipt.cash.map((a) => a.assetId)).size !== receipt.cash.length ||
     new Set(receipt.positions.map((p) => p.positionId)).size !== receipt.positions.length ||
     BigInt(receipt.riskDebitMicroUsd) > BigInt(plan.notionalMicroUsd) ||
-    BigInt(receipt.feeMicroUsd) > BigInt(receipt.riskDebitMicroUsd)
+    (receipt.feeMicroUsd !== null && BigInt(receipt.feeMicroUsd) > BigInt(receipt.riskDebitMicroUsd))
   ) {
     throw new ExecutionError("limit", "The final receipt exceeds its reserved risk or repeats a resource.");
   }

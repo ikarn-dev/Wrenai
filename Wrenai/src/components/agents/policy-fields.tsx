@@ -38,7 +38,7 @@ interface PolicyFieldsProps {
 }
 export function PolicyFields({ policy, onChange, disabled }: PolicyFieldsProps): ReactElement {
   const moneyFields = [
-    { key: "budgetUsd", label: "Agent budget (USD)" },
+    { key: "budgetUsd", label: "Capital risk ceiling (USD)" },
     { key: "maxTradeUsd", label: "Maximum per trade (USD)" },
     { key: "dailyCapUsd", label: "24-hour spending cap (USD)" },
   ] as const;
@@ -108,6 +108,18 @@ export function PolicyFields({ policy, onChange, disabled }: PolicyFieldsProps):
       <p className="text-caption text-fg-subtle sm:col-span-2">
         100 basis points = 1%. Only you can change these limits. A budget does not deposit or move funds.
       </p>
+      <label className="flex items-start gap-3 text-small sm:col-span-2">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={policy.allowRiskReducingExits === true}
+          onChange={(event) => onChange({ ...policy, allowRiskReducingExits: event.target.checked })}
+        />
+        <span>
+          Allow verified position-reducing exits after entry limits are reached. Exits still require owned
+          tokens and fee/slippage limits.
+        </span>
+      </label>
     </fieldset>
   );
 }

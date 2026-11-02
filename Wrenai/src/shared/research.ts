@@ -1,6 +1,33 @@
 import { z } from "zod";
+import { agentTokenBudgetSchema } from "./agent-budget";
 
+// Retired entries are history metadata only. Active requests use the separate eight-family allowlist.
 export const RESEARCH_TOOLS = {
+  spot_trader: {
+    label: "Spot Trader",
+    description:
+      "Research exact spot buy/sell quotes and profit-taking rules for supported assets. Never submit orders from chat.",
+  },
+  dca: {
+    label: "DCA",
+    description:
+      "Research a scheduled spot purchase pair and costs. Scheduling needs a separately reviewed agent.",
+  },
+  whale_tracker: {
+    label: "Whale / Smart Money Tracker",
+    description:
+      "Inspect confirmed public movements for an explicit watched account. Large transfers alone do not establish profitable smart money.",
+  },
+  buy_the_dip: {
+    label: "Buy the Dip",
+    description:
+      "Research spot entry quotes and a user's explicit dip reference, threshold and budget; no automatic trade from chat.",
+  },
+  sell_the_top: {
+    label: "Sell the Top",
+    description:
+      "Research spot exit quotes for user-defined net-profit targets and confirmed cost basis. Never claim to predict the market top.",
+  },
   rebalancer: {
     label: "Rebalancer",
     description:
@@ -53,6 +80,11 @@ export const RESEARCH_TOOLS = {
 } as const;
 
 export const researchToolSchema = z.enum([
+  "spot_trader",
+  "dca",
+  "whale_tracker",
+  "buy_the_dip",
+  "sell_the_top",
   "rebalancer",
   "triggers",
   "copy_trading",
@@ -137,6 +169,41 @@ export const researchAssessmentSchema = z.strictObject({
 });
 export type ResearchAssessment = z.infer<typeof researchAssessmentSchema>;
 
+const indicatorText = z.string().min(1).max(100);
+export const marketTechnicalSchema = z.strictObject({
+  market: z.string().min(1).max(60),
+  frames: z
+    .array(
+      z.strictObject({
+        interval: z.enum(["15m", "1h", "4h"]),
+        sampleCount: z.literal(600),
+        firstBarAt: z.number().int().positive(),
+        lastBarAt: z.number().int().positive(),
+        indicators: z.strictObject({
+          ema20: indicatorText,
+          ema50: indicatorText,
+          ema200: indicatorText,
+          rsi14: indicatorText,
+          macd: indicatorText,
+          macdSignal: indicatorText,
+          macdHistogram: indicatorText,
+          atr14: indicatorText,
+          adx14: indicatorText,
+          bollingerMiddle: indicatorText,
+          bollingerUpper: indicatorText,
+          bollingerLower: indicatorText,
+          vwap20: indicatorText.nullable(),
+          volumeChangePercent: indicatorText.nullable(),
+          swingHigh20: indicatorText,
+          swingLow20: indicatorText,
+          close: indicatorText,
+        }),
+      }),
+    )
+    .length(3),
+});
+export type MarketTechnical = z.infer<typeof marketTechnicalSchema>;
+
 export const researchReportSchema = z.strictObject({
   tool: researchToolSchema,
   status: z.enum(["ok", "partial", "unavailable"]),
@@ -147,6 +214,7 @@ export const researchReportSchema = z.strictObject({
   limitations: z.array(z.string().max(300)).max(5),
   assessment: researchAssessmentSchema.optional(),
   news: researchNewsSchema.optional(),
+  technicals: z.array(marketTechnicalSchema).max(6).optional(),
 });
 export type ResearchReport = z.infer<typeof researchReportSchema>;
 export type ResearchItem = z.infer<typeof researchItemSchema>;
@@ -158,6 +226,8 @@ export const agentSetupDraftSchema = z.strictObject({
   brief: z.string().min(1).max(4_000),
   briefTruncated: z.boolean().optional(),
   reviewState: z.enum(["draft", "reviewed"]).optional(),
+  budget: agentTokenBudgetSchema.optional(),
+  agentId: z.uuid().optional(),
   reports: z.array(researchReportSchema).max(6),
   createdAt: z.number().int().positive(),
 });

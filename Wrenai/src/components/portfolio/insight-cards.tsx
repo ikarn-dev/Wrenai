@@ -1,5 +1,7 @@
 import { ChartNoAxesCombined, ChartPie, History, type LucideIcon } from "lucide-react";
 import type { ReactElement } from "react";
+import type { PortfolioPerformance } from "@/server/portfolio/performance";
+import { formatCompactMicroUsd } from "@/shared/money";
 import { PortfolioPanel } from "./panel";
 
 interface InsightCardProps {
@@ -10,18 +12,31 @@ interface InsightCardProps {
   readonly icon: LucideIcon;
   readonly empty: string;
   readonly footer: string;
+  readonly value?: string | undefined;
 }
 
 // Same anatomy as a chart card: eyebrow, the figure, a chart well, a footer line. No data is drawn until it is
 // recorded, so the well holds a dot grid and one line on what fills it.
-function InsightCard({ id, title, figure, icon: Icon, empty, footer }: InsightCardProps): ReactElement {
+function InsightCard({
+  id,
+  title,
+  figure,
+  icon: Icon,
+  empty,
+  footer,
+  value,
+}: InsightCardProps): ReactElement {
   return (
     <PortfolioPanel id={id} title={title}>
       <dl>
         <dt className="sr-only">{figure}</dt>
         <dd className="font-mono text-num-lg text-fg-muted">
-          <span aria-hidden="true">—</span>
-          <span className="sr-only">Unavailable</span>
+          {value ?? (
+            <>
+              <span aria-hidden="true">—</span>
+              <span className="sr-only">Unavailable</span>
+            </>
+          )}
         </dd>
       </dl>
       <div className="relative flex h-32 items-center justify-center overflow-hidden rounded-sm bg-sunken ring-1 ring-line-card ring-inset">
@@ -36,7 +51,7 @@ function InsightCard({ id, title, figure, icon: Icon, empty, footer }: InsightCa
   );
 }
 
-export function InsightCards(): ReactElement {
+export function InsightCards({ performance }: { readonly performance: PortfolioPerformance }): ReactElement {
   return (
     <div className="grid gap-stack md:grid-cols-3">
       <InsightCard
@@ -44,8 +59,17 @@ export function InsightCards(): ReactElement {
         title="Performance"
         figure="Total PnL"
         icon={ChartNoAxesCombined}
-        empty="No recorded trades yet"
-        footer="PnL after fees, from recorded fills"
+        value={
+          performance.totalMicroUsd === null ? undefined : formatCompactMicroUsd(performance.totalMicroUsd)
+        }
+        empty={
+          performance.count
+            ? performance.unpriced
+              ? "Some cost or fee data is missing"
+              : "Realized performance from settled fills"
+            : "No recorded fills"
+        }
+        footer="Realized PnL; unknown costs are never treated as zero"
       />
       <InsightCard
         id="allocation"
@@ -58,10 +82,11 @@ export function InsightCards(): ReactElement {
       <InsightCard
         id="recent-activity"
         title="Recent activity"
-        figure="Actions today"
+        figure="Days with recorded fills this month"
         icon={History}
-        empty="Transfers and fills appear here"
-        footer="Newest first, across all agents"
+        value={String(performance.days.length)}
+        empty="Full wallet and agent activity below"
+        footer="Calendar uses recorded UTC dates"
       />
     </div>
   );

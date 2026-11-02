@@ -1,4 +1,4 @@
-import { Plus, Waypoints } from "lucide-react";
+import { BrainCircuit, Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AgentCard } from "@/components/agents/agent-card";
@@ -59,7 +59,7 @@ export default async function AgentsPage() {
         {agents.length === 0 ? (
           <div className="relative flex flex-col items-center gap-3 overflow-hidden card-shine rounded-lg px-6 py-10 text-center">
             <div aria-hidden="true" className="pointer-events-none absolute inset-0 dot-grid" />
-            <Waypoints
+            <BrainCircuit
               size={20}
               strokeWidth={1.75}
               absoluteStrokeWidth

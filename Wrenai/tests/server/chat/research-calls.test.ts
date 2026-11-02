@@ -5,7 +5,7 @@ vi.mock("server-only", () => ({}));
 const call = {
   id: "one",
   type: "function",
-  function: { name: "research_triggers", arguments: '{"symbols":["NEAR","USDC"]}' },
+  function: { name: "research_dca", arguments: '{"symbols":["NEAR","USDC"]}' },
 } as const;
 
 describe("research call boundary", () => {

@@ -1,12 +1,15 @@
 "use server";
 
+import { and, eq } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { currentUser, type SessionUser } from "@/server/auth/session";
+import { strategyDrafts } from "@/server/db/agent-schema";
 import { database } from "@/server/db/client";
 import { startAgentRuntime } from "@/server/engine/start";
 import { ExecutionError } from "@/server/execution/contracts";
 import { consumeRateLimit } from "@/server/http/rate-limit";
+import { isActiveAgentTool, REMOVED_AGENT_MESSAGE } from "@/shared/agent-scope";
 import {
   type AgentResult,
   agentCommandSchema,
@@ -60,14 +63,27 @@ async function agentAction<T>(run: () => Promise<T>): Promise<AgentResult<T>> {
 export async function parseAgentStrategy(raw: unknown): Promise<AgentResult<StrategyDraft>> {
   return agentAction(async () => {
     const user = await agentUser("parse");
-    return prepareStrategyDraft(user.id, parseStrategyInputSchema.parse(raw));
+    const input = parseStrategyInputSchema.parse(raw);
+    if (!isActiveAgentTool(input.pack)) {
+      throw new AgentError("not_ready", REMOVED_AGENT_MESSAGE);
+    }
+    return prepareStrategyDraft(user.id, input);
   });
 }
 
 export async function saveAgentStrategy(raw: unknown): Promise<AgentResult<{ readonly agentId: string }>> {
   return agentAction(async () => {
     const user = await agentUser("manage");
-    const agentId = await saveAgent(database(), user.id, saveAgentSchema.parse(raw));
+    const input = saveAgentSchema.parse(raw);
+    const [draft] = await database()
+      .select({ pack: strategyDrafts.pack })
+      .from(strategyDrafts)
+      .where(and(eq(strategyDrafts.id, input.draftId), eq(strategyDrafts.userId, user.id)))
+      .limit(1);
+    if (draft && !isActiveAgentTool(draft.pack)) {
+      throw new AgentError("not_ready", REMOVED_AGENT_MESSAGE);
+    }
+    const agentId = await saveAgent(database(), user.id, input);
     refresh();
     return { agentId };
   });
@@ -77,8 +93,20 @@ export async function manageAgent(raw: unknown): Promise<AgentResult<{ readonly 
   return agentAction(async () => {
     const user = await agentUser("manage");
     const input = agentCommandSchema.parse(raw);
+    if (
+      (input.command === "resume" || input.command === "clone") &&
+      !isActiveAgentTool((await readAgent(database(), user.id, input.agentId)).pack)
+    ) {
+      throw new AgentError("not_ready", REMOVED_AGENT_MESSAGE);
+    }
     if (input.command === "resume") {
       await assertAgentReady(user, await readAgent(database(), user.id, input.agentId));
+    }
+    if (input.command === "clone") {
+      throw new AgentError(
+        "not_ready",
+        "Create a new setup with its own token budget before duplicating this agent.",
+      );
     }
     const agentId =
       input.command === "resume"

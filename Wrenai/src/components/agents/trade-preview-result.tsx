@@ -25,7 +25,9 @@ export function TradePreviewResult({ preview }: { readonly preview: TradePreview
               ? "Checks passed"
               : preview.decision === "approval_required"
                 ? "Approval required"
-                : "Trade blocked"}
+                : preview.purpose === "funding"
+                  ? "Funding needs attention"
+                  : "Trade blocked"}
         </h3>
         <span className="text-caption text-fg-subtle">
           {new Date(preview.createdAt).toISOString().slice(11, 19)} UTC
@@ -43,12 +45,19 @@ export function TradePreviewResult({ preview }: { readonly preview: TradePreview
             ],
             ["Maximum slippage", `${quote.slippageBps} bps`],
             ["Partner fee", `${quote.appFeeBps} bps`],
-          ].map(([label, value]) => (
-            <div key={label} className="grid min-w-0 gap-1 sm:grid-cols-2 sm:gap-4">
-              <dt className="text-fg-subtle">{label}</dt>
-              <dd className="wrap-anywhere font-mono tabular-nums sm:text-right">{value}</dd>
-            </div>
-          ))}
+          ]
+            .filter(
+              ([label]) =>
+                preview.purpose !== "funding" || (label !== "Quoted receive" && label !== "Minimum receive"),
+            )
+            .map(([label, value]) => (
+              <div key={label} className="grid min-w-0 gap-1 sm:grid-cols-2 sm:gap-4">
+                <dt className="text-fg-subtle">
+                  {label === "Pay" && preview.purpose === "funding" ? "Allocate from private balance" : label}
+                </dt>
+                <dd className="wrap-anywhere font-mono tabular-nums sm:text-right">{value}</dd>
+              </div>
+            ))}
         </dl>
       ) : (
         <p className="text-small text-warn">A fresh verified quote is unavailable.</p>

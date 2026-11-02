@@ -173,12 +173,12 @@ describe("read-only chat response lifecycle", () => {
     const saved = await answerChat(
       store.db,
       user,
-      { ...input, message: "Find NEAR arbitrage opportunities", tool: "arbitrage" },
+      { ...input, message: "Analyze current NEAR perpetuals", tool: "perps" },
       cipher,
     );
-    expect(saved.tool).toBe("arbitrage");
-    expect(cloud.complete.mock.calls[0]?.[3]).toBe("arbitrage");
-    expect(JSON.stringify(cloud.complete.mock.calls[0]?.[0])).toContain("The user selected Arbitrage");
+    expect(saved.tool).toBe("perps");
+    expect(cloud.complete.mock.calls[0]?.[3]).toBe("perps");
+    expect(JSON.stringify(cloud.complete.mock.calls[0]?.[0])).toContain("The user selected Perps");
   });
 
   it("supplies a fresh owner-scoped snapshot only after explicit opt-in", async () => {

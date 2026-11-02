@@ -2,9 +2,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, type ReactElement, useRef, useState, useTransition } from "react";
+import { TokenBudget } from "@/components/agents/token-budget";
 import { Button } from "@/components/ui/button";
 import { useToastState } from "@/components/ui/toast";
 import { createAgentToolSetup } from "@/server/chat/draft-actions";
+import type { AgentBudgetInput } from "@/shared/agent-budget";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
 import type { ResearchTool } from "@/shared/research";
 
@@ -13,6 +15,7 @@ export function NewAgentSetup({ tool }: { readonly tool: ResearchTool }): ReactE
   const router = useRouter();
   const [answers, setAnswers] = useState<readonly string[]>(["", "", ""]);
   const [notes, setNotes] = useState("");
+  const [budget, setBudget] = useState<AgentBudgetInput | null>(null);
   const [busy, startTransition] = useTransition();
   const [, setError] = useToastState("warn");
   const request = useRef<string | null>(null);
@@ -23,7 +26,13 @@ export function NewAgentSetup({ tool }: { readonly tool: ResearchTool }): ReactE
     const id = request.current;
     startTransition(async () => {
       try {
-        const result = await createAgentToolSetup({ id, tool, answers, notes });
+        const result = await createAgentToolSetup({
+          id,
+          tool,
+          answers,
+          notes,
+          ...(budget ? { budget } : {}),
+        });
         if (!result.ok) {
           setError(result.message);
           return;
@@ -47,6 +56,16 @@ export function NewAgentSetup({ tool }: { readonly tool: ResearchTool }): ReactE
         Create a setup to review. This does not enable trading or request wallet permissions.
       </p>
       <form onSubmit={submit} className="flex flex-col gap-5" aria-busy={busy}>
+        {tool !== "whale_tracker" ? (
+          <TokenBudget
+            value={budget}
+            disabled={busy}
+            onChange={(value) => {
+              request.current = null;
+              setBudget(value);
+            }}
+          />
+        ) : null}
         {info.fields.map((label, index) => (
           <label key={label} className="flex flex-col gap-2 text-small">
             {label}

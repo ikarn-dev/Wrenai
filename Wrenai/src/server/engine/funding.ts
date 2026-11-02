@@ -3,18 +3,21 @@ import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import type { z } from "zod";
 import { ownedAgent } from "@/server/agents/records";
+import { fulfilSetupBudget } from "@/server/agents/setup-binding";
 import { agentEvents } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { tradePreviews } from "@/server/db/preview-schema";
 import { userTransaction } from "@/server/db/user-transaction";
+import { privateBalanceToken } from "@/server/execution/balance-session";
 import { ExecutionError } from "@/server/execution/contracts";
 import { freshDryQuote } from "@/server/execution/oneclick-quote";
 import { tradePreviewSnapshot } from "@/server/execution/preview";
 import { synchronizePrivateInventory } from "@/server/execution/private-inventory";
 import { databaseTime, executionHash } from "@/server/execution/records";
 import { assignInventory } from "@/server/positions/attribution";
-import { setAgentCapitalLimit, setUserCapitalLimit } from "@/server/positions/capital-limits";
+import { setAgentCapitalLimit } from "@/server/positions/capital-limits";
 import { agentFundingSchema } from "@/shared/agent-funding";
+import { isActiveAgentTool } from "@/shared/agent-scope";
 import { parseUsd } from "@/shared/agents";
 
 function requestPart(requestId: string, kind: string): string {
@@ -76,6 +79,7 @@ export async function allocatePreviewBalance(db: AppDatabase, userId: string, ra
       "Request a fresh balance preview before reviewing this allocation.",
     );
   }
+  const sessionToken = await privateBalanceToken(db, userId);
   const fresh = await Promise.allSettled([
     synchronizePrivateInventory(db, userId),
     freshDryQuote(
@@ -85,6 +89,8 @@ export async function allocatePreviewBalance(db: AppDatabase, userId: string, ra
       quote.inputUnits,
       quote.slippageBps,
       "confidential",
+      undefined,
+      sessionToken ?? undefined,
     ),
   ]);
   const inventory = fresh[0];
@@ -118,10 +124,6 @@ export async function allocatePreviewBalance(db: AppDatabase, userId: string, ra
         "The preview expired or the agent changed. Pause and review a fresh allocation.",
       );
     }
-    await setUserCapitalLimit(tx, userId, {
-      requestId: requestPart(input.requestId, "shared"),
-      amountMicroUsd: parseUsd(input.sharedCapitalUsd).toString(),
-    });
     await setAgentCapitalLimit(tx, userId, {
       requestId: requestPart(input.requestId, "agent"),
       agentId: agent.id,
@@ -138,12 +140,16 @@ export async function allocatePreviewBalance(db: AppDatabase, userId: string, ra
       sourceReference: `preview:${preview.id}`,
       evidenceHash: valuation.quoteHash,
     });
+    if (isActiveAgentTool(agent.pack)) {
+      await fulfilSetupBudget(tx, userId, agent.id, quote.inputAssetId, quote.inputUnits);
+    }
     await tx.insert(agentEvents).values({
       id: input.requestId,
       userId,
       agentId: agent.id,
       kind: "capital_reviewed",
-      message: "Allocated the reviewed private-balance units and capital limits. No funds were transferred.",
+      message:
+        "Allocated the reviewed private-balance units and this agent's capital limit. No funds were transferred.",
       detailJson: JSON.stringify({ inputHash: executionHash(input) }),
       createdAt: now,
     });

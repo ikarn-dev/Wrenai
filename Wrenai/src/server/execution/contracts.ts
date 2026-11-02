@@ -16,7 +16,9 @@ export const executionPlanSchema = z
     agentId: z.uuid(),
     agentRevision: z.number().int().positive(),
     strategyVersion: z.number().int().positive(),
-    riskPolicyRevision: z.number().int().positive(),
+    riskPolicyRevision: z.number().int().nonnegative(),
+    budgetMode: z.literal("per_agent").optional(),
+    reduceOnly: z.literal(true).optional(),
     scope: scopeSchema,
     inputAssetId: assetId,
     outputAssetId: assetId,
@@ -30,7 +32,11 @@ export const executionPlanSchema = z
     quoteHash: hashSchema,
     expiresAt: timestamp,
   })
-  .refine((plan) => plan.inputAssetId !== plan.outputAssetId, "A swap requires different assets.");
+  .refine((plan) => plan.inputAssetId !== plan.outputAssetId, "A swap requires different assets.")
+  .refine(
+    (plan) => (plan.budgetMode === "per_agent" ? plan.riskPolicyRevision === 0 : plan.riskPolicyRevision > 0),
+    "An execution plan must explicitly bind its budget policy.",
+  );
 export type ExecutionPlan = z.infer<typeof executionPlanSchema>;
 
 export const inventoryObservationSchema = z

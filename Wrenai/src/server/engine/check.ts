@@ -9,11 +9,18 @@ import { executionActions } from "@/server/db/execution-schema";
 import { currentAgentStrategy } from "@/server/execution/asset-review";
 import { ExecutionError } from "@/server/execution/contracts";
 import { prepareSwapExecution } from "@/server/execution/intents-order";
+import { preparePaymentExecution } from "@/server/execution/payment-order";
 import { databaseTime } from "@/server/execution/records";
 import { ExplorerFeedPending } from "@/server/research/explorer-contracts";
-import { advanceIntentsAction } from "./action";
+import { advanceLedgerAction } from "./ledger-action";
 import { planStrategyCheck, type StrategyCheckPlan } from "./planning";
-import { claimStrategyCheck, finishStrategyCheck, readAgentRuntime } from "./runtime";
+import { claimStrategyCheck, finishStrategyCheck, readAgentRuntime, recordStrategyProgress } from "./runtime";
+
+export function marketCheckSeconds(pack: string): number {
+  return ["triggers", "spot_trader", "buy_the_dip", "sell_the_top", "perps", "meme_hunter"].includes(pack)
+    ? 5
+    : 60;
+}
 
 function slotRequestId(activationId: string, slot: number): string {
   const bytes = createHash("sha256")
@@ -53,8 +60,8 @@ export async function checkAgentCycle(
     .limit(1);
   if (pending) {
     return Math.min(
-      await advanceIntentsAction(db, runtime.userId, pending.id),
-      agent?.pack === "triggers" ? 5 : 60,
+      await advanceLedgerAction(db, runtime.userId, pending.id),
+      marketCheckSeconds(agent?.pack ?? ""),
     );
   }
   if (agent?.status !== "running" || agent.revision !== runtime.agentRevision || runtime.state !== "active") {
@@ -62,30 +69,41 @@ export async function checkAgentCycle(
   }
   const claim = await claimStrategyCheck(db, activationId, runId);
   if (!claim) {
-    return agent.pack === "triggers" ? 5 : 60;
+    return marketCheckSeconds(agent.pack);
   }
   const now = await databaseTime(db);
   let reason = "Within the reviewed allocation band.";
   let failed = false;
-  let intervalSeconds = agent.pack === "triggers" ? 5 : 60;
+  let intervalSeconds = marketCheckSeconds(agent.pack);
   let actionId: string | null = null;
   let progress: StrategyCheckPlan["progress"];
   try {
     const current = await currentAgentStrategy(db, runtime.userId, runtime.agentId, runtime.agentRevision);
     const requestId = slotRequestId(activationId, claim.slot);
-    const planned = await planStrategyCheck(db, current, runtime, requestId);
+    const planned = await planStrategyCheck(db, current, { ...runtime, leaseToken: claim.token }, requestId);
     intervalSeconds = planned.intervalSeconds;
     progress = planned.progress;
     reason = planned.reason;
-    if (planned.signal) {
-      const action = await prepareSwapExecution(db, runtime.userId, {
-        requestId: planned.requestId ?? requestId,
-        agentId: runtime.agentId,
-        expectedRevision: runtime.agentRevision,
-        ...planned.signal,
-      });
+    if (planned.signal || planned.paymentRequestId) {
+      if (progress?.strategyState.format === 3) {
+        await recordStrategyProgress(db, activationId, claim.token, progress.strategyState);
+      }
+      const action = planned.paymentRequestId
+        ? await preparePaymentExecution(
+            db,
+            runtime.userId,
+            runtime.agentId,
+            runtime.agentRevision,
+            planned.paymentRequestId,
+          )
+        : await prepareSwapExecution(db, runtime.userId, {
+            requestId: planned.requestId ?? requestId,
+            agentId: runtime.agentId,
+            expectedRevision: runtime.agentRevision,
+            ...planned.signal,
+          });
       actionId = action.id;
-      if (progress) {
+      if (progress && progress.strategyState.format !== 4) {
         progress = { ...progress, strategyState: { ...progress.strategyState, pendingActionId: action.id } };
       }
       reason =
@@ -110,7 +128,7 @@ export async function checkAgentCycle(
       intervalSeconds = 5;
     }
   }
-  const delay = Math.min(intervalSeconds, agent.pack === "triggers" ? 5 : 60);
+  const delay = Math.min(intervalSeconds, marketCheckSeconds(agent.pack));
   await finishStrategyCheck(
     db,
     activationId,
@@ -123,5 +141,5 @@ export async function checkAgentCycle(
   if (progress?.completed) {
     return null;
   }
-  return actionId === null ? delay : advanceIntentsAction(db, runtime.userId, actionId);
+  return actionId === null ? delay : advanceLedgerAction(db, runtime.userId, actionId);
 }

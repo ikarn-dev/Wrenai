@@ -9,7 +9,7 @@ import {
 } from "@/server/chat/agent-drafts";
 import { chatCipher } from "@/server/chat/cipher";
 import { claimChatTurn, deleteConversation, finishChatTurn } from "@/server/chat/turns";
-import { AGENT_CATALOG } from "@/shared/agent-catalog";
+import { activeAgentToolSchema } from "@/shared/agent-scope";
 import { researchToolSchema } from "@/shared/research";
 
 vi.mock("server-only", () => ({}));
@@ -37,7 +37,7 @@ describe("saved research setup ownership", () => {
       conversationId: crypto.randomUUID(),
       requestId: crypto.randomUUID(),
       previousTurnId: null,
-      message: "Research arbitrage",
+      message: "Research perps",
       includeContext: false,
     };
     const claim = await claimChatTurn(store.db, "owner", input, { cipher });
@@ -45,7 +45,7 @@ describe("saved research setup ownership", () => {
       throw new Error("Expected claim");
     }
     await expect(
-      createAgentSetup(store.db, "owner", input.conversationId, input.requestId, "arbitrage", cipher),
+      createAgentSetup(store.db, "owner", input.conversationId, input.requestId, "perps", cipher),
     ).rejects.toMatchObject({ code: "conflict" });
     await finishChatTurn(
       store.db,
@@ -68,7 +68,7 @@ describe("saved research setup ownership", () => {
           historyTrimmed: false,
           research: [
             {
-              tool: "arbitrage",
+              tool: "perps",
               status: "partial",
               summary: "Checked sample pools",
               observedAt: 1000,
@@ -86,11 +86,11 @@ describe("saved research setup ownership", () => {
       "owner",
       input.conversationId,
       input.requestId,
-      "arbitrage",
+      "perps",
       cipher,
     );
     expect(
-      await createAgentSetup(store.db, "owner", input.conversationId, input.requestId, "arbitrage", cipher),
+      await createAgentSetup(store.db, "owner", input.conversationId, input.requestId, "perps", cipher),
     ).toEqual(draft);
     await expect(readAgentSetup(store.db, "stranger", draft.id, cipher)).rejects.toMatchObject({
       code: "not_found",
@@ -99,7 +99,7 @@ describe("saved research setup ownership", () => {
       code: "not_found",
     });
     await expect(
-      createAgentSetup(store.db, "owner", input.conversationId, input.requestId, "perps", cipher),
+      createAgentSetup(store.db, "owner", input.conversationId, input.requestId, "dca", cipher),
     ).rejects.toMatchObject({ code: "invalid_input" });
     await deleteConversation(store.db, "owner", input.conversationId);
     expect((await readAgentSetup(store.db, "owner", draft.id, cipher)).reports).toHaveLength(1);
@@ -111,7 +111,7 @@ describe("saved research setup ownership", () => {
     });
   });
   it("creates and reviews every catalog type without a synthetic chat or execution authority", async () => {
-    for (const value of Object.keys(AGENT_CATALOG)) {
+    for (const value of activeAgentToolSchema.options) {
       const tool = researchToolSchema.parse(value),
         id = crypto.randomUUID();
       const draft = await createManualAgentSetup(

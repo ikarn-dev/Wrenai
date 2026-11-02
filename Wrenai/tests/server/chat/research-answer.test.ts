@@ -3,15 +3,15 @@ import { z } from "zod";
 import { InferenceError } from "@/server/ai/verified-completion";
 import { chatPrompt } from "@/server/chat/prompt";
 import { researchAnswer } from "@/server/chat/research-answer";
-import { researchToolSchema } from "@/shared/research";
+import { activeAgentToolSchema } from "@/shared/agent-scope";
 
 const cloud = vi.hoisted(() => ({ stream: vi.fn(), read: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/server/ai/verified-chat-stream", () => ({ verifiedChatStream: cloud.stream }));
 vi.mock("@/server/research/dispatcher", async () => {
-  const { RESEARCH_TOOLS } = await import("@/shared/research");
+  const { activeAgentToolSchema } = await import("@/shared/agent-scope");
   return {
-    RESEARCH_DEFINITIONS: Object.keys(RESEARCH_TOOLS).map((tool) => ({
+    RESEARCH_DEFINITIONS: activeAgentToolSchema.options.map((tool) => ({
       type: "function",
       function: {
         name: `research_${tool}`,
@@ -35,10 +35,10 @@ const receipt = {
 const call = {
   id: "call-1",
   type: "function",
-  function: { name: "research_arbitrage", arguments: '{"symbols":["NEAR"]}' },
+  function: { name: "research_perps", arguments: '{"symbols":["NEAR"]}' },
 } as const;
 const report = {
-  tool: "arbitrage",
+  tool: "perps",
   status: "partial",
   summary: "No confirmed net edge",
   observedAt: 1000,
@@ -61,7 +61,7 @@ const requestSchema = z.object({
 });
 describe("verified read-only research rounds", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     cloud.read.mockResolvedValue(report);
   });
   it("executes read tools only after verified tool selection, then returns research with the final answer", async () => {
@@ -70,7 +70,7 @@ describe("verified read-only research rounds", () => {
       .mockResolvedValueOnce({ content: "No qualified net edge was established.", calls: [], receipt });
     const events: unknown[] = [];
     const result = await researchAnswer(
-      [{ role: "user", content: "Find arbitrage" }],
+      [{ role: "user", content: "Find perps" }],
       new AbortController().signal,
       (event) => events.push(event),
     );
@@ -103,16 +103,16 @@ describe("verified read-only research rounds", () => {
   it("exposes only the selected tool and rejects a different tool before dispatch", async () => {
     cloud.stream.mockResolvedValueOnce({
       content: "",
-      calls: [{ ...call, function: { ...call.function, name: "research_perps" } }],
+      calls: [{ ...call, function: { ...call.function, name: "research_meme_hunter" } }],
       receipt,
     });
-    await expect(
-      researchAnswer([], new AbortController().signal, () => {}, "arbitrage"),
-    ).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(researchAnswer([], new AbortController().signal, () => {}, "perps")).rejects.toMatchObject({
+      code: "invalid_input",
+    });
     const request = z
       .object({ tools: z.array(z.object({ function: z.object({ name: z.string() }) })) })
       .parse(cloud.stream.mock.calls[0]?.[0]);
-    expect(request.tools.map((tool) => tool.function.name)).toEqual(["research_arbitrage"]);
+    expect(request.tools.map((tool) => tool.function.name)).toEqual(["research_perps"]);
     expect(cloud.read).not.toHaveBeenCalled();
   });
 
@@ -122,7 +122,7 @@ describe("verified read-only research rounds", () => {
         [{ role: "user", content: "Compare current NEAR yield opportunities" }],
         new AbortController().signal,
         () => {},
-        "triggers",
+        "dca",
       ),
     ).rejects.toMatchObject({ code: "invalid_input" });
     expect(cloud.stream).not.toHaveBeenCalled();
@@ -134,7 +134,7 @@ describe("verified read-only research rounds", () => {
       content: "",
       calls: [
         call,
-        { ...call, id: "bad", function: { name: "research_triggers", arguments: '{"symbols":["NEAR"]}' } },
+        { ...call, id: "bad", function: { name: "research_dca", arguments: '{"symbols":["NEAR"]}' } },
       ],
       receipt,
     });
@@ -188,7 +188,7 @@ describe("verified read-only research rounds", () => {
     cloud.stream.mockResolvedValueOnce({ content: "Invented current yield", calls: [], receipt });
     await expect(
       researchAnswer(
-        [{ role: "user", content: "Compare current staking yields" }],
+        [{ role: "user", content: "Compare current NEAR perps" }],
         new AbortController().signal,
         () => {},
       ),
@@ -213,7 +213,7 @@ describe("verified read-only research rounds", () => {
     expect(cloud.read).not.toHaveBeenCalled();
   });
 
-  it.each(researchToolSchema.options)(
+  it.each(activeAgentToolSchema.options)(
     "keeps the shared reply policy throughout %s research",
     async (tool) => {
       const selection = {
@@ -221,8 +221,10 @@ describe("verified read-only research rounds", () => {
         function: {
           name: `research_${tool}`,
           arguments: JSON.stringify({
-            symbols: tool === "triggers" ? ["NEAR", "USDC"] : ["NEAR"],
-            ...(tool === "copy_trading" || tool === "private_payments" ? { accountId: "owner.near" } : {}),
+            symbols: ["dca", "spot_trader", "buy_the_dip", "sell_the_top"].includes(tool)
+              ? ["NEAR", "USDC"]
+              : ["NEAR"],
+            ...(tool === "whale_tracker" || tool === "private_payments" ? { accountId: "owner.near" } : {}),
           }),
         },
       };

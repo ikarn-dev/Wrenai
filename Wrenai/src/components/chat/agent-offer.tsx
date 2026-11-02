@@ -8,6 +8,7 @@ import { usePrefersReducedMotion } from "@/components/motion/use-prefers-reduced
 import { notify } from "@/components/ui/toast";
 import { createChatAgentSetup } from "@/server/chat/draft-actions";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
+import { isActiveAgentTool } from "@/shared/agent-scope";
 import type { ChatTurn } from "@/shared/chat";
 import type { ResearchTool } from "@/shared/research";
 
@@ -22,7 +23,10 @@ export function latestAgentOffer(conversationId: string, turn: ChatTurn | undefi
   if (turn?.state !== "complete" || !turn.reply) {
     return null;
   }
-  const eligible = turn.reply.research?.filter((report) => report.status !== "unavailable") ?? [];
+  const eligible =
+    turn.reply.research?.filter(
+      (report) => isActiveAgentTool(report.tool) && report.status !== "unavailable",
+    ) ?? [];
   const report = turn.tool ? eligible.findLast((item) => item.tool === turn.tool) : eligible.at(-1);
   return report
     ? {

@@ -48,6 +48,7 @@ export function ledgerStrategyFixture(agentId: string): typeof strategyVersions.
 export async function executionTestContext(
   policy: Partial<AgentPolicy> = {},
   riskPolicy: Partial<UserRiskPolicy> = {},
+  legacyAccountPolicy = true,
 ): Promise<Awaited<ReturnType<typeof testDatabase>> & { agentId: string }> {
   const context = await testDatabase();
   const agentId = crypto.randomUUID();
@@ -85,14 +86,16 @@ export async function executionTestContext(
     agentId,
     amountMicroUsd: parseUsd(policy.budgetUsd ?? DEFAULT_POLICY.budgetUsd).toString(),
   });
-  await setUserRiskPolicy(context.db, "owner", {
-    requestId: crypto.randomUUID(),
-    expectedRevision: 0,
-    policy: {
-      dailyCapUsd: "1000",
-      ...riskPolicy,
-    },
-  });
+  if (legacyAccountPolicy) {
+    await setUserRiskPolicy(context.db, "owner", {
+      requestId: crypto.randomUUID(),
+      expectedRevision: 0,
+      policy: {
+        dailyCapUsd: "1000",
+        ...riskPolicy,
+      },
+    });
+  }
   return { ...context, agentId };
 }
 

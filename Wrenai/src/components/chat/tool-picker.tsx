@@ -3,7 +3,8 @@
 import { Check, ChevronDown, SlidersHorizontal } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import type { ReactElement } from "react";
-import { RESEARCH_TOOLS, type ResearchTool, researchToolSchema } from "@/shared/research";
+import { activeAgentToolSchema } from "@/shared/agent-scope";
+import { RESEARCH_TOOLS, type ResearchTool } from "@/shared/research";
 
 interface ChatToolPickerProps {
   readonly value: ResearchTool | null;
@@ -58,7 +59,7 @@ export function ChatToolPicker({ value, disabled, onChange }: ChatToolPickerProp
               if (next === "auto") {
                 onChange(null);
               } else {
-                const parsed = researchToolSchema.safeParse(next);
+                const parsed = activeAgentToolSchema.safeParse(next);
                 if (parsed.success) {
                   onChange(parsed.data);
                 }
@@ -67,7 +68,10 @@ export function ChatToolPicker({ value, disabled, onChange }: ChatToolPickerProp
           >
             {[
               { id: "auto", label: "Auto" },
-              ...researchToolSchema.options.map((tool) => ({ id: tool, label: RESEARCH_TOOLS[tool].label })),
+              ...activeAgentToolSchema.options.map((tool) => ({
+                id: tool,
+                label: RESEARCH_TOOLS[tool].label,
+              })),
             ].map((item) => (
               <DropdownMenu.RadioItem
                 key={item.id}

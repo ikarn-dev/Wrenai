@@ -1,17 +1,18 @@
 import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { ownedAgent } from "@/server/agents/records";
 import type { AppDatabase } from "@/server/db/client";
 import { executionActions, executionEvents } from "@/server/db/execution-schema";
 import { users } from "@/server/db/schema";
 import { userTransaction } from "@/server/db/user-transaction";
-import { readUserRiskPolicy } from "@/server/guard/user-policy";
 import { copyEvidenceSchema } from "@/server/research/explorer-contracts";
 import { parseUsd, policySchema } from "@/shared/agents";
 import { positiveTokenUnitsSchema } from "@/shared/token-units";
+import { currentAgentStrategy } from "./asset-review";
+import { privateBalanceToken } from "./balance-session";
 import { ExecutionError, executionPlanSchema } from "./contracts";
 import { swapGuardVerdict } from "./guard-swap";
+import { instructionSubmissionCheck } from "./instruction-reference";
 import { generatedIntentSchema } from "./intents-payload";
 import { prepareIntentsOrder } from "./intents-quote";
 import { dryQuoteRequest, verifiedProviderQuote } from "./oneclick-quote";
@@ -33,7 +34,10 @@ export const swapSignalSchema = z.strictObject({
     .regex(/^nep141:[^\s:*]+$/),
   inputUnits: positiveTokenUnitsSchema,
   referenceInputMicroUsd: positiveTokenUnitsSchema.optional(),
-  purpose: z.enum(["trigger_entry", "trigger_exit", "copy_trade"]).optional(),
+  purpose: z
+    .enum(["trigger_entry", "trigger_exit", "copy_trade", "instruction_entry", "instruction_exit"])
+    .optional(),
+  instructionSlot: z.string().min(1).max(200).optional(),
   copyTrade: copyEvidenceSchema.optional(),
   referenceOutputPriceMicroUsd: positiveTokenUnitsSchema.optional(),
   outputDecimals: z.number().int().min(0).max(36).optional(),
@@ -93,7 +97,8 @@ export async function prepareSwapExecution(
     }
     return action;
   }
-  const agent = await ownedAgent(db, userId, signal.agentId);
+  const current = await currentAgentStrategy(db, userId, signal.agentId, signal.expectedRevision);
+  const agent = current.agent;
   if (agent.revision !== signal.expectedRevision || agent.status !== "running") {
     throw new ExecutionError("not_ready", "A current running agent is required for execution.");
   }
@@ -116,19 +121,29 @@ export async function prepareSwapExecution(
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
-  const risk = await readUserRiskPolicy(db, userId);
-  if (!owner || !risk) {
-    throw new ExecutionError("not_ready", "The account or its trading limits are unavailable.");
+  if (!owner) {
+    throw new ExecutionError("not_ready", "The account is unavailable.");
   }
-  const quotedAt = Date.now();
-  const order = await prepareIntentsOrder({
-    accountId: owner.accountId,
-    inputAssetId: signal.inputAssetId,
-    outputAssetId: signal.outputAssetId,
-    inputUnits: signal.inputUnits,
-    slippageBps: policy.maxSlippageBps,
-    maximumProviderFeeBps: policy.maxProviderFeeBps,
-  });
+  const sessionToken = await privateBalanceToken(db, userId);
+  if (!sessionToken) {
+    throw new ExecutionError(
+      "not_ready",
+      "Connect the private balance before preparing a confidential order.",
+    );
+  }
+  const order = await prepareIntentsOrder(
+    {
+      accountId: owner.accountId,
+      inputAssetId: signal.inputAssetId,
+      outputAssetId: signal.outputAssetId,
+      inputUnits: signal.inputUnits,
+      slippageBps: policy.maxSlippageBps,
+      maximumProviderFeeBps: policy.maxProviderFeeBps,
+    },
+    undefined,
+    sessionToken,
+  );
+  const checkInstruction = await instructionSubmissionCheck(db, current, signal, order.quote);
   const quoteEnvelope = z
     .object({
       quoteRequest: z.object({ deadline: z.iso.datetime() }),
@@ -140,14 +155,26 @@ export async function prepareSwapExecution(
     agentId: signal.agentId,
     agentRevision: agent.revision,
     strategyVersion: agent.version,
-    riskPolicyRevision: risk.revision,
+    budgetMode: "per_agent",
+    riskPolicyRevision: 0,
+    ...(signal.purpose === "instruction_exit" && policy.allowRiskReducingExits === true
+      ? { reduceOnly: true }
+      : {}),
     scope: "confidential",
     inputAssetId: signal.inputAssetId,
     outputAssetId: signal.outputAssetId,
     inputUnits: signal.inputUnits,
     minOutputUnits: order.quote.minOutputUnits,
     // Hold the full per-trade ceiling until the actual final debit is known.
-    notionalMicroUsd: parseUsd(policy.maxTradeUsd).toString(),
+    notionalMicroUsd:
+      signal.purpose === "instruction_exit" &&
+      policy.allowRiskReducingExits === true &&
+      order.quote.inputMicroUsd !== null
+        ? (
+            (BigInt(order.quote.inputMicroUsd) * BigInt(10_000 + policy.maxSlippageBps) + 9999n) /
+            10_000n
+          ).toString()
+        : parseUsd(policy.maxTradeUsd).toString(),
     slippageBps: policy.maxSlippageBps,
     providerFeeBps: order.quote.appFeeBps,
     quoteId: order.depositAddress,
@@ -183,7 +210,7 @@ export async function prepareSwapExecution(
     format: 1,
     signalHash,
     signal,
-    quotedAt,
+    quotedAt: order.quote.capturedAt,
     maximumProviderFeeBps: policy.maxProviderFeeBps,
     requestDeadline: quoteEnvelope.quoteRequest.deadline,
     providerDeadline: quoteEnvelope.quote.deadline,
@@ -222,6 +249,7 @@ export async function prepareSwapExecution(
         "Reconcile this agent's existing action before preparing another trade.",
       );
     }
+    await checkInstruction?.(tx);
     const verdict = await swapGuardVerdict(tx, userId, plan, await databaseTime(tx));
     if (verdict.status === "blocked") {
       throw new ExecutionError("limit", verdict.reason);

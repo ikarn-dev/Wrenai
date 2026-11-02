@@ -10,7 +10,7 @@ import { parseUsd, policySchema } from "@/shared/agents";
 import { committedCapital, recordCapitalEvent, repeatedCapitalRequest } from "./capital-records";
 import { agentCapitalLimitSchema, capitalLimitSchema } from "./contracts";
 
-/** Internal owner-authorized settings; never a value supplied by an agent/model. No wallet/key setup is required. */
+/** Historical capital-import compatibility. Current funding never uses a user-entered shared cap. */
 export async function setUserCapitalLimit(db: AppDatabase, userId: string, raw: unknown): Promise<void> {
   const input = capitalLimitSchema.parse(raw);
   await userTransaction(db, userId, async (tx) => {
@@ -45,30 +45,24 @@ export async function setAgentCapitalLimit(db: AppDatabase, userId: string, raw:
     }
     const agent = await ownedAgent(tx, userId, input.agentId);
     const policy = policySchema.parse(JSON.parse(agent.policyJson));
-    const [account] = await tx
-      .select()
-      .from(capitalAccounts)
-      .where(eq(capitalAccounts.userId, userId))
-      .limit(1);
-    if (account === undefined) {
-      throw new ExecutionError("not_ready", "Set the shared user capital limit first.");
-    }
     const limit = BigInt(input.amountMicroUsd);
     const [others] = await tx
       .select({ amount: sql<string>`coalesce(sum(${agentCapital.limitMicroUsd}), 0)::text` })
       .from(agentCapital)
       .where(and(eq(agentCapital.userId, userId), ne(agentCapital.agentId, input.agentId)));
-    if (
-      limit > parseUsd(policy.budgetUsd) ||
-      limit + BigInt(others?.amount ?? "0") > account.limitMicroUsd ||
-      limit < (await committedCapital(tx, userId, input.agentId))
-    ) {
+    if (limit > parseUsd(policy.budgetUsd) || limit < (await committedCapital(tx, userId, input.agentId))) {
       throw new ExecutionError(
         "limit",
         "The allocation exceeds a saved ceiling or would abandon attributed capital.",
       );
     }
     const now = await databaseTime(tx);
+    // Retain the existing FK/records, but this is a derived total, not permission to spend wallet funds.
+    const total = limit + BigInt(others?.amount ?? "0");
+    await tx
+      .insert(capitalAccounts)
+      .values({ userId, limitMicroUsd: total, updatedAt: now })
+      .onConflictDoUpdate({ target: capitalAccounts.userId, set: { limitMicroUsd: total, updatedAt: now } });
     await tx
       .insert(agentCapital)
       .values({ userId, agentId: input.agentId, limitMicroUsd: limit, updatedAt: now })

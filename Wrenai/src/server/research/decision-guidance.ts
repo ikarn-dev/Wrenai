@@ -2,6 +2,15 @@ import type { ResearchTool } from "@/shared/research";
 
 /** Decision requirements shared by every model/tool round; these do not authorize trades. */
 export const DECISION_GUIDANCE: Record<ResearchTool, string> = {
+  spot_trader:
+    "Research the exact user's buy/sell direction, size, quote, owned tokens and costs. Clarify missing order conditions; profit exits require actual cost basis. Never claim a quote submitted a trade, infer leverage, or spend another agent's allocation.",
+  dca: "Research the exact buy/pay pair, quote costs and explicit schedule. Require amount, timezone, total cap and end condition for a saved execution plan; never invent a schedule or spend from a mere research request.",
+  whale_tracker:
+    "Report confirmed public events for named watched accounts. Distinguish trades, transfers and exchange deposits; state unknown labels/valuation. Large transfers do not prove smart money, profit or buy/sell intent. Do not automatically copy any event.",
+  buy_the_dip:
+    "Use an explicit price or drawdown from a defined rolling-high window. State reference, trigger, size, cooldown and invalidation. A quote alone does not prove a dip or authorize buying.",
+  sell_the_top:
+    "Evaluate user-defined net-profit targets from confirmed attributed entry fills and costs. Require sell percentages, inventory and optional trailing rule. Unknown cost basis is not profit; never predict an absolute market top.",
   rebalancer:
     "Recommend keep/rebalance/wait from actual holdings, user target weights, drift and size-specific costs. If weights/holdings are missing, explain the best conditional approach and ask only for those inputs. Never invent an allocation preference.",
   triggers:
@@ -19,7 +28,7 @@ export const DECISION_GUIDANCE: Record<ResearchTool, string> = {
   lending_margin:
     "Recommend supply/borrow/wait from current variable rates, collateral eligibility, user objective and verified health buffer. Explain rate/withdrawal/liquidation risks. Do not recommend leverage when positions or risk capacity are missing.",
   perps:
-    "Give a clear lean long/lean short/wait decision for the named market and horizon. Use closed-candle trend, momentum, current mark, funding, liquidity and dated relevant news. Explain two supporting facts, the strongest contrary fact and the price/condition that invalidates the view. Funding sign alone is not direction. Technical bias is conditional, not certainty; missing news must be explicit.",
+    "Give the supported long or short bias for every named market and horizon, its strength, conditional entry, invalidation and chart-derived TP/SL hypotheses. Use only the supplied 15m/1h/4h closed-bar indicators, mark/funding, actual supplied liquidity and relevant dated news. Explain the strongest contrary fact. Do not claim order-book or size-specific liquidity was measured unless present. Do not hide a directional view behind generic timing language. Separate bias from trade eligibility: missing/stale evidence blocks a signal and risk limits block execution. Never invent indicator values, prices, probabilities or a guaranteed outcome. A technical screen and illustrative 2R target are not validated predictive accuracy or execution instructions.",
   arbitrage:
     "Recommend pursue/watch/wait using actual size-specific round-trip outputs, independent reserves and verified costs. Positive gross quotes alone are watch candidates. Do not call funding, staking carry or unmatched reference prices risk-free arbitrage; unknown net costs or leg readiness mean no confirmed executable edge.",
 };

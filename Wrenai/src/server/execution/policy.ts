@@ -3,21 +3,23 @@ import { eq } from "drizzle-orm";
 import { killSwitchEngaged, ownedAgent } from "@/server/agents/records";
 import type { AppDatabase } from "@/server/db/client";
 import { delegatedKeys } from "@/server/db/schema";
-import { readUserRiskPolicy } from "@/server/guard/user-policy";
 import { allocationCeiling, committedCapital } from "@/server/positions/capital-records";
 import { type AgentPolicy, parseUsd, policySchema } from "@/shared/agents";
 import type { UserRiskPolicyRecord } from "@/shared/risk-policy";
 import { minimumUnits } from "@/shared/token-units";
 import { ExecutionError, type ExecutionPlan } from "./contracts";
+import { planRiskPolicy } from "./plan-risk";
 import { type ExecutionAction, executionHash, type LedgerAction } from "./records";
+import { verifiedReducingExit } from "./reducing-exit";
 import { checkStrategyAssets } from "./strategy-assets";
 import { readSpendingUsage, readSubmissionUsage } from "./usage";
 
 interface ExecutionPolicy {
   readonly policy: AgentPolicy;
-  readonly riskPolicy: UserRiskPolicyRecord;
+  readonly riskPolicy: UserRiskPolicyRecord | null;
   readonly publicKey: string;
   readonly policyHash: string;
+  readonly riskReducingExit: boolean;
 }
 
 export async function currentExecutionPolicy(
@@ -25,6 +27,7 @@ export async function currentExecutionPolicy(
   userId: string,
   plan: ExecutionPlan,
   signingPublicKey?: string,
+  actionId?: string,
 ): Promise<ExecutionPolicy> {
   const agent = await ownedAgent(db, userId, plan.agentId);
   // Both currently supported packs are confidential-only; a plan cannot select a public fallback.
@@ -40,13 +43,7 @@ export async function currentExecutionPolicy(
   if (agent.revision !== plan.agentRevision || agent.version !== plan.strategyVersion) {
     throw new ExecutionError("conflict", "The strategy or policy revision changed. Create a new plan.");
   }
-  const riskPolicy = await readUserRiskPolicy(db, userId);
-  if (riskPolicy === null) {
-    throw new ExecutionError("not_ready", "Set your account-wide trading limits before activation.");
-  }
-  if (plan.riskPolicyRevision !== riskPolicy.revision) {
-    throw new ExecutionError("conflict", "Account-wide limits changed. Review a new plan.");
-  }
+  const riskPolicy = await planRiskPolicy(db, userId, plan);
   await checkStrategyAssets(db, plan);
   const [key] = await db.select().from(delegatedKeys).where(eq(delegatedKeys.userId, userId)).limit(1);
   if (
@@ -58,8 +55,9 @@ export async function currentExecutionPolicy(
     throw new ExecutionError("not_ready", "The bound Intents authorization is no longer active.");
   }
   const policy = policySchema.parse(JSON.parse(agent.policyJson));
+  const riskReducingExit = await verifiedReducingExit(db, userId, plan, policy, actionId);
   if (
-    BigInt(plan.notionalMicroUsd) > parseUsd(policy.maxTradeUsd) ||
+    (!riskReducingExit && BigInt(plan.notionalMicroUsd) > parseUsd(policy.maxTradeUsd)) ||
     plan.slippageBps > policy.maxSlippageBps ||
     (plan.providerFeeBps ?? 0) > policy.maxProviderFeeBps
   ) {
@@ -67,13 +65,18 @@ export async function currentExecutionPolicy(
   }
   return {
     policy,
+    riskReducingExit,
     riskPolicy,
     publicKey: key.publicKey,
-    policyHash: executionHash({
-      agentPolicy: policy,
-      userPolicyRevision: riskPolicy.revision,
-      userPolicy: riskPolicy.policy,
-    }),
+    policyHash: executionHash(
+      riskPolicy
+        ? {
+            agentPolicy: policy,
+            userPolicyRevision: riskPolicy.revision,
+            userPolicy: riskPolicy.policy,
+          }
+        : { agentPolicy: policy, budgetMode: "per_agent" },
+    ),
   };
 }
 
@@ -86,22 +89,23 @@ export async function checkReservationLimits(
   now: number,
   excludeActionId?: string,
 ): Promise<void> {
-  const { policy, riskPolicy } = current;
+  const { policy, riskPolicy, riskReducingExit } = current;
   const usage = await readSpendingUsage(db, userId, plan.agentId, now, excludeActionId);
   const proposed = BigInt(plan.notionalMicroUsd);
   const reserved = usage.agentPendingMicroUsd + proposed;
   const allocation = await allocationCeiling(db, userId, plan.agentId);
   const ceiling = minimumUnits(allocation, parseUsd(policy.budgetUsd));
   if (
-    reserved > ceiling ||
+    (!riskReducingExit && reserved > ceiling) ||
     (await committedCapital(db, userId, plan.agentId)) > ceiling ||
-    reserved + usage.agentSpent24hMicroUsd > parseUsd(policy.dailyCapUsd) ||
-    usage.userPendingMicroUsd + usage.userSpent24hMicroUsd + proposed >
-      parseUsd(riskPolicy.policy.dailyCapUsd)
+    (!riskReducingExit && reserved + usage.agentSpent24hMicroUsd > parseUsd(policy.dailyCapUsd)) ||
+    (riskPolicy !== null &&
+      usage.userPendingMicroUsd + usage.userSpent24hMicroUsd + proposed >
+        parseUsd(riskPolicy.policy.dailyCapUsd))
   ) {
     throw new ExecutionError(
       "limit",
-      "Pending reservations exceed an agent budget or an account-wide/agent daily spending ceiling.",
+      "Pending reservations exceed the action's budget or daily spending ceiling.",
     );
   }
 }
@@ -111,7 +115,11 @@ export async function checkSubmissionRate(
   action: LedgerAction,
   policy: AgentPolicy,
   now: number,
+  riskReducingExit = false,
 ): Promise<void> {
+  if (riskReducingExit) {
+    return;
+  }
   const usage = await readSubmissionUsage(db, action.userId, action.agentId, now);
   if (
     usage.submissionsLastHour >= BigInt(policy.maxTradesPerHour) ||
@@ -128,7 +136,7 @@ export async function recheckExecution(
   plan: ExecutionPlan,
   now: number,
 ): Promise<ExecutionPolicy> {
-  const current = await currentExecutionPolicy(db, action.userId, plan, action.signingPublicKey);
+  const current = await currentExecutionPolicy(db, action.userId, plan, action.signingPublicKey, action.id);
   if (current.policyHash !== action.policyHash || now >= action.expiresAt || action.approvedAt === null) {
     throw new ExecutionError("not_ready", "The plan expired, changed, or still needs its bound approval.");
   }

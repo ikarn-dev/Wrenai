@@ -107,6 +107,7 @@ function nativeEntry(raw: unknown, owner: string, snapshotAt: number): ActivityE
             units: row.actions_agg.deposit,
             decimals: 24,
             symbol: "NEAR",
+            assetId: "native:near",
             direction: sent ? "out" : "in",
           }
         : null,
@@ -169,6 +170,7 @@ function transferEntry(
       units: units.toString(),
       decimals: stream === "nfts" ? 0 : (meta?.decimals ?? null),
       symbol,
+      ...(stream === "tokens" ? { assetId: `nep141:${row.contract_account_id}` } : {}),
       direction: value > 0n ? "in" : value < 0n ? "out" : "none",
     },
   };
@@ -180,6 +182,7 @@ export async function walletActivityPage(
   stream: WalletActivityStream,
   position: WalletActivityPosition,
   snapshotAt: number,
+  signal?: AbortSignal,
 ): Promise<WalletActivityPage> {
   account.parse(owner);
   const url = new URL(
@@ -193,6 +196,7 @@ export async function walletActivityPage(
   const { NEARBLOCKS_API_KEY } = process.env;
   const response = await marketJson("NearBlocks wallet history", url.toString(), {
     cacheMs: 30_000,
+    ...(signal ? { signal } : {}),
     ...(NEARBLOCKS_API_KEY
       ? {
           headers: {

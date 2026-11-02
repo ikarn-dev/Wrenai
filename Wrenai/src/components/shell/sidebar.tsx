@@ -35,8 +35,12 @@ function rememberWidth(collapsed: boolean): void {
       return undefined;
     });
 }
-const CONTROL =
-  "inline-flex size-9 shrink-0 cursor-pointer items-center justify-center text-fg-muted transition-colors duration-300 ease-ios hover:bg-surface-3 hover:text-fg-strong pointer-coarse:size-11";
+const TOGGLE =
+  "absolute inset-y-0 my-auto inline-flex shrink-0 cursor-pointer items-center justify-center text-fg-muted transition-[right,background-color,color] duration-[420ms] ease-ios hover:bg-surface-3 hover:text-fg-strong motion-reduce:transition-none";
+// Collapsed, the toggle is a small circle just outside the card's edge (6 px gap), so it never covers the mark.
+const TOGGLE_EXPANDED = "right-1 size-9 rounded-sm pointer-coarse:size-11";
+const TOGGLE_COLLAPSED =
+  "-right-8.5 size-7 rounded-full bg-surface-card ring-1 ring-line-card ring-inset pointer-coarse:-right-12.5 pointer-coarse:size-11";
 
 interface SidebarProps {
   readonly collapsed: boolean;
@@ -79,9 +83,14 @@ function SidebarView({ collapsed, onCollapsedChange }: SidebarProps): ReactEleme
                 aria-label={toggleLabel}
                 aria-expanded={!collapsed}
                 aria-controls={navigationId}
-                className={`${CONTROL} absolute inset-y-0 my-auto transition-[right,background-color,color] duration-[420ms] ease-ios motion-reduce:transition-none ${collapsed ? "-right-6.5 rounded-full bg-surface-card pointer-coarse:-right-7.5" : "right-1 rounded-sm"}`}
+                className={`${TOGGLE} ${collapsed ? TOGGLE_COLLAPSED : TOGGLE_EXPANDED}`}
               >
-                <ToggleIcon aria-hidden="true" size={18} strokeWidth={1.75} absoluteStrokeWidth />
+                <ToggleIcon
+                  aria-hidden="true"
+                  size={collapsed ? 16 : 18}
+                  strokeWidth={1.75}
+                  absoluteStrokeWidth
+                />
               </button>
             </NavigationTooltip>
           </div>

@@ -3,11 +3,12 @@ import { killSwitchEngaged, ownedAgent } from "@/server/agents/records";
 import type { AppDatabase } from "@/server/db/client";
 import { evaluateGuard } from "@/server/guard/evaluate";
 import type { GuardVerdict } from "@/server/guard/types";
-import { readUserRiskPolicy } from "@/server/guard/user-policy";
 import { allocationCeiling, committedCapital } from "@/server/positions/capital-records";
 import { parseUsd, policySchema } from "@/shared/agents";
 import { minimumUnits } from "@/shared/token-units";
 import { ExecutionError, type ExecutionPlan } from "./contracts";
+import { planRiskPolicy } from "./plan-risk";
+import { verifiedReducingExit } from "./reducing-exit";
 import { checkStrategyAssets } from "./strategy-assets";
 import { readSpendingUsage, readSubmissionUsage } from "./usage";
 
@@ -40,10 +41,8 @@ export async function swapGuardVerdict(
   }
   await checkStrategyAssets(db, plan);
   const policy = policySchema.parse(JSON.parse(agent.policyJson));
-  const risk = await readUserRiskPolicy(db, userId);
-  if (!risk || risk.revision !== plan.riskPolicyRevision) {
-    throw new ExecutionError("not_ready", "The account-wide trading limits changed.");
-  }
+  const riskReducingExit = await verifiedReducingExit(db, userId, plan, policy, actionId);
+  const risk = await planRiskPolicy(db, userId, plan);
   const usage = await readSpendingUsage(db, userId, agent.id, now, actionId);
   const submissions = await readSubmissionUsage(db, userId, agent.id, now);
   return evaluateGuard(
@@ -52,7 +51,7 @@ export async function swapGuardVerdict(
       agentId: agent.id,
       tier: "private",
       kind: "swap",
-      purpose: agent.pack === "rebalancer" ? "rebalance" : "entry",
+      purpose: riskReducingExit ? "exit" : agent.pack === "rebalancer" ? "rebalance" : "entry",
       sellAssetId: plan.inputAssetId,
       buyAssetId: plan.outputAssetId,
       destination: { type: "confidential" },
@@ -67,11 +66,12 @@ export async function swapGuardVerdict(
       agentStatus: agent.status === "error" ? "stopped" : agent.status,
       requiresPositiveEdge: false,
       newCapitalMicroUsd: 0n,
+      riskReducingExit,
       allowedAssetIds: new Set([plan.inputAssetId, plan.outputAssetId]),
       allowedChains: new Set(),
       limits: {
         maxTradeMicroUsd: parseUsd(policy.maxTradeUsd),
-        userDailyCapMicroUsd: parseUsd(risk.policy.dailyCapUsd),
+        userDailyCapMicroUsd: risk ? parseUsd(risk.policy.dailyCapUsd) : null,
         agentDailyCapMicroUsd: parseUsd(policy.dailyCapUsd),
         maxSlippageBps: policy.maxSlippageBps,
         maxProviderFeeBps: policy.maxProviderFeeBps,

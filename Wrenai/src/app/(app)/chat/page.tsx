@@ -6,7 +6,7 @@ import { requireUser } from "@/server/auth/session";
 import { listConversations, readConversationPage } from "@/server/chat/queries";
 import { database } from "@/server/db/client";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
-import { researchToolSchema } from "@/shared/research";
+import { activeAgentToolSchema } from "@/shared/agent-scope";
 
 export const metadata: Metadata = { title: "Chat" };
 
@@ -23,7 +23,7 @@ export default async function ChatPage({
     parsed.success ? readConversationPage(database(), user.id, id, null) : Promise.resolve(null),
     listConversations(database(), user.id),
   ]);
-  const tool = researchToolSchema.safeParse(params.tool);
+  const tool = activeAgentToolSchema.safeParse(params.tool);
   return (
     <ChatScreen
       initialId={id}

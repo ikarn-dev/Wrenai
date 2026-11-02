@@ -62,8 +62,9 @@ export async function commitSignedExecution(
   token: string,
   raw: unknown,
   sign: () => Buffer,
+  validateState?: (tx: AppDatabase) => Promise<void>,
 ): Promise<Buffer> {
-  const signature = await commitSubmission(db, userId, actionId, token, raw, sign);
+  const signature = await commitSubmission(db, userId, actionId, token, raw, sign, validateState);
   if (signature === undefined) {
     throw new Error("The execution signature was not produced.");
   }
@@ -77,6 +78,7 @@ async function commitSubmission(
   token: string,
   raw: unknown,
   sign: () => Buffer | undefined,
+  validateState?: (tx: AppDatabase) => Promise<void>,
 ): Promise<Buffer | undefined> {
   const submission = z.strictObject({ payloadHash: hashSchema, providerRequestId: z.uuid() }).parse(raw);
   return userTransaction(db, userId, async (tx) => {
@@ -111,6 +113,7 @@ async function commitSubmission(
     if (action.expiresAt <= beforeCommit) {
       throw new ExecutionError("not_ready", "The quote expired during validation. Create a new plan.");
     }
+    await validateState?.(tx);
     const signed = sign();
     await tx
       .update(executionActions)

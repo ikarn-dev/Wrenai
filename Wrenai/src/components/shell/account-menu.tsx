@@ -104,7 +104,7 @@ function AccountPanel({ id, accountId, agentKey, copy, onCopy, onNavigate }: Pan
       <div className="flex items-center justify-between gap-3 px-2.5">
         <span className="text-small whitespace-nowrap text-fg-subtle">Agent key</span>
         <Link
-          href="/settings"
+          href="/settings/trading-access"
           onClick={onNavigate}
           aria-label={`Agent key ${key.label}. Manage in Settings`}
           className="inline-flex min-h-8 items-center rounded-full pointer-coarse:min-h-11"

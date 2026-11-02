@@ -1,6 +1,7 @@
 "use server";
 import { refresh } from "next/cache";
 import { z } from "zod";
+import { AgentError } from "@/server/agents/errors";
 import { currentUser } from "@/server/auth/session";
 import { database } from "@/server/db/client";
 import { ExecutionError } from "@/server/execution/contracts";
@@ -26,6 +27,9 @@ export async function allocateAgentBalance(raw: unknown): Promise<AgentResult<nu
     refresh();
     return { ok: true, value: null };
   } catch (error) {
+    if (error instanceof AgentError) {
+      return { ok: false, code: error.code, message: error.message };
+    }
     if (error instanceof ExecutionError) {
       return {
         ok: false,

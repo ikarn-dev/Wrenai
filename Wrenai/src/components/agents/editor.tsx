@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToastState } from "@/components/ui/toast";
 import { parseAgentStrategy, saveAgentStrategy } from "@/server/agents/actions";
+import { AGENT_CATALOG } from "@/shared/agent-catalog";
+import { isActiveAgentTool } from "@/shared/agent-scope";
 import {
   type AgentPolicy,
   type AgentSummary,
@@ -21,26 +23,24 @@ import {
 import { Field, INPUT_CLASS, PolicyFields } from "./policy-fields";
 import { StrategySummary } from "./strategy-summary";
 
-const EXAMPLES = {
-  rebalancer:
-    "Keep 50% NEAR and 50% USDC. Rebalance when either asset drifts 5% from its target, checking every 5 minutes.",
-  triggers:
-    "Buy $10 of NEAR with USDC when NEAR rises above $4. Take profit at $4.60 and stop loss at $3.80. Stop after the exit.",
-  copy_trading:
-    "Follow public NEAR-origin 1Click swaps sent by leader.near, using only NEAR and USDC. Copy $10 per trade, ignore signals older than 120 seconds, and allow at most 1% worse exchange rates than the leader. Stop after seven days.",
-} as const;
-
 export function AgentEditor({
   agent,
   setup,
 }: {
   readonly agent?: AgentSummary;
-  readonly setup?: { readonly pack: AgentSummary["pack"]; readonly brief: string };
+  readonly setup?: {
+    readonly id: string;
+    readonly hash: string;
+    readonly pack: AgentSummary["pack"];
+    readonly brief: string;
+  };
 }): ReactElement {
   const router = useRouter();
-  const [pack, setPack] = useState(agent?.pack ?? setup?.pack ?? "rebalancer");
+  const [pack, setPack] = useState(agent?.pack ?? setup?.pack ?? "spot_trader");
   const [text, setText] = useState(agent?.strategyText ?? setup?.brief ?? "");
-  const [policy, setPolicy] = useState<AgentPolicy>(agent?.policy ?? DEFAULT_POLICY);
+  const [policy, setPolicy] = useState<AgentPolicy>(
+    agent?.policy ?? { ...DEFAULT_POLICY, allowRiskReducingExits: true },
+  );
   const [draft, setDraft] = useState<StrategyDraft | null>(null);
   const [, setError] = useToastState("error");
   const [busy, startTransition] = useTransition();
@@ -97,6 +97,7 @@ export function AgentEditor({
           policy: parsed.data,
           agentId: agent?.id ?? null,
           expectedRevision: agent?.revision ?? null,
+          ...(setup ? { setupId: setup.id, setupHash: setup.hash } : {}),
         });
         if (!result.ok) {
           setError(result.message);
@@ -145,16 +146,18 @@ export function AgentEditor({
                   }
                 }}
               >
-                {Object.entries(PACKS).map(([value, item]) => (
-                  <option key={value} value={value}>
-                    {item.label}
-                  </option>
-                ))}
+                {Object.entries(PACKS)
+                  .filter(([value]) => isActiveAgentTool(value) || value === agent?.pack)
+                  .map(([value, item]) => (
+                    <option key={value} value={value}>
+                      {item.label}
+                    </option>
+                  ))}
               </select>
             </Field>
             <p className="text-small text-fg-muted">{PACKS[pack].description}</p>
             <p className="text-caption text-fg-subtle">
-              Supported assets: NEAR, BTC, ETH, SOL, USDC and USDT.
+              Use exact supported token contracts and the amount unit. Trading funds are allocated separately.
             </p>
             <Field
               label="What should this agent do?"
@@ -170,7 +173,7 @@ export function AgentEditor({
                   setText(event.target.value);
                   invalidate();
                 }}
-                placeholder={EXAMPLES[pack]}
+                placeholder={AGENT_CATALOG[pack].prompt}
                 className="w-full resize-y rounded-sm border border-line bg-surface-2 p-3 text-body leading-relaxed text-fg-strong placeholder:text-fg-subtle"
               />
             </Field>
@@ -178,15 +181,17 @@ export function AgentEditor({
               type="button"
               className="w-fit cursor-pointer rounded-sm text-small text-fg-muted underline underline-offset-4 hover:text-fg-strong"
               onClick={() => {
-                setText(EXAMPLES[pack]);
+                setText(AGENT_CATALOG[pack].fields.map((field) => `${field}: `).join("\n"));
                 invalidate();
               }}
             >
-              Use example
+              Use setup guide
             </button>
           </fieldset>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-caption text-fg-subtle">Private tier · NEAR AI verified inference</span>
+            <span className="text-caption text-fg-subtle">
+              NEAR AI verified inference · execution scope reviewed before activation
+            </span>
             <Button type="submit" disabled={busy} aria-busy={busy && draft === null}>
               {busy && draft === null ? (
                 <LoaderCircle aria-hidden="true" size={16} className="motion-safe:animate-spin" />
@@ -195,8 +200,8 @@ export function AgentEditor({
             </Button>
           </div>
           <p className="text-caption leading-relaxed text-fg-subtle">
-            Strategies and limits stay on this backend; inference is encrypted to an attested model. Copy
-            Trading follows supported public 1Click swaps, not arbitrary wallet transactions.
+            Strategies and limits stay on this backend; inference is encrypted to an attested model. Saving
+            creates a paused agent and does not authorize a trade.
           </p>
         </form>
         {draft === null ? (
@@ -230,14 +235,20 @@ export function AgentEditor({
                 within limits”.
               </p>
             ) : null}
-            <PolicyFields
-              policy={policy}
-              onChange={(next) => {
-                setPolicy(next);
-                setSaveId(null);
-              }}
-              disabled={busy}
-            />
+            {pack !== "whale_tracker" ? (
+              <PolicyFields
+                policy={policy}
+                onChange={(next) => {
+                  setPolicy(next);
+                  setSaveId(null);
+                }}
+                disabled={busy}
+              />
+            ) : (
+              <p className="text-small text-fg-muted">
+                Watchlist alerts do not spend your funds or require a trading key.
+              </p>
+            )}
             <p className="text-caption text-fg-subtle">
               Verified with {draft.model}. Review expires 30 minutes after parsing.
             </p>

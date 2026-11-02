@@ -16,6 +16,7 @@ export async function freshTradingBalances(
   accountId: string,
   assetIds: readonly string[],
   scope: ExecutionScope,
+  sessionToken?: string,
 ): Promise<TradeBalance> {
   if (assetIds.length < 1 || assetIds.length > 6 || new Set(assetIds).size !== assetIds.length) {
     throw new ExecutionError("not_ready", "The balance request contains invalid assets.");
@@ -42,7 +43,7 @@ export async function freshTradingBalances(
       note: "Finalized public Intents inventory; native wallet and confidential funds are separate.",
     });
   }
-  const token = await privateBalanceToken(db, userId);
+  const token = sessionToken ?? (await privateBalanceToken(db, userId));
   if (token === null) {
     return {
       scope,

@@ -1,49 +1,42 @@
 import { describe, expect, it } from "vitest";
+import { type ActiveAgentTool, activeAgentToolSchema } from "@/shared/agent-scope";
 import { chatRoutingIssue, needsLiveResearch, requestedResearchTools } from "@/shared/chat-routing";
-import { type ResearchTool, researchToolSchema } from "@/shared/research";
 
-const requests: Record<ResearchTool, string> = {
-  rebalancer: "Rebalance my portfolio allocations",
-  triggers: "Check a DCA swap quote for NEAR to USDC",
-  copy_trading: "Analyze copy trading for trader.near",
-  yield_optimizer:
-    "Compare current NEAR yield opportunities using live data, including costs and withdrawal requirements.",
+const requests: Record<ActiveAgentTool, string> = {
+  dca: "Check a DCA swap quote for NEAR to USDC",
+  spot_trader: "Review a spot buy of NEAR with USDC",
+  whale_tracker: "Track whale movements for trader.near",
+  buy_the_dip: "Buy the dip in NEAR spot",
+  sell_the_top: "Sell at my profit target",
   meme_hunter: "Find current NEAR memecoins",
   private_payments: "Check this payment to recipient.near",
-  lp_manager: "Analyze current liquidity pools",
-  lending_margin: "Compare current borrowing rates",
   perps: "Should I go long or short on NEAR perps?",
-  arbitrage: "Find arbitrage price gaps",
 };
 
 describe("research tool routing before inference", () => {
-  it.each(researchToolSchema.options)("accepts %s requests and blocks unrelated selections", (tool) => {
+  it.each(activeAgentToolSchema.options)("accepts %s requests and blocks unrelated selections", (tool) => {
     const message = requests[tool];
     expect(requestedResearchTools(message)).toEqual([tool]);
     expect(chatRoutingIssue(message, tool)).toBeNull();
     expect(chatRoutingIssue(message, null)).toBeNull();
-    for (const other of researchToolSchema.options.filter((candidate) => candidate !== tool)) {
+    for (const other of activeAgentToolSchema.options.filter((candidate) => candidate !== tool)) {
       expect(chatRoutingIssue(message, other)).not.toBeNull();
     }
   });
   it("explains the reported yield/DCA mismatch without changing the selected tool", () => {
-    expect(chatRoutingIssue(requests.yield_optimizer, "triggers")).toContain(
-      "Switch to Yield Optimizer or Auto",
-    );
+    expect(chatRoutingIssue(requests.perps, "dca")).toContain("Switch to Perps or Auto");
   });
   it("requires Auto for separate research goals, while keeping umbrella comparisons together", () => {
-    expect(chatRoutingIssue("Find arbitrage and compare staking yields", "arbitrage")).toContain(
+    expect(chatRoutingIssue("Find whale movements and compare perps", "whale_tracker")).toContain(
       "multiple tools",
     );
+    expect(chatRoutingIssue("Analyze NEAR perps with take-profit and stop-loss", "perps")).toBeNull();
     expect(
-      chatRoutingIssue(
-        "Compare yield opportunities across lending, staking and liquidity pools",
-        "yield_optimizer",
-      ),
+      chatRoutingIssue("Review a spot buy of NEAR with take-profit and stop-loss", "spot_trader"),
     ).toBeNull();
-    expect(chatRoutingIssue("Find spot/perp arbitrage and funding rate gaps", "arbitrage")).toBeNull();
-    expect(chatRoutingIssue("Compare lending APRs", "lending_margin")).toBeNull();
-    expect(chatRoutingIssue("Compare LP yields", "lp_manager")).toBeNull();
+    expect(chatRoutingIssue("Find arbitrage", null)).toContain("removed");
+    expect(chatRoutingIssue("Create a rebalancer agent", null)).toContain("removed");
+    expect(chatRoutingIssue("Research this", "copy_trading")).toContain("removed");
   });
   it("preserves vague follow-ups and greetings, ignoring code, URLs and explicit negations", () => {
     for (const message of [
@@ -52,14 +45,14 @@ describe("research tool routing before inference", () => {
       "Hi",
       "Explain `yield_optimizer` in this output",
     ]) {
-      expect(chatRoutingIssue(message, "triggers")).toBeNull();
+      expect(chatRoutingIssue(message, "dca")).toBeNull();
     }
     expect(chatRoutingIssue("Not staking, analyze NEAR perps", "perps")).toBeNull();
     expect(requestedResearchTools("See https://example.org/staking")).toEqual([]);
-    expect(chatRoutingIssue("Write a poem", "triggers")).toContain("Choose Auto");
+    expect(chatRoutingIssue("Write a poem", "dca")).toContain("Choose Auto");
   });
   it("requires evidence for current research, not definitions or an ordinary follow-up", () => {
-    expect(needsLiveResearch(requests.yield_optimizer)).toBe(true);
+    expect(needsLiveResearch(requests.meme_hunter)).toBe(true);
     expect(needsLiveResearch("What is arbitrage?")).toBe(false);
     expect(needsLiveResearch("Explain the risks")).toBe(false);
     expect(needsLiveResearch("What should I do now?", "perps")).toBe(true);

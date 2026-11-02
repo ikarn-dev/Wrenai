@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import { useToastState } from "@/components/ui/toast";
 import { loadChatPage, stopChatReply } from "@/server/chat/actions";
+import { isActiveAgentTool } from "@/shared/agent-scope";
 import type { ChatEvent, ChatInput, ChatTurn, Conversation, ConversationSummary } from "@/shared/chat";
 import { chatRoutingIssue } from "@/shared/chat-routing";
 import { chatStatus } from "@/shared/chat-status";
@@ -31,7 +32,10 @@ export function useChat(
   const [conversationId, setId] = useState(initialId);
   const [history, setHistory] = useState(initialHistory);
   const [draft, setDraftValue] = useState(initialPrompt);
-  const [tool, setTool] = useState<ResearchTool | null>(initialConversation?.turns.at(-1)?.tool ?? null);
+  const previousTool = initialConversation?.turns.at(-1)?.tool;
+  const [tool, setTool] = useState<ResearchTool | null>(
+    isActiveAgentTool(previousTool) ? previousTool : null,
+  );
   const draftValue = useRef(initialPrompt);
   const drafts = useRef(new Map<string, string>());
   const [sending, setSending] = useState(false);

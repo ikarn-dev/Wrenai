@@ -45,7 +45,11 @@ export interface ViewResult {
 
 type QueryOutcome = { readonly kind: "ok"; readonly result: unknown } | { readonly kind: "unknown_account" };
 
-async function query(params: Readonly<Record<string, string>>, signal?: AbortSignal): Promise<QueryOutcome> {
+async function query(
+  params: Readonly<Record<string, string>>,
+  signal?: AbortSignal,
+  method = "query",
+): Promise<QueryOutcome> {
   let response: Response;
   try {
     response = await fetch(serverEnv().nearRpcUrl, {
@@ -54,7 +58,7 @@ async function query(params: Readonly<Record<string, string>>, signal?: AbortSig
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: "wrenai",
-        method: "query",
+        method,
         params: { ...params, finality: "final" },
       }),
       signal: AbortSignal.any([AbortSignal.timeout(RPC_TIMEOUT_MS), ...(signal ? [signal] : [])]),
@@ -108,6 +112,43 @@ export async function viewNearBalance(accountId: string, signal?: AbortSignal): 
     throw new NearRpcError("NEAR RPC returned an unexpected account");
   }
   return BigInt(parsed.data.amount);
+}
+
+/** Conservative wallet headroom: storage stake and 0.05 NEAR for gas remain unallocated. */
+export async function viewNearBudgetBalance(accountId: string): Promise<{
+  readonly balance: bigint;
+  readonly spendable: bigint;
+  readonly blockHeight: number;
+}> {
+  const [outcome, config] = await Promise.all([
+    query({ request_type: "view_account", account_id: accountId }),
+    query({}, undefined, "EXPERIMENTAL_protocol_config"),
+  ]);
+  if (outcome.kind !== "ok" || config.kind !== "ok") {
+    throw new NearRpcError("The wallet account does not exist on mainnet.");
+  }
+  const value = z
+    .object({
+      amount: z.string().regex(/^\d+$/),
+      locked: z.string().regex(/^\d+$/),
+      storage_usage: z.number().int().nonnegative().safe(),
+      block_height: z.number().int().positive().safe(),
+    })
+    .parse(outcome.result);
+  // https://docs.near.org/protocol/storage/storage-staking; subtract full storage conservatively.
+  const protocol = z
+    .object({
+      chain_id: z.literal("mainnet"),
+      runtime_config: z.object({
+        storage_amount_per_byte: z.string().regex(/^[1-9]\d{0,30}$/),
+      }),
+    })
+    .parse(config.result);
+  const storage = BigInt(value.storage_usage) * BigInt(protocol.runtime_config.storage_amount_per_byte);
+  const locked = BigInt(value.locked);
+  const reserve = (storage > locked ? storage - locked : 0n) + 5n * 10n ** 22n;
+  const balance = BigInt(value.amount);
+  return { balance, spendable: balance > reserve ? balance - reserve : 0n, blockHeight: value.block_height };
 }
 
 /**

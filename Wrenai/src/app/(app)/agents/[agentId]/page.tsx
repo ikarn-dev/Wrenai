@@ -90,7 +90,9 @@ export default async function AgentPage({
         initial={runtime}
         executionAvailable={deployedRuntimeReady()}
       />
-      <AgentTradePreview key={`${agent.id}:${agent.revision}`} agent={agent} accountId={user.accountId} />
+      {agent.pack !== "whale_tracker" ? (
+        <AgentTradePreview key={`${agent.id}:${agent.revision}`} agent={agent} accountId={user.accountId} />
+      ) : null}
       <div className="grid min-w-0 items-start gap-stack xl:grid-cols-2">
         <PortfolioPanel id="strategy" title="Your strategy">
           <p className="whitespace-pre-wrap text-body leading-relaxed text-fg">{agent.strategyText}</p>
