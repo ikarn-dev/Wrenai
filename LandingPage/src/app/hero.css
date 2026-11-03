@@ -1,0 +1,110 @@
+/* Hero decoration. Everything here is painted once and moves with the page as one layer: no backdrop-filter, no
+   filter blur, no background-attachment: fixed and no scroll-linked work, so scrolling never repaints it. The
+   only motion is the glow's opacity, which runs on the compositor. */
+@theme {
+  /* Opacity only, so the light stays put and even while it breathes. */
+  --animate-glow-breathe: glow-breathe 9s ease-in-out infinite alternate;
+  @keyframes glow-breathe {
+    0% {
+      opacity: 0.82;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+}
+
+/* The hero surface: edge to edge, one viewport tall. contain: paint keeps the glow's large gradients from ever
+   painting outside it. */
+@utility hero-frame {
+  min-height: 100svh;
+  background-color: var(--color-sunken);
+  overflow: hidden;
+  isolation: isolate;
+  contain: paint;
+}
+
+/* Mint light rising from the bottom edge: a bright floor in the center, a wash from the lower left and a softer
+   one on the right. The top stays black, so the headline and subtext sit on the dark ground.
+   Each light fades on an eased curve (many stops, stepping down in color as well as strength) out to its ellipse
+   edge, which sits past the hero's sides. Two or three linear stops leave a visible rim where the slope changes;
+   eased stops blend like a blur without filter: blur, which would re-rasterize the layer as the glow breathes. */
+@utility hero-glow {
+  background:
+    radial-gradient(
+      ellipse 92% 56% at 50% 112%,
+      var(--mint-50) 0%,
+      var(--mint-50) 16%,
+      color-mix(in oklab, var(--mint-100) 92%, transparent) 26%,
+      color-mix(in oklab, var(--mint-100) 76%, transparent) 36%,
+      color-mix(in oklab, var(--mint-200) 54%, transparent) 46%,
+      color-mix(in oklab, var(--mint-300) 33%, transparent) 57%,
+      color-mix(in oklab, var(--mint-400) 18%, transparent) 68%,
+      color-mix(in oklab, var(--mint-500) 8%, transparent) 80%,
+      color-mix(in oklab, var(--mint-600) 3%, transparent) 90%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse 80% 80% at 4% 106%,
+      color-mix(in oklab, var(--mint-400) 66%, transparent) 0%,
+      color-mix(in oklab, var(--mint-400) 56%, transparent) 14%,
+      color-mix(in oklab, var(--mint-500) 42%, transparent) 28%,
+      color-mix(in oklab, var(--mint-600) 29%, transparent) 42%,
+      color-mix(in oklab, var(--mint-700) 18%, transparent) 56%,
+      color-mix(in oklab, var(--mint-800) 9%, transparent) 72%,
+      color-mix(in oklab, var(--mint-800) 3%, transparent) 86%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse 64% 86% at 104% 62%,
+      color-mix(in oklab, var(--mint-500) 50%, transparent) 0%,
+      color-mix(in oklab, var(--mint-500) 40%, transparent) 16%,
+      color-mix(in oklab, var(--mint-600) 28%, transparent) 32%,
+      color-mix(in oklab, var(--mint-700) 16%, transparent) 50%,
+      color-mix(in oklab, var(--mint-800) 7%, transparent) 68%,
+      color-mix(in oklab, var(--mint-800) 2%, transparent) 86%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse 72% 58% at 60% 58%,
+      color-mix(in oklab, var(--mint-800) 36%, transparent) 0%,
+      color-mix(in oklab, var(--mint-800) 25%, transparent) 26%,
+      color-mix(in oklab, var(--mint-900) 14%, transparent) 50%,
+      color-mix(in oklab, var(--mint-900) 5%, transparent) 74%,
+      transparent 100%
+    );
+}
+
+/* Faint vertical rules, twelve across, visible only where the light is. */
+@utility hero-columns {
+  background-image: linear-gradient(
+    to right,
+    color-mix(in oklab, var(--mint-50) 7%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: calc(100% / 12) 100%;
+  mask-image: linear-gradient(to bottom, transparent 22%, #000 82%);
+}
+
+/* The Jarvis card: an opaque light surface with a lit top edge and a soft drop shadow. Opaque on purpose: a
+   translucent card would need backdrop-filter to stay readable, and that re-blurs on every scrolled frame. */
+@utility jarvis-card {
+  background: linear-gradient(
+    155deg,
+    var(--color-paper) 0%,
+    var(--color-paper) 42%,
+    var(--color-paper-tint) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 var(--void-50),
+    inset 0 0 0 1px color-mix(in oklab, var(--void-50) 60%, transparent),
+    0 32px 80px -24px rgb(0 0 0 / 0.6),
+    0 8px 24px -10px rgb(0 0 0 / 0.35);
+}
+
+/* The logo mark on the light Jarvis card. The colored mark is pale mint and vanishes on paper, so its shape is
+   used as a mask and filled with deep mint (ink-focus, 4.89:1 on paper, above the 3:1 for graphics). */
+@utility jarvis-mark {
+  background-color: var(--color-ink-focus);
+  mask: url("/assets/nobg_logo.png") center / contain no-repeat;
+}
