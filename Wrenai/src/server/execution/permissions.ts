@@ -18,7 +18,7 @@ function allowedVenue(permission: ExecutionPermission): boolean {
     case "hyperliquid":
       return (
         permission.venueId === "hyperliquid" &&
-        operations.every((o) => o === "perp_open" || o === "perp_reduce")
+        operations.every((o) => o === "perp_open" || o === "perp_reduce" || o === "transfer")
       );
     case "native_near":
       return (

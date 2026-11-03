@@ -1,6 +1,7 @@
 import { encode } from "@msgpack/msgpack";
 import { keccak256, Signature, type SigningKey, TypedDataEncoder } from "ethers";
 import { z } from "zod";
+import { type HlUsdSend, hlUsdSendSchema } from "@/shared/perps-return";
 import { type HlAction, hlActionSchema } from "./contracts";
 
 const domain = {
@@ -43,6 +44,29 @@ export function signHlAction(
     source: "a",
     connectionId: hlActionHash(action, nonce, expiresAfter),
   });
+  const signature = Signature.from(wallet.signingKey.sign(digest));
+  return { r: signature.r, s: signature.s, v: signature.v };
+}
+/** Official user-signed transfer domain, distinct from L1 orders: https://github.com/hyperliquid-dex/hyperliquid-python-sdk/blob/master/hyperliquid/utils/signing.py */
+export function signHlTransfer(wallet: { readonly signingKey: SigningKey }, raw: HlUsdSend): HlSignature {
+  const action = hlUsdSendSchema.parse(raw);
+  const digest = TypedDataEncoder.hash(
+    {
+      name: "HyperliquidSignTransaction",
+      version: "1",
+      chainId: 421614,
+      verifyingContract: domain.verifyingContract,
+    },
+    {
+      "HyperliquidTransaction:UsdSend": [
+        { name: "hyperliquidChain", type: "string" },
+        { name: "destination", type: "string" },
+        { name: "amount", type: "string" },
+        { name: "time", type: "uint64" },
+      ],
+    },
+    action,
+  );
   const signature = Signature.from(wallet.signingKey.sign(digest));
   return { r: signature.r, s: signature.s, v: signature.v };
 }

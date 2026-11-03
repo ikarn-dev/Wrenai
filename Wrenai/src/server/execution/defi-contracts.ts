@@ -52,6 +52,8 @@ const defiPlanFields = z.strictObject({
   budgetMode: z.literal("per_agent").optional(),
   reduceOnly: z.literal(true).optional(),
   funding: z.literal(true).optional(),
+  returnFunds: z.literal(true).optional(),
+  fundingFeeUnits: tokenUnitsSchema.optional(),
   scope: scopeSchema,
   operation: operationSchema,
   venueId: reference,
@@ -83,6 +85,18 @@ const operationPositionKinds = {
 } as const;
 export const defiPlanSchema = defiPlanFields.pipe(
   defiPlanFields.superRefine((plan, ctx) => {
+    if (
+      (plan.returnFunds &&
+        (!plan.funding || plan.scope !== "hyperliquid" || plan.fundingFeeUnits !== "1000000")) ||
+      (plan.fundingFeeUnits !== undefined &&
+        (!plan.returnFunds ||
+          !plan.cash.some((cash) => BigInt(cash.maxDebitUnits) > BigInt(plan.fundingFeeUnits ?? "0"))))
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "The return transfer must bind its exact non-refundable source fee.",
+      });
+    }
     if (
       plan.cash.some(
         (cash) =>

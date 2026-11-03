@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { killSwitchEngaged } from "@/server/agents/records";
 import type { SessionUser } from "@/server/auth/session";
 import type { AppDatabase } from "@/server/db/client";
@@ -84,6 +84,7 @@ export async function latestTradePreview(
         eq(tradePreviews.userId, userId),
         eq(tradePreviews.agentId, agentId),
         eq(tradePreviews.agentRevision, revision),
+        sql`${tradePreviews.snapshotJson}::jsonb ->> 'format' is null`,
       ),
     )
     .orderBy(desc(tradePreviews.createdAt))

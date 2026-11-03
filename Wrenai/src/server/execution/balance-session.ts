@@ -168,3 +168,18 @@ export async function privateBalanceToken(db: AppDatabase, userId: string): Prom
   }
   return refreshed.accessToken;
 }
+
+/** Display-only reads must not silently authenticate with the user's trading key. */
+export async function connectedBalanceToken(db: AppDatabase, userId: string): Promise<string | null> {
+  const [session] = await db
+    .select()
+    .from(intentsSessions)
+    .where(eq(intentsSessions.userId, userId))
+    .limit(1);
+  if (!session || session.accessExpiresAt <= Date.now() + 10_000 || session.refreshExpiresAt <= Date.now()) {
+    return null;
+  }
+  return tokensSchema.parse(
+    JSON.parse(chatCipher().open(userId, cipherNamespace, "tokens", session.sealedTokens)),
+  ).accessToken;
+}

@@ -137,12 +137,24 @@ describe("unfunded shared trading accounts and independent recovery", () => {
   });
   it("preserves old backups and rejects an encrypted payload with mismatched key identity", async () => {
     const exported = await exportTradingRecovery(context.db, user, await proof());
-    const payload = exported.payload, password = "legacy recovery fixture passphrase";
-    const legacy = recoveryPayloadSchema.parse({ ...payload, format: "wrenai-trading-recovery-v1", perps: { venue: payload.perps.venue, address: payload.perps.address, privateKey: payload.perps.privateKey } });
+    const payload = exported.payload,
+      password = "legacy recovery fixture passphrase";
+    const legacy = recoveryPayloadSchema.parse({
+      ...payload,
+      format: "wrenai-trading-recovery-v1",
+      perps: {
+        venue: payload.perps.venue,
+        address: payload.perps.address,
+        privateKey: payload.perps.privateKey,
+      },
+    });
     const file = await sealRecoveryFile(legacy, password);
     expect((await recoverTradingKeys(file, password)).recovery).toEqual(legacy);
     await expect(recoverTradingKeys(file, password, 0)).rejects.toThrow("older backup");
-    const mismatch = await sealRecoveryFile({ ...legacy, native: { ...legacy.native, accountId: "a".repeat(64) } }, password);
+    const mismatch = await sealRecoveryFile(
+      { ...legacy, native: { ...legacy.native, accountId: "a".repeat(64) } },
+      password,
+    );
     await expect(recoverTradingKeys(mismatch, password)).rejects.toThrow("account identities");
   });
   it("enforces account identity, secret erasure and retained recovery history in SQL", async () => {

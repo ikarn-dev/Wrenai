@@ -35,6 +35,10 @@ export const intentsStatusSchema = z.object({
       .array(z.object({ hash: z.string().min(1).max(200) }))
       .max(100)
       .optional(),
+    originChainTxHashes: z
+      .array(z.object({ hash: z.string().min(1).max(200) }))
+      .max(100)
+      .optional(),
     depositedAmount: tokenUnitsSchema.optional(),
     refundedAmount: tokenUnitsSchema.optional(),
     intentHashes: z.array(z.string().min(1).max(128)).max(100),

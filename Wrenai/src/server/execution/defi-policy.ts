@@ -95,7 +95,7 @@ export async function currentDefiPolicy(
   action?: LedgerAction,
 ): Promise<{ policy: AgentPolicy; policyHash: string; publicKey: string; riskReducingExit: boolean }> {
   const agent = await ownedAgent(db, userId, plan.agentId);
-  if (agent.status !== "running" || (await killSwitchEngaged(db, userId))) {
+  if ((agent.status !== "running" && !plan.returnFunds) || (await killSwitchEngaged(db, userId))) {
     throw new ExecutionError("not_ready", "The agent must be running and the global stop must be off.");
   }
   if (agent.revision !== plan.agentRevision || agent.version !== plan.strategyVersion) {
@@ -103,9 +103,9 @@ export async function currentDefiPolicy(
   }
   const risk = await planRiskPolicy(db, userId, plan);
   const permission = await requireExecutionPermission(db, userId, plan, now);
+  const funding = await verifiedAccountFunding(db, userId, plan, action?.id);
   const policy = policySchema.parse(JSON.parse(agent.policyJson));
   const riskReducingExit = await verifiedReducingPerpExit(db, plan, policy);
-  const funding = await verifiedAccountFunding(db, userId, plan);
   const policyHash = executionHash(
     risk
       ? {
@@ -134,7 +134,7 @@ export async function currentDefiPolicy(
     (!riskReducingExit && !funding && proposed > parseUsd(policy.maxTradeUsd)) ||
     plan.slippageBps > policy.maxSlippageBps ||
     plan.providerFeeBps > policy.maxProviderFeeBps ||
-    (!riskReducingExit && usage.agentPendingMicroUsd + proposed > ceiling) ||
+    (!riskReducingExit && !plan.returnFunds && usage.agentPendingMicroUsd + proposed > ceiling) ||
     (await committedCapital(db, userId, agent.id, action?.id)) +
       (plan.operation === "borrow" ? proposed : 0n) >
       ceiling ||

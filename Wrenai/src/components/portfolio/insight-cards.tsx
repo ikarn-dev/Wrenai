@@ -51,7 +51,13 @@ function InsightCard({
   );
 }
 
-export function InsightCards({ performance, allocation }: { readonly performance: PortfolioPerformance; readonly allocation: ReactNode }): ReactElement {
+export function InsightCards({
+  performance,
+  allocation,
+}: {
+  readonly performance: PortfolioPerformance;
+  readonly allocation: ReactNode;
+}): ReactElement {
   return (
     <div className="grid gap-stack md:grid-cols-3">
       <InsightCard

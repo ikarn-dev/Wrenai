@@ -2,21 +2,35 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { strategyVersions } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
+import { users } from "@/server/db/schema";
 import { readAgentTradingAccount } from "@/server/trading-accounts/agent-account";
 import { activeTradingAccount } from "@/server/trading-accounts/vault";
 import { agentInstructionSchema } from "@/shared/agent-instructions";
 import { ExecutionError } from "./contracts";
 import type { DefiPlan } from "./defi-contracts";
 import { perpsCashAssetId } from "./hyperliquid/contracts";
+import { verifiedReturnFunding } from "./hyperliquid/return-source";
 
 /** Funding moves already allocated principal; the exception is never authorized by a model-supplied flag alone. */
 export async function verifiedAccountFunding(
   db: AppDatabase,
   userId: string,
   plan: DefiPlan,
+  actionId?: string,
 ): Promise<boolean> {
   if (!plan.funding) {
     return false;
+  }
+  if (plan.returnFunds) {
+    const [owner] = await db
+      .select({ accountId: users.accountId })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (!owner) {
+      throw new ExecutionError("not_found", "The return owner is unavailable.");
+    }
+    return verifiedReturnFunding(db, userId, plan, owner, actionId);
   }
   const [version] = await db
     .select()

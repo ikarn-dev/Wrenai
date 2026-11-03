@@ -38,7 +38,9 @@ export async function synchronizePrivateInventory(db: AppDatabase, userId: strin
 }
 
 /** The same complete provider read can supply display estimates without mutating financial inventory. */
-export async function readPrivateBalances(token: string): Promise<z.infer<typeof completeBalancesSchema>["balances"]> {
+export async function readPrivateBalances(
+  token: string,
+): Promise<z.infer<typeof completeBalancesSchema>["balances"]> {
   const response = await fetch("https://1click.chaindefuser.com/v0/account/balances", {
     headers: { "User-Session": token, "User-Agent": "wrenai/0.1" },
     redirect: "error",

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { AgentAvatar } from "@/components/agents/avatar";
+import { PerpsReturnFunds } from "@/components/agents/perps-return";
 import { AgentRuntimePanel } from "@/components/agents/runtime-status";
 import { PolicySummary, StrategySummary } from "@/components/agents/strategy-summary";
 import { AgentTradePreview } from "@/components/agents/trade-preview";
@@ -98,6 +99,14 @@ export default async function AgentPage({
             updates use five-second checks; pause or revocation stops new updates and leaves existing native
             orders in place.
           </p>
+          {venueAccount ? (
+            <PerpsReturnFunds
+              agentId={agent.id}
+              revision={agent.revision}
+              running={agent.status === "running"}
+              pending={runtime.pending.length > 0}
+            />
+          ) : null}
         </PortfolioPanel>
       ) : null}
       {agent.pack === "triggers" ? (

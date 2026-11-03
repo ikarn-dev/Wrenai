@@ -39,7 +39,11 @@ beforeEach(async () => {
     observedAt: Date.now(),
   };
   vi.mocked(walletTokenHolding).mockResolvedValue(held);
-  vi.mocked(walletTokenHoldings).mockResolvedValue({ tokens: [held], note: "Offline finalized balance" });
+  vi.mocked(walletTokenHoldings).mockResolvedValue({
+    tokens: [held],
+    complete: true,
+    note: "Offline finalized balance",
+  });
   await context.db.insert(agents).values({
     id: agentId,
     userId: "owner",

@@ -46,7 +46,7 @@ export type TradeBalance = z.infer<typeof tradeBalanceSchema>;
 
 export const tradeQuoteSchema = z.strictObject({
   provider: z.literal("oneclick"),
-  scope: z.enum(["intents", "confidential"]),
+  scope: z.enum(["intents", "confidential", "hyperliquid"]),
   inputAssetId: z.string(),
   outputAssetId: z.string(),
   inputUnits: positiveTokenUnitsSchema,

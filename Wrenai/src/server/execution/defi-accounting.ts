@@ -64,11 +64,15 @@ function validateReceipt(plan: DefiPlan, receipt: DefiReceipt): void {
       fundingDebit &&
       bound?.scope !== undefined &&
       bound.scope !== plan.scope
-        ? (BigInt(bound.minCreditUnits) * BigInt(fundingDebit.debitUnits)) /
-          BigInt(fundingInput.maxDebitUnits)
+        ? (BigInt(bound.minCreditUnits) *
+            (BigInt(fundingDebit.debitUnits) - BigInt(plan.fundingFeeUnits ?? "0"))) /
+          (BigInt(fundingInput.maxDebitUnits) - BigInt(plan.fundingFeeUnits ?? "0"))
         : BigInt(bound?.minCreditUnits ?? "0");
     if (
       !bound ||
+      (plan.fundingFeeUnits !== undefined &&
+        fundingDebit &&
+        BigInt(fundingDebit.debitUnits) < BigInt(plan.fundingFeeUnits)) ||
       BigInt(cash.debitUnits) > BigInt(bound.maxDebitUnits) ||
       BigInt(cash.creditUnits) < minimumCredit ||
       (cash.creditUnits === "0" && cash.creditPrincipalMicroUsd !== "0")

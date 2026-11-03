@@ -4,6 +4,8 @@ import { ExecutionError } from "@/server/execution/contracts";
 import { defiPlanSchema } from "@/server/execution/defi-contracts";
 import { executePerpsAction } from "@/server/execution/hyperliquid/executor";
 import { reconcilePerpsAction } from "@/server/execution/hyperliquid/reconciliation";
+import { executePerpsReturn } from "@/server/execution/hyperliquid/return-executor";
+import { reconcilePerpsReturn } from "@/server/execution/hyperliquid/return-reconciliation";
 import { claimExecution, releaseExecutionLease } from "@/server/execution/ownership";
 import { executePerpsFunding } from "@/server/execution/perps-funding-executor";
 import { reconcilePerpsFunding } from "@/server/execution/perps-funding-reconciliation";
@@ -18,10 +20,12 @@ export async function advancePerpsAction(
 ): Promise<number> {
   const action = await ownedLedgerAction(db, userId, actionId),
     plan = defiPlanSchema.parse(JSON.parse(action.planJson));
-  const reconcile = plan.funding
-    ? reconcilePerpsFunding
-    : (connection: AppDatabase, owner: string, id: string, token: string) =>
-        reconcilePerpsAction(connection, owner, id, token, mode === "execute");
+  const reconcile = plan.returnFunds
+    ? reconcilePerpsReturn
+    : plan.funding
+      ? reconcilePerpsFunding
+      : (connection: AppDatabase, owner: string, id: string, token: string) =>
+          reconcilePerpsAction(connection, owner, id, token, mode === "execute");
   if (action.status === "settled") {
     await reconcile(db, userId, actionId, "");
     return 5;
@@ -44,7 +48,9 @@ export async function advancePerpsAction(
   try {
     worker = await claimExecution(db, userId, actionId);
     if (worker.mode === "submit") {
-      if (plan.funding) {
+      if (plan.returnFunds) {
+        await executePerpsReturn(db, userId, actionId, worker.token);
+      } else if (plan.funding) {
         await executePerpsFunding(db, userId, actionId, worker.token);
       } else {
         await executePerpsAction(db, userId, actionId, worker.token);

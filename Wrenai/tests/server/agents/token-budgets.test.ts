@@ -45,7 +45,7 @@ beforeEach(async () => {
     .mockImplementation(async (_account, id) => holding(id));
   vi.mocked(walletTokenHoldings)
     .mockReset()
-    .mockResolvedValue({ tokens: [holding()], note: "Finalized offline holdings" });
+    .mockResolvedValue({ tokens: [holding()], complete: true, note: "Finalized offline holdings" });
 });
 afterEach(async () => {
   vi.useRealTimers();
@@ -108,7 +108,11 @@ describe("owner-serialized token reservations", () => {
     const first = await create("7");
     const small = { ...holding(), balanceUnits: "2000000", spendableUnits: "2000000" };
     vi.mocked(walletTokenHolding).mockResolvedValue(small);
-    vi.mocked(walletTokenHoldings).mockResolvedValue({ tokens: [small], note: "Reduced wallet" });
+    vi.mocked(walletTokenHoldings).mockResolvedValue({
+      tokens: [small],
+      complete: true,
+      note: "Reduced wallet",
+    });
     expect(
       (await readWalletBudgets(store.db, "owner", undefined, undefined, cipher)).tokens[0],
     ).toMatchObject({ availableUnits: "0", deficitUnits: "5000000" });
@@ -153,6 +157,7 @@ describe("owner-serialized token reservations", () => {
       );
       vi.mocked(walletTokenHoldings).mockResolvedValue({
         tokens: [holding(input.assetId)],
+        complete: true,
         note: "Separate wallet balance",
       });
       const view = await readWalletBudgets(context.db, "owner", undefined, undefined, cipher);

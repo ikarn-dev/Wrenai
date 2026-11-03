@@ -100,9 +100,7 @@ export function TradingRecovery({
           file,
         });
         form.reset();
-        setMessage(
-          "Keep your password separate from the backup. Confirm after saving it.",
-        );
+        setMessage("Keep your password separate from the backup. Confirm after saving it.");
       } catch {
         setError("The recovery backup could not be completed. Retry the ownership check.");
       }
@@ -207,7 +205,12 @@ export function TradingRecovery({
           </Button>
           <details className="text-small text-fg-muted">
             <summary className="cursor-pointer text-accent-text">Offline recovery</summary>
-            <p className="mt-2">Keep a copy of the project. From its app directory, run <code>pnpm recover backup.json recovered.json</code>. Add your agent index to recover a separate Perps address. The command asks for your password locally and saves private keys without signing in.</p>
+            <p className="mt-2">
+              Keep a copy of the project. From its app directory, run{" "}
+              <code>pnpm recover backup.json recovered.key</code>. Add your agent index to recover a separate
+              Perps address. The command asks for your password locally and saves private keys without signing
+              in.
+            </p>
           </details>
           <label className="flex items-start gap-3 text-small">
             <input type="checkbox" required disabled={busy} className="mt-1 size-5 accent-accent" />

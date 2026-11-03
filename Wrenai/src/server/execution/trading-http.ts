@@ -1,7 +1,12 @@
 import "server-only";
+import { parse } from "lossless-json";
 import { ExecutionError } from "./contracts";
 
-export async function tradingResponseJson(response: Response, maxBytes: number): Promise<unknown> {
+export async function tradingResponseJson(
+  response: Response,
+  maxBytes: number,
+  exactNumbers = false,
+): Promise<unknown> {
   if (!response.ok || !response.body) {
     throw new ExecutionError("not_ready", "The trading provider is unavailable or rejected the request.");
   }
@@ -24,6 +29,7 @@ export async function tradingResponseJson(response: Response, maxBytes: number):
   } finally {
     reader.releaseLock();
   }
-  const value: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  const text = Buffer.concat(chunks).toString("utf8");
+  const value: unknown = exactNumbers ? parse(text, null, (number: string) => number) : JSON.parse(text);
   return value;
 }
