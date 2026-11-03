@@ -23,7 +23,7 @@ export function JarvisPrompt(): ReactElement {
       method="get"
       className="jarvis-card flex w-full max-w-reading flex-col gap-4 rounded-xl p-card text-left"
     >
-      <label htmlFor="jarvis-question" className="flex items-center gap-2 text-small font-medium text-ink">
+      <label htmlFor="jarvis-question" className="flex items-center gap-2 text-body text-ink">
         <span aria-hidden="true" className="jarvis-mark size-5 shrink-0" />
         Jarvis
       </label>
@@ -33,7 +33,7 @@ export function JarvisPrompt(): ReactElement {
         rows={3}
         maxLength={8000}
         placeholder="Ask about NEAR markets, yields or a strategy"
-        className="min-h-24 w-full resize-none bg-transparent text-body text-ink outline-none placeholder:text-ink-subtle"
+        className="min-h-24 w-full resize-none bg-transparent text-lead text-ink outline-none placeholder:text-ink-subtle"
       />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <fieldset className="flex flex-wrap gap-2">
@@ -41,7 +41,7 @@ export function JarvisPrompt(): ReactElement {
           {TOOLS.map((tool) => (
             <label
               key={tool.id}
-              className="inline-flex h-9 cursor-pointer items-center rounded-full bg-chip px-3.5 text-small font-medium text-ink-muted ring-1 ring-chip-line ring-inset transition-colors duration-300 ease-ios select-none hover:text-ink has-checked:bg-chip-selected has-checked:text-ink has-checked:ring-ink-focus has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ink-focus pointer-coarse:h-11"
+              className="chip-shine inline-flex h-10 cursor-pointer items-center rounded-full px-4 text-body text-ink-muted select-none hover:text-ink has-checked:text-ink has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ink-focus pointer-coarse:h-11"
             >
               <input type="radio" name="tool" value={tool.id} className="sr-only" />
               {tool.label}
@@ -50,7 +50,7 @@ export function JarvisPrompt(): ReactElement {
         </fieldset>
         <button
           type="submit"
-          className="ml-auto inline-flex h-11 cursor-pointer items-center gap-2 rounded-full bg-ink-button pr-4 pl-5 text-body font-medium text-fg-strong transition-[background-color,scale] duration-300 ease-ios hover:bg-ink-button-hover focus-visible:outline-ink-focus active:scale-97 motion-reduce:active:scale-100"
+          className="button-shine ml-auto inline-flex h-12 cursor-pointer items-center gap-2 rounded-full pr-5 pl-6 text-lead text-fg focus-visible:outline-ink-focus active:scale-97 motion-reduce:active:scale-100"
         >
           Ask Jarvis
           <ArrowUp aria-hidden="true" size={18} strokeWidth={1.75} absoluteStrokeWidth />

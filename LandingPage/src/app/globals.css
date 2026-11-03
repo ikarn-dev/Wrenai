@@ -37,11 +37,12 @@
   --radius-*: initial;
   --shadow-*: initial;
 
-  /* Landing display sizes (Docs/DESIGN.md → Fluid scale), set at 500: the geometric face reads heavy at 600. */
+  /* Landing display size (Docs/DESIGN.md → Fluid scale), set at 400: the round face reads light and open there,
+     and heavy from 500. */
   --text-display-xl: clamp(2.5rem, 1.75rem + 3.333vw, 4.75rem);
-  --text-display-xl--line-height: 1.04;
-  --text-display-xl--letter-spacing: -0.03em;
-  --text-display-xl--font-weight: 500;
+  --text-display-xl--line-height: 1.06;
+  --text-display-xl--letter-spacing: -0.025em;
+  --text-display-xl--font-weight: 400;
   --text-lead: clamp(1rem, 0.958rem + 0.185vw, 1.125rem);
   --text-lead--line-height: 1.5;
   --text-lead--letter-spacing: -0.011em;
@@ -77,6 +78,8 @@
   --color-fg-muted: var(--void-300);
   --color-accent: var(--mint-400);
   --color-accent-text: var(--mint-300);
+  /* Hero subtext: quieter than fg-muted. 6.25:1 on sunken (void-950). */
+  --color-fg-subtle: var(--void-400);
 
   /* The hero's light Jarvis card. Measured: ink 14.87:1 on void-100 and 15.39:1 on mint-100; ink-subtle
      (placeholder) 4.55:1 / 4.71:1; ink-muted 8.95:1 on a chip (void-50); ink on a selected chip (mint-200)
@@ -84,7 +87,6 @@
   --color-paper: var(--void-100);
   --color-paper-tint: var(--mint-100);
   --color-chip: var(--void-50);
-  --color-chip-line: var(--void-200);
   --color-chip-selected: var(--mint-200);
   --color-ink: var(--void-900);
   --color-ink-muted: var(--void-600);
@@ -93,7 +95,7 @@
   --color-ink-button: var(--void-950);
   --color-ink-button-hover: var(--void-800);
 
-  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
   --font-rounded: var(--font-quicksand), ui-rounded, ui-sans-serif, system-ui, sans-serif;
 }
 

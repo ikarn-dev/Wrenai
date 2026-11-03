@@ -14,14 +14,15 @@ export function Hero(): ReactElement {
       <div className="hero-frame relative flex flex-col">
         <HeroBackdrop />
         <SiteNav />
-        <div className="flex flex-1 flex-col items-center px-gutter pt-16 pb-28 text-center md:pt-24">
+        {/* One rhythm, each gap a step up from the last: title → 16 px → subtext → 48 px → Jarvis. */}
+        <div className="flex flex-1 flex-col items-center px-gutter pt-20 pb-28 text-center md:pt-24">
           <h1 id="hero-title" className="max-w-4xl text-display-xl">
             Private AI for your De<span className="text-accent-text">Fi</span>
           </h1>
-          <p className="mt-5 max-w-xl text-lead text-fg-muted">
+          <p className="mt-4 max-w-xl text-lead text-fg-subtle">
             Research NEAR markets with Jarvis, then turn a plan into an agent that stays inside your limits.
           </p>
-          <div className="mt-12 flex w-full justify-center md:mt-14">
+          <div className="mt-12 flex w-full justify-center">
             <JarvisPrompt />
           </div>
         </div>
