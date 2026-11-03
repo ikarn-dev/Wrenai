@@ -27,6 +27,7 @@ import {
 } from "@/shared/agents";
 import { AgentError } from "./errors";
 import { generateAgentName } from "./names";
+import { canReplacePerpsVersion } from "./perps-version";
 import {
   agentSummary,
   auditAgent,
@@ -181,10 +182,15 @@ export async function saveAgent(
           ),
         )
         .limit(1);
-      if (pending || (runtime?.strategyStateJson && hasOpenTriggerPosition(runtime.strategyStateJson))) {
+      if (
+        pending ||
+        (runtime?.strategyStateJson &&
+          hasOpenTriggerPosition(runtime.strategyStateJson) &&
+          !(await canReplacePerpsVersion(tx, userId, agent.id, runtime.strategyStateJson, config)))
+      ) {
         throw new AgentError(
           "conflict",
-          "Close the trigger position and reconcile outstanding orders before changing strategy versions.",
+          "Reconcile outstanding orders and close the owned position before changing its strategy, or review a Perps reduction for the same market and side.",
         );
       }
       const [updated] = await tx

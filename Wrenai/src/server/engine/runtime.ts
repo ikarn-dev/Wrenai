@@ -4,14 +4,16 @@ import { and, eq, isNull } from "drizzle-orm";
 import type { z } from "zod";
 import { AgentError } from "@/server/agents/errors";
 import { commandAgent } from "@/server/agents/mutations";
+import { canReplacePerpsVersion } from "@/server/agents/perps-version";
 import { auditAgent, killSwitchEngaged, ownedAgent } from "@/server/agents/records";
-import { agentRuntimes, agents } from "@/server/db/agent-schema";
+import { agentRuntimes, agents, strategyVersions } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { executionActions } from "@/server/db/execution-schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import { ExecutionError } from "@/server/execution/contracts";
 import { databaseTime, executionHash } from "@/server/execution/records";
 import type { agentCommandSchema } from "@/shared/agents";
+import { strategySchema } from "@/shared/agents";
 import {
   hasOpenTriggerPosition,
   type RuntimeStrategyState,
@@ -58,11 +60,22 @@ export async function prepareAgentRuntime(
       throw new AgentError("not_ready", "Reconcile existing actions before starting a new lifecycle.");
     }
     const now = await databaseTime(tx);
+    const [version] = await tx
+      .select()
+      .from(strategyVersions)
+      .where(and(eq(strategyVersions.agentId, agent.id), eq(strategyVersions.version, agent.version)))
+      .limit(1);
+    const nextStrategy = version ? strategySchema.parse(JSON.parse(version.configJson)) : null;
+    const replacingPerps =
+      existing?.strategyStateJson && nextStrategy
+        ? await canReplacePerpsVersion(tx, userId, agent.id, existing.strategyStateJson, nextStrategy)
+        : false;
     if (
       existing?.strategyStateJson !== null &&
       existing?.strategyStateJson !== undefined &&
       existing.strategyVersion !== agent.version &&
-      hasOpenTriggerPosition(existing.strategyStateJson)
+      hasOpenTriggerPosition(existing.strategyStateJson) &&
+      !replacingPerps
     ) {
       throw new AgentError(
         "not_ready",
@@ -82,7 +95,11 @@ export async function prepareAgentRuntime(
       leaseToken: null,
       leaseExpiresAt: null,
       failures: 0,
-      strategyStateJson: existing?.strategyVersion === agent.version ? existing.strategyStateJson : null,
+      strategyStateJson:
+        existing?.strategyVersion === agent.version ||
+        (replacingPerps && nextStrategy?.kind === "perps" && nextStrategy.action !== "open")
+          ? (existing?.strategyStateJson ?? null)
+          : null,
       state: "starting" as const,
       createdAt: now,
       updatedAt: now,

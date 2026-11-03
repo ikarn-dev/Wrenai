@@ -35,6 +35,7 @@ export async function readSpendingUsage(
       and(
         eq(executionActions.userId, userId),
         sql`coalesce(${executionActions.planJson}::jsonb ->> 'reduceOnly', 'false') <> 'true'`,
+        sql`coalesce(${executionActions.planJson}::jsonb ->> 'funding', 'false') <> 'true'`,
         isNull(executionActions.reservationReleasedAt),
         excludeActionId === undefined ? undefined : ne(executionActions.id, excludeActionId),
       ),
@@ -66,6 +67,7 @@ export async function readSpendingUsage(
         eq(executionReceipts.userId, userId),
         gte(executionReceipts.recordedAt, now - 86_400_000),
         sql`coalesce(${executionActions.planJson}::jsonb ->> 'reduceOnly', 'false') <> 'true'`,
+        sql`coalesce(${executionActions.planJson}::jsonb ->> 'funding', 'false') <> 'true'`,
       ),
     );
   return {
@@ -94,6 +96,7 @@ export async function readSubmissionUsage(
         eq(executionActions.userId, userId),
         eq(executionActions.agentId, agentId),
         gte(executionActions.startedAt, now - 86_400_000),
+        sql`coalesce(${executionActions.planJson}::jsonb ->> 'funding', 'false') <> 'true'`,
       ),
     );
   return {

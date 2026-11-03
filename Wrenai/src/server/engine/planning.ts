@@ -13,6 +13,7 @@ import { policySchema } from "@/shared/agents";
 import { planSpotInstruction } from "./instruction-planning";
 import { freshMarketPrice } from "./market-price";
 import { planPaymentCheck } from "./payment-check";
+import { planPerpsCheck } from "./perps-check";
 import type { PricedHolding } from "./rebalance";
 import type { RuntimeStrategyState } from "./strategy-state";
 import { INITIAL_TRIGGER_STATE, triggerDecision, triggerStateSchema } from "./trigger";
@@ -28,6 +29,11 @@ export interface StrategyCheckPlan {
   readonly reason: string;
   readonly requestId?: string;
   readonly paymentRequestId?: string;
+  readonly perpsRequest?: {
+    readonly type: "funding" | "order";
+    readonly requestId: string;
+    readonly exitReason: "stop_loss" | "take_profit" | "trailing" | "expiry" | null;
+  };
   readonly progress?: { readonly strategyState: RuntimeStrategyState; readonly completed: boolean };
 }
 type CurrentStrategy = Awaited<ReturnType<typeof currentAgentStrategy>>;
@@ -97,6 +103,9 @@ export async function planStrategyCheck(
     }
     if (instruction.kind === "whale_tracker") {
       return planWhaleCheck(db, runtime, instruction);
+    }
+    if (instruction.kind === "perps") {
+      return planPerpsCheck(db, runtime, instruction);
     }
     if (
       instruction.kind === "spot_trader" ||

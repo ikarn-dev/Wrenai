@@ -63,7 +63,7 @@ export function SetupCard({ setup }: { readonly setup: AgentSetupDraft }): React
         aria-busy={busy}
         aria-label={busy ? `Removing ${name} setup` : `Remove ${name} setup`}
         title="Remove setup"
-        className="absolute top-3 right-3 inline-flex size-7 cursor-pointer items-center justify-center rounded-full text-fg-subtle transition-colors duration-200 ease-ios hover:bg-surface-3 hover:text-fg-strong aria-busy:cursor-progress pointer-coarse:size-11"
+        className="absolute top-3 right-3 inline-flex size-7 cursor-pointer items-center justify-center rounded-full text-fg-subtle transition-colors duration-200 ease-ios hover:bg-surface-3 hover:text-fg-strong aria-busy:cursor-default pointer-coarse:size-11"
       >
         {busy ? (
           <LoaderCircle

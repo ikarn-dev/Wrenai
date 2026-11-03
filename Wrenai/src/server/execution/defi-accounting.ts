@@ -21,12 +21,25 @@ import {
 } from "./records";
 
 function validateReceipt(plan: DefiPlan, receipt: DefiReceipt): void {
+  const fundingInput = plan.funding ? plan.cash.find((cash) => BigInt(cash.maxDebitUnits) > 0n) : undefined;
+  const fundingDebit = fundingInput
+    ? receipt.cash.find((cash) => cash.assetId === fundingInput.assetId)
+    : undefined;
+  if (
+    receipt.fundingRefund &&
+    (!fundingInput || !fundingDebit || BigInt(fundingDebit.debitUnits) >= BigInt(fundingInput.maxDebitUnits))
+  ) {
+    throw new ExecutionError(
+      "conflict",
+      "A partial funding refund must return some of its reserved source units.",
+    );
+  }
   if (
     receipt.cash.length !== plan.cash.length ||
     receipt.positions.length !== plan.positions.length ||
     new Set(receipt.cash.map((a) => a.assetId)).size !== receipt.cash.length ||
     new Set(receipt.positions.map((p) => p.positionId)).size !== receipt.positions.length ||
-    BigInt(receipt.riskDebitMicroUsd) > BigInt(plan.notionalMicroUsd) ||
+    (!plan.reduceOnly && BigInt(receipt.riskDebitMicroUsd) > BigInt(plan.notionalMicroUsd)) ||
     (receipt.feeMicroUsd !== null && BigInt(receipt.feeMicroUsd) > BigInt(receipt.riskDebitMicroUsd))
   ) {
     throw new ExecutionError("limit", "The final receipt exceeds its reserved risk or repeats a resource.");
@@ -45,10 +58,19 @@ function validateReceipt(plan: DefiPlan, receipt: DefiReceipt): void {
   }
   for (const cash of receipt.cash) {
     const bound = plan.cash.find((a) => a.assetId === cash.assetId);
+    const minimumCredit =
+      receipt.fundingRefund &&
+      fundingInput &&
+      fundingDebit &&
+      bound?.scope !== undefined &&
+      bound.scope !== plan.scope
+        ? (BigInt(bound.minCreditUnits) * BigInt(fundingDebit.debitUnits)) /
+          BigInt(fundingInput.maxDebitUnits)
+        : BigInt(bound?.minCreditUnits ?? "0");
     if (
       !bound ||
       BigInt(cash.debitUnits) > BigInt(bound.maxDebitUnits) ||
-      BigInt(cash.creditUnits) < BigInt(bound.minCreditUnits) ||
+      BigInt(cash.creditUnits) < minimumCredit ||
       (cash.creditUnits === "0" && cash.creditPrincipalMicroUsd !== "0")
     ) {
       throw new ExecutionError(
@@ -251,7 +273,7 @@ export async function settleDefiExecution(
         id: randomUUID(),
         userId,
         agentId: action.agentId,
-        scope: action.scope,
+        scope: plan.cash.find((bound) => bound.assetId === cash.assetId)?.scope ?? action.scope,
         assetId: cash.assetId,
         sourceId: receiptId,
         sourceKind: "receipt",

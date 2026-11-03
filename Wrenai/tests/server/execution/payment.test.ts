@@ -3,6 +3,7 @@ import { executionTestContext, fundTestAgent, observeInventory } from "@tests/se
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { agentRuntimes, agents, strategyVersions } from "@/server/db/agent-schema";
+import { executionEvents } from "@/server/db/execution-schema";
 import { delegatedKeys } from "@/server/db/schema";
 import { generateAgentKey } from "@/server/delegation/agent-key";
 import { initialInstructionState } from "@/server/engine/instruction-state";
@@ -24,6 +25,9 @@ vi.mock("@/server/intents/verifier", () => ({
 }));
 vi.mock("@/server/execution/balance-session", () => ({ privateBalanceToken: async () => "offline-session" }));
 vi.mock("@/server/execution/private-inventory", () => ({ synchronizePrivateInventory: vi.fn() }));
+vi.mock("@/server/execution/public-payment-recipient", () => ({
+  assertPublicPaymentRecipient: async () => undefined,
+}));
 vi.mock("@defuse-protocol/one-click-sdk-typescript", async (original) => ({
   ...(await original<typeof import("@defuse-protocol/one-click-sdk-typescript")>()),
   verifyQuoteSignature: () => true,
@@ -39,7 +43,9 @@ let context: Awaited<ReturnType<typeof executionTestContext>>;
 let rawQuote: unknown;
 let remainingBalance: string;
 let intentHash: string;
+let destination: "confidential" | "near_wallet" = "confidential";
 beforeEach(async () => {
+  destination = "confidential";
   context = await executionTestContext({}, {}, false);
   const instruction = paymentInstruction();
   await context.db.update(agents).set({ pack: "private_payments" }).where(eq(agents.id, context.agentId));
@@ -158,7 +164,7 @@ function paymentInstruction() {
     assetId: asset,
     amountUnits: "1000000",
     recipient: "recipient.near",
-    destination: "confidential",
+    destination,
     executeAfter: new Date(Date.now() - 1000).toISOString(),
     expiresAt: new Date(Date.now() + 3600_000).toISOString(),
   });
@@ -204,6 +210,7 @@ function finalStatus(
   amountIn: string,
   amountOut: string,
   refundedAmount: string,
+  destinationTxHashes?: readonly string[],
 ): void {
   provider.status.mockImplementation(() => ({
     quoteResponse: rawQuote,
@@ -216,6 +223,9 @@ function finalStatus(
       refundedAmount,
       amountInUsd: amountIn === "0" ? "0" : "1",
       intentHashes: [intentHash],
+      ...(destinationTxHashes
+        ? { destinationChainTxHashes: destinationTxHashes.map((hash) => ({ hash })) }
+        : {}),
     },
   }));
 }
@@ -274,5 +284,74 @@ describe("exact-amount confidential payments with offline provider assertions", 
       code: "not_ready",
     });
     expect((await ownedLedgerAction(context.db, "owner", action.id)).reservationReleasedAt).toBeNull();
+  });
+  it("keeps a public payout reserved until the provider reports its exact amount and public transaction", async () => {
+    destination = "near_wallet";
+    const instruction = paymentInstruction();
+    await context.db
+      .update(strategyVersions)
+      .set({
+        configJson: JSON.stringify(instruction),
+        resolvedAssetsJson: JSON.stringify({
+          strategyHash: executionHash(instruction),
+          assets: [{ symbol: asset, assetId: asset }],
+        }),
+      })
+      .where(eq(strategyVersions.agentId, context.agentId));
+    const action = await prepare();
+    expect(rawQuote).toMatchObject({
+      quoteRequest: {
+        recipientType: "DESTINATION_CHAIN",
+        recipient: "recipient.near",
+        swapType: "EXACT_OUTPUT",
+      },
+    });
+    await advanceLedgerAction(context.db, "owner", action.id);
+    finalStatus("SUCCESS", "1000000", "1000000", "0");
+    await expect(advanceLedgerAction(context.db, "owner", action.id)).rejects.toMatchObject({
+      code: "not_ready",
+    });
+    expect((await ownedLedgerAction(context.db, "owner", action.id)).reservationReleasedAt).toBeNull();
+    finalStatus("SUCCESS", "1000000", "1000000", "0", ["2".repeat(44)]);
+    remainingBalance = "19000000";
+    await advanceLedgerAction(context.db, "owner", action.id);
+    const terminal = (await context.db.select().from(executionEvents)).find(
+      (event) => event.kind === "payment_terminal",
+    );
+    expect(JSON.parse(terminal?.detailJson ?? "null")).toMatchObject({
+      destination: "near_wallet",
+      destinationTxHashes: ["2".repeat(44)],
+      amountOut: "1000000",
+    });
+    expect(await unreservedOwnedUnits(context.db, "owner", context.agentId, "confidential", asset)).toBe(
+      19000000n,
+    );
+    const [runtime] = await context.db
+      .select()
+      .from(agentRuntimes)
+      .where(eq(agentRuntimes.agentId, context.agentId))
+      .limit(1);
+    if (!runtime) {
+      throw new Error("Missing payment runtime.");
+    }
+    expect((await planPaymentCheck(context.db, runtime, instruction)).reason).toContain("visible on-chain");
+  });
+  it("never silently turns a prepared confidential payment into a public payout", async () => {
+    const action = await prepare();
+    destination = "near_wallet";
+    const instruction = paymentInstruction();
+    await context.db
+      .update(strategyVersions)
+      .set({
+        configJson: JSON.stringify(instruction),
+        resolvedAssetsJson: JSON.stringify({
+          strategyHash: executionHash(instruction),
+          assets: [{ symbol: asset, assetId: asset }],
+        }),
+      })
+      .where(eq(strategyVersions.agentId, context.agentId));
+    await advanceLedgerAction(context.db, "owner", action.id);
+    expect((await ownedLedgerAction(context.db, "owner", action.id)).status).toBe("cancelled");
+    expect((await ownedLedgerAction(context.db, "owner", action.id)).startedAt).toBeNull();
   });
 });

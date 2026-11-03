@@ -5,8 +5,10 @@ import { ownedAgent } from "@/server/agents/records";
 import type { AppDatabase } from "@/server/db/client";
 import { executionActions } from "@/server/db/execution-schema";
 import { positionLots, positionReservations } from "@/server/db/position-schema";
+import { agentTradingAccounts } from "@/server/db/trading-account-schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import { ExecutionError } from "@/server/execution/contracts";
+import { perpsCashAssetId } from "@/server/execution/hyperliquid/contracts";
 import { observedInventoryBalance } from "@/server/execution/inventory";
 import { databaseTime } from "@/server/execution/records";
 import { parseUsd, policySchema } from "@/shared/agents";
@@ -28,6 +30,19 @@ export async function assignInventory(db: AppDatabase, userId: string, raw: unkn
       return repeated;
     }
     const agent = await ownedAgent(tx, userId, input.agentId);
+    if (input.scope === "hyperliquid" && input.assetId.startsWith("hyperliquid:usdc:")) {
+      const [account] = await tx
+        .select()
+        .from(agentTradingAccounts)
+        .where(and(eq(agentTradingAccounts.userId, userId), eq(agentTradingAccounts.agentId, agent.id)))
+        .limit(1);
+      if (!account || input.assetId !== perpsCashAssetId(account.perpAddress)) {
+        throw new ExecutionError(
+          "not_ready",
+          "Venue cash belongs only to the agent with that derived trading address.",
+        );
+      }
+    }
     const policy = policySchema.parse(JSON.parse(agent.policyJson));
     const cap = await allocationCeiling(tx, userId, input.agentId);
     const principal = (await committedCapital(tx, userId, input.agentId)) + BigInt(input.capitalMicroUsd);

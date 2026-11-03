@@ -35,7 +35,7 @@ export async function recheckLedgerAction(
   }
   await checkSubmissionRate(db, action, current.policy, now, current.riskReducingExit);
   for (const cash of plan.cash) {
-    if ((await availableInventory(db, action.userId, action.scope, cash.assetId, now)) < 0n) {
+    if ((await availableInventory(db, action.userId, cash.scope ?? action.scope, cash.assetId, now)) < 0n) {
       throw new ExecutionError(
         "insufficient_funds",
         "Current inventory no longer covers every reserved asset.",

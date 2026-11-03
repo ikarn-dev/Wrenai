@@ -134,6 +134,20 @@
       "when": 1793507332896,
       "tag": "0018_gorgeous_caretaker",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793682192494,
+      "tag": "0019_per_agent_perps",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793682470038,
+      "tag": "0020_address_inventory_leases",
+      "breakpoints": true
     }
   ]
 }

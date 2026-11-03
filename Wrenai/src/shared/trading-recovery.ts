@@ -15,7 +15,7 @@ export const nearRecoveryKeySchema = z
     }, "A NEAR recovery key must contain a 64-byte extended key."),
   );
 
-export const recoveryPayloadSchema = z.strictObject({
+const recoveryPayloadV1Schema = z.strictObject({
   format: z.literal("wrenai-trading-recovery-v1"),
   network: z.literal("mainnet"),
   ownerAccountId: z.string().min(2).max(64),
@@ -32,6 +32,28 @@ export const recoveryPayloadSchema = z.strictObject({
     privateKey: z.string().regex(/^0x[a-f0-9]{64}$/),
   }),
 });
+export const PERPS_DERIVATION = {
+  scheme: "bip32-secp256k1",
+  seedSource: "perps.privateKey",
+  pathPrefix: "m/44'/60'/0'/0",
+  firstIndex: 0,
+  addressCount: 1000,
+} as const;
+export const recoveryPayloadSchema = z.union([
+  recoveryPayloadV1Schema,
+  recoveryPayloadV1Schema.extend({
+    format: z.literal("wrenai-trading-recovery-v2"),
+    perps: recoveryPayloadV1Schema.shape.perps.extend({
+      derivation: z.strictObject({
+        scheme: z.literal(PERPS_DERIVATION.scheme),
+        seedSource: z.literal(PERPS_DERIVATION.seedSource),
+        pathPrefix: z.literal(PERPS_DERIVATION.pathPrefix),
+        firstIndex: z.literal(0),
+        addressCount: z.literal(PERPS_DERIVATION.addressCount),
+      }),
+    }),
+  }),
+]);
 export type RecoveryPayload = z.infer<typeof recoveryPayloadSchema>;
 export const recoveryEnvelopeSchema = z.strictObject({
   format: z.literal("wrenai-encrypted-recovery-v1"),
@@ -70,4 +92,5 @@ export interface TradingAccountSummary {
   readonly nativeAccountId: string;
   readonly perpAddress: string;
   readonly backupConfirmed: boolean;
+  readonly derivedBackupConfirmed?: boolean;
 }

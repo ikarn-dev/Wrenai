@@ -38,7 +38,7 @@ describe("server-owned tables stay outside Supabase client access", () => {
         has_table_privilege('authenticated', format('%I.%I', t.schemaname, t.tablename), 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER') AS authenticated_access
       FROM pg_tables t WHERE t.schemaname = 'public'
     `);
-    expect(result.rows).toHaveLength(38);
+    expect(result.rows).toHaveLength(39);
     expect(
       result.rows.every((table) => table.rowsecurity && !table.anon_access && !table.authenticated_access),
     ).toBe(true);

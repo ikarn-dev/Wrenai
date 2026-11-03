@@ -8,6 +8,7 @@ import { type AgentPolicy, parseUsd, policySchema } from "@/shared/agents";
 import { minimumUnits } from "@/shared/token-units";
 import { ExecutionError } from "./contracts";
 import type { DefiPlan } from "./defi-contracts";
+import { verifiedAccountFunding } from "./funding-policy";
 import { requireExecutionPermission } from "./permissions";
 import { planRiskPolicy } from "./plan-risk";
 import { executionHash, type LedgerAction } from "./records";
@@ -104,6 +105,7 @@ export async function currentDefiPolicy(
   const permission = await requireExecutionPermission(db, userId, plan, now);
   const policy = policySchema.parse(JSON.parse(agent.policyJson));
   const riskReducingExit = await verifiedReducingPerpExit(db, plan, policy);
+  const funding = await verifiedAccountFunding(db, userId, plan);
   const policyHash = executionHash(
     risk
       ? {
@@ -129,7 +131,7 @@ export async function currentDefiPolicy(
   const proposed = BigInt(plan.notionalMicroUsd);
   const ceiling = minimumUnits(await allocationCeiling(db, userId, agent.id), parseUsd(policy.budgetUsd));
   if (
-    (!riskReducingExit && proposed > parseUsd(policy.maxTradeUsd)) ||
+    (!riskReducingExit && !funding && proposed > parseUsd(policy.maxTradeUsd)) ||
     plan.slippageBps > policy.maxSlippageBps ||
     plan.providerFeeBps > policy.maxProviderFeeBps ||
     (!riskReducingExit && usage.agentPendingMicroUsd + proposed > ceiling) ||
@@ -137,8 +139,10 @@ export async function currentDefiPolicy(
       (plan.operation === "borrow" ? proposed : 0n) >
       ceiling ||
     (!riskReducingExit &&
+      !funding &&
       usage.agentPendingMicroUsd + usage.agentSpent24hMicroUsd + proposed > parseUsd(policy.dailyCapUsd)) ||
     (risk !== null &&
+      !funding &&
       usage.userPendingMicroUsd + usage.userSpent24hMicroUsd + proposed > parseUsd(risk.policy.dailyCapUsd))
   ) {
     throw new ExecutionError("limit", "The action exceeds its fee, slippage, capital or spending limit.");

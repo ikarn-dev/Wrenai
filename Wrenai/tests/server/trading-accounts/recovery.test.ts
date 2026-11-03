@@ -1,6 +1,4 @@
 import { createSecretKey, generateKeyPairSync, sign } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { createContext, runInContext } from "node:vm";
 import { base58 } from "@scure/base";
 import { executionTestContext } from "@tests/server/execution/test-context";
 import { eq } from "drizzle-orm";
@@ -19,6 +17,7 @@ import {
 } from "@/server/trading-accounts/vault";
 import { openRecoveryFile, recoveryFileHash, sealRecoveryFile } from "@/shared/recovery-file";
 import { recoveryEnvelopeSchema, recoveryPayloadSchema } from "@/shared/trading-recovery";
+import { recoverTradingKeys } from "../../../scripts/recover-trading-account";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/server/env", () => ({
@@ -60,9 +59,6 @@ async function proof(): Promise<{
       wallet.privateKey,
     ).toString("base64"),
   };
-}
-function isDecoder(value: unknown): value is (text: string, password: string) => Promise<unknown> {
-  return typeof value === "function";
 }
 describe("unfunded shared trading accounts and independent recovery", () => {
   it("requires a saved owned agent and a fresh one-use full-access proof before exporting keys", async () => {
@@ -117,32 +113,17 @@ describe("unfunded shared trading accounts and independent recovery", () => {
     });
     expect(await openRecoveryFile(file, "offline fixture password 2026")).toEqual(exported.payload);
   });
-  it("opens the exact app-generated encrypted file with the saved offline tool, without a backend", async () => {
+  it("opens app-generated backups through the offline command and independently derives agent keys", async () => {
     const exported = await exportTradingRecovery(context.db, user, await proof());
     const password = "offline recovery fixture passphrase";
     const file = await sealRecoveryFile(exported.payload, password);
-    const html = await readFile(new URL("../../../public/recovery-tool.html", import.meta.url), "utf8");
-    const script = /<script>([\s\S]*?)<\/script>/.exec(html)?.[1];
-    if (!script) {
-      throw new Error("Missing offline recovery script.");
-    }
-    const sandbox = createContext({
-      crypto,
-      Uint8Array,
-      TextEncoder,
-      TextDecoder,
-      atob,
-      document: { getElementById: () => null },
-    });
-    runInContext(script, sandbox);
-    const decoder: unknown = runInContext("unlockRecoveryFile", sandbox);
-    if (!isDecoder(decoder)) {
-      throw new Error("Missing offline decoder.");
-    }
-    expect(recoveryPayloadSchema.parse(await decoder(file, password))).toEqual(exported.payload);
-    await expect(decoder(file, "incorrect offline password")).rejects.toThrow();
-    expect(html).toContain("connect-src 'none'");
-    expect(html).not.toMatch(/\b(?:fetch|XMLHttpRequest|WebSocket)\s*\(/);
+    await revokeTradingAccounts(context.db, user.id);
+    const recovered = await recoverTradingKeys(file, password, 0);
+    expect(recovered.recovery).toEqual(exported.payload);
+    expect(recovered.agent?.address).toMatch(/^0x[a-fA-F0-9]{40}$/);
+    expect(recovered.agent?.address).not.toBe(recovered.recovery.perps.address);
+    await expect(recoverTradingKeys(file, "incorrect offline password")).rejects.toThrow();
+    await expect(recoverTradingKeys(file, password, 1000)).rejects.toThrow();
     const envelope = recoveryEnvelopeSchema.parse(JSON.parse(file));
     await expect(
       openRecoveryFile(JSON.stringify({ ...envelope, iterations: 1 }), password),
@@ -153,6 +134,16 @@ describe("unfunded shared trading accounts and independent recovery", () => {
         password,
       ),
     ).rejects.toThrow();
+  });
+  it("preserves old backups and rejects an encrypted payload with mismatched key identity", async () => {
+    const exported = await exportTradingRecovery(context.db, user, await proof());
+    const payload = exported.payload, password = "legacy recovery fixture passphrase";
+    const legacy = recoveryPayloadSchema.parse({ ...payload, format: "wrenai-trading-recovery-v1", perps: { venue: payload.perps.venue, address: payload.perps.address, privateKey: payload.perps.privateKey } });
+    const file = await sealRecoveryFile(legacy, password);
+    expect((await recoverTradingKeys(file, password)).recovery).toEqual(legacy);
+    await expect(recoverTradingKeys(file, password, 0)).rejects.toThrow("older backup");
+    const mismatch = await sealRecoveryFile({ ...legacy, native: { ...legacy.native, accountId: "a".repeat(64) } }, password);
+    await expect(recoverTradingKeys(mismatch, password)).rejects.toThrow("account identities");
   });
   it("enforces account identity, secret erasure and retained recovery history in SQL", async () => {
     const exported = await exportTradingRecovery(context.db, user, await proof());

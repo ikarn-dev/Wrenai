@@ -4,6 +4,7 @@ import { currentUser } from "@/server/auth/session";
 import { database } from "@/server/db/client";
 import { consumeRateLimit } from "@/server/http/rate-limit";
 import { type ActivityResult, activityRequestSchema } from "@/shared/activity";
+import { type ActivitySlot, loadActivityOnce, readActivityCache } from "./page-cache";
 import { readActivityPage } from "./service";
 
 export async function loadActivity(raw: unknown): Promise<ActivityResult> {
@@ -21,18 +22,31 @@ export async function loadActivity(raw: unknown): Promise<ActivityResult> {
   ) {
     return { ok: false, code: "invalid_input", message: "Refresh activity to start a new view." };
   }
-  const rate = await consumeRateLimit(`activity:read:${user.id}`, 30, 60_000);
+  const { filter, cursor, fresh } = input.data;
+  const slot: ActivitySlot = { ownerId: user.id, filter, cursor };
+  // The cache read has no side effects, so it runs alongside the rate-limit check instead of after it; its result
+  // is used only once the request is allowed.
+  const [rate, cached] = await Promise.all([
+    consumeRateLimit(`activity:read:${user.id}`, 30, 60_000),
+    fresh && cursor === null ? Promise.resolve(null) : readActivityCache(slot),
+  ]);
   if (rate !== "allowed") {
     return {
       ok: false,
       code: rate === "limited" ? "rate_limited" : "unavailable",
-      message: "Activity cannot be refreshed right now. Try again shortly.",
+      message:
+        rate === "limited"
+          ? "Too many activity requests. Wait a minute, then try again."
+          : "Activity cannot be loaded right now. Try again shortly.",
     };
+  }
+  if (cached !== null) {
+    return { ok: true, value: cached };
   }
   try {
     return {
       ok: true,
-      value: await readActivityPage(database(), user, input.data.filter, input.data.cursor),
+      value: await loadActivityOnce(slot, () => readActivityPage(database(), user, filter, cursor)),
     };
   } catch {
     return { ok: false, code: "unavailable", message: "Activity could not be loaded. Try refreshing." };

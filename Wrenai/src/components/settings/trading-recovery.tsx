@@ -33,7 +33,7 @@ export function TradingRecovery({
   const [busy, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useToastState("warn");
-  const [confirmed, setConfirmed] = useState(initial?.backupConfirmed ?? false);
+  const [confirmed, setConfirmed] = useState(initial?.derivedBackupConfirmed ?? false);
   const [confirmation, setConfirmation] = useState<{
     readonly accountId: string;
     readonly token: string;
@@ -101,7 +101,7 @@ export function TradingRecovery({
         });
         form.reset();
         setMessage(
-          "Save the recovery tool too, then confirm below. Keep your password separate from the backup.",
+          "Keep your password separate from the backup. Confirm after saving it.",
         );
       } catch {
         setError("The recovery backup could not be completed. Retry the ownership check.");
@@ -125,7 +125,7 @@ export function TradingRecovery({
           setError(result.message);
           return;
         }
-        if (!result.value?.backupConfirmed) {
+        if (!result.value?.derivedBackupConfirmed) {
           setError("The trading account changed. Request a fresh recovery export.");
           return;
         }
@@ -150,6 +150,12 @@ export function TradingRecovery({
         app.
       </p>
       {confirmed ? <p className="text-small text-accent-text">Recovery backup confirmed.</p> : null}
+      {!confirmed && initial?.backupConfirmed ? (
+        <p className="text-small text-fg-muted">
+          Download the updated backup before funding separate Perps agent addresses. Your existing
+          native-account backup remains valid.
+        </p>
+      ) : null}
       {!confirmation ? (
         <form onSubmit={submit} className="space-y-4" aria-busy={busy}>
           <label className="flex flex-col gap-2 text-small">
@@ -199,16 +205,13 @@ export function TradingRecovery({
           <Button type="button" disabled={busy} onClick={() => downloadBackup(confirmation.file)}>
             Download backup again
           </Button>
-          <a
-            href="/recovery-tool.html"
-            download
-            className="inline-flex min-h-11 items-center rounded-sm text-small text-accent-text underline underline-offset-4"
-          >
-            Save offline recovery tool
-          </a>
+          <details className="text-small text-fg-muted">
+            <summary className="cursor-pointer text-accent-text">Offline recovery</summary>
+            <p className="mt-2">Keep a copy of the project. From its app directory, run <code>pnpm recover backup.json recovered.json</code>. Add your agent index to recover a separate Perps address. The command asks for your password locally and saves private keys without signing in.</p>
+          </details>
           <label className="flex items-start gap-3 text-small">
             <input type="checkbox" required disabled={busy} className="mt-1 size-5 accent-accent" />
-            <span>I saved the encrypted backup, recovery tool and password.</span>
+            <span>I saved the encrypted backup and password and can access the recovery command.</span>
           </label>
           <Button type="submit" disabled={busy}>
             {busy ? "Confirming…" : "Confirm saved backup"}

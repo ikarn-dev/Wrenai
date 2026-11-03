@@ -9,7 +9,7 @@ type ButtonSize = "md" | "lg";
 // Tailwind v4 resets buttons to the default cursor, so the pointer is set here.
 // Heights are fixed, so labels never wrap; a label that may not fit truncates in its own span.
 const SHARED =
-  "cursor-pointer whitespace-nowrap rounded-sm font-medium disabled:cursor-not-allowed aria-busy:cursor-progress";
+  "cursor-pointer whitespace-nowrap rounded-sm font-medium disabled:cursor-not-allowed aria-busy:cursor-default";
 
 // The row that holds the icon and label: a flat button itself, or a raised button's face.
 const ROW = "items-center justify-center gap-2";

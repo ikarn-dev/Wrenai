@@ -4,6 +4,7 @@ import { z } from "zod";
 import { positiveTokenUnitsSchema } from "@/shared/token-units";
 import type { TradeQuote } from "@/shared/trade-preview";
 import { ExecutionError } from "./contracts";
+import { HYPERLIQUID_BRIDGE_USDC, hlAddressSchema } from "./hyperliquid/contracts";
 import {
   type GeneratedIntent,
   generatedIntentSchema,
@@ -18,10 +19,15 @@ export const intentsOrderRequestSchema = z.strictObject({
     .string()
     .max(180)
     .regex(/^nep141:[^\s:*]+$/),
-  outputAssetId: z
-    .string()
-    .max(180)
-    .regex(/^nep141:[^\s:*]+$/),
+  outputAssetId: z.union([
+    z
+      .string()
+      .max(180)
+      .regex(/^nep141:[^\s:*]+$/),
+    z.literal(HYPERLIQUID_BRIDGE_USDC),
+  ]),
+  perpsRecipient: hlAddressSchema.optional(),
+  paymentDestination: z.enum(["confidential", "near_wallet"]).optional(),
   inputUnits: positiveTokenUnitsSchema,
   slippageBps: z.number().int().min(1).max(500),
   maximumProviderFeeBps: z.number().int().min(0).max(2000),
@@ -55,6 +61,18 @@ export async function prepareIntentsOrder(
 ): Promise<PreparedIntentsOrder> {
   const input = intentsOrderRequestSchema.parse(raw);
   if (
+    Boolean(input.perpsRecipient) !== (input.outputAssetId === HYPERLIQUID_BRIDGE_USDC) ||
+    (input.perpsRecipient && input.paymentRecipient)
+  ) {
+    throw new ExecutionError(
+      "conflict",
+      "A venue deposit requires its exact supported bridge asset and trading address.",
+    );
+  }
+  if (input.paymentDestination !== undefined && input.paymentRecipient === undefined) {
+    throw new ExecutionError("conflict", "A payment destination requires an exact reviewed recipient.");
+  }
+  if (
     input.paymentRecipient
       ? input.inputAssetId !== input.outputAssetId || input.paymentRecipient === input.accountId
       : input.inputAssetId === input.outputAssetId
@@ -73,7 +91,16 @@ export async function prepareIntentsOrder(
     ),
     dry: false,
     ...(input.paymentRecipient
-      ? { recipient: input.paymentRecipient, swapType: QuoteRequest.swapType.EXACT_OUTPUT }
+      ? {
+          recipient: input.paymentRecipient,
+          swapType: QuoteRequest.swapType.EXACT_OUTPUT,
+          ...(input.paymentDestination === "near_wallet"
+            ? { recipientType: QuoteRequest.recipientType.DESTINATION_CHAIN }
+            : {}),
+        }
+      : {}),
+    ...(input.perpsRecipient
+      ? { recipient: input.perpsRecipient, recipientType: QuoteRequest.recipientType.DESTINATION_CHAIN }
       : {}),
   };
   const providerQuote = await oneClickJson("/v0/quote", request, signal, sessionToken);

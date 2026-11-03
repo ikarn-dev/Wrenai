@@ -1,6 +1,6 @@
 import { base64urlnopad } from "@scure/base";
 import { z } from "zod";
-import { type RecoveryPayload, recoveryEnvelopeSchema, recoveryPayloadSchema } from "./trading-recovery";
+import { type RecoveryPayload, recoveryEnvelopeSchema, recoveryPayloadSchema } from "./trading-recovery.ts";
 
 const AAD = new TextEncoder().encode("wrenai-mainnet-recovery:v1");
 async function encryptionKey(

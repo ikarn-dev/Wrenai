@@ -13,6 +13,7 @@ import { databaseTime } from "@/server/execution/records";
 import { parseEd25519PublicKey } from "@/server/near/nep413";
 import {
   nearRecoveryKeySchema,
+  PERPS_DERIVATION,
   type RecoveryPayload,
   recoveryPayloadSchema,
   type TradingAccountSummary,
@@ -105,13 +106,18 @@ function accountKeys(account: TradingAccount): z.infer<typeof keysSchema> {
 export function tradingRecoveryPayload(account: TradingAccount, ownerAccountId: string): RecoveryPayload {
   const keys = accountKeys(account);
   return recoveryPayloadSchema.parse({
-    format: "wrenai-trading-recovery-v1",
+    format: "wrenai-trading-recovery-v2",
     network: "mainnet",
     ownerAccountId,
     accountId: account.id,
     createdAt: account.createdAt,
     native: { accountId: account.nativeAccountId, publicKey: account.nativePublicKey, privateKey: keys.near },
-    perps: { venue: "hyperliquid", address: account.perpAddress, privateKey: keys.perps },
+    perps: {
+      venue: "hyperliquid",
+      address: account.perpAddress,
+      privateKey: keys.perps,
+      derivation: PERPS_DERIVATION,
+    },
   });
 }
 
@@ -145,6 +151,7 @@ export async function tradingAccountSummary(
     nativeAccountId: row.nativeAccountId,
     perpAddress: row.perpAddress,
     backupConfirmed: row.backupConfirmedAt !== null,
+    derivedBackupConfirmed: row.backupConfirmedAt !== null && row.backupVersion >= 2,
   };
 }
 

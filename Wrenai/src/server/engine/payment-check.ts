@@ -71,7 +71,9 @@ export async function planPaymentCheck(
       intervalSeconds: 60,
       reason:
         remaining === 0n
-          ? "The exact requested payment is confirmed."
+          ? instruction.destination === "near_wallet"
+            ? "The provider confirms the exact public NEAR payout; recipient and payout are visible on-chain."
+            : "The exact requested payment is confirmed."
           : "The payment was not fully delivered. Remaining funds are retained; review before retrying.",
       progress: { strategyState: next, completed: true },
     };

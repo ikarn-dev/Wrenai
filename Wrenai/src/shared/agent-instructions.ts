@@ -120,7 +120,7 @@ const payment = z.strictObject({
   assetId: instructionAssetSchema,
   amountUnits: amount,
   recipient: nearAccountSchema,
-  destination: z.literal("confidential"),
+  destination: z.enum(["confidential", "near_wallet"]).default("confidential"),
   executeAfter: z.iso.datetime(),
 });
 const whale = z.strictObject({

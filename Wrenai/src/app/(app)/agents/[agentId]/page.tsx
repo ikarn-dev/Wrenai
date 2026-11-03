@@ -15,6 +15,7 @@ import { deployedRuntimeReady, EXECUTION_UNAVAILABLE } from "@/server/agents/rea
 import { requireUser } from "@/server/auth/session";
 import { database } from "@/server/db/client";
 import { agentRuntimeStatus } from "@/server/engine/status";
+import { readAgentTradingAccount } from "@/server/trading-accounts/agent-account";
 import { type AgentSummary, PACKS } from "@/shared/agents";
 
 function timestamp(value: number): string {
@@ -42,9 +43,10 @@ export default async function AgentPage({
     }
     throw error;
   }
-  const [history, runtime] = await Promise.all([
+  const [history, runtime, venueAccount] = await Promise.all([
     agentHistory(user.id, agent.id),
     agentRuntimeStatus(database(), user.id, agent.id),
+    agent.pack === "perps" ? readAgentTradingAccount(database(), user.id, agent.id) : Promise.resolve(null),
   ]);
   return (
     <div className="flex min-w-0 flex-col gap-6">
@@ -69,9 +71,35 @@ export default async function AgentPage({
           <Badge tone="neutral">Verified AI</Badge>
         </div>
       </header>
-      <p className="rounded-sm border border-line bg-surface-2 p-3 text-small text-fg-muted">
-        {EXECUTION_UNAVAILABLE}
-      </p>
+      {agent.pack === "meme_hunter" ? (
+        <p className="rounded-sm border border-line bg-surface-2 p-3 text-small text-fg-muted">
+          {EXECUTION_UNAVAILABLE}
+        </p>
+      ) : null}
+      {agent.pack === "perps" ? (
+        <PortfolioPanel id="perps-account" title="Perps trading account">
+          <p className="text-small text-fg-muted">
+            Starting converts this agent’s allocated private tokens into USDC at its separate Hyperliquid
+            address. Venue balances, orders and fills are public. Vercel controls the trading key; the updated
+            encrypted recovery backup is required before funding.
+          </p>
+          {venueAccount ? (
+            <p className="mt-3 break-all font-mono text-small tabular-nums">{venueAccount.perpAddress}</p>
+          ) : (
+            <Link
+              href="/settings"
+              className="mt-3 inline-flex min-h-11 items-center text-small text-accent-text underline underline-offset-4"
+            >
+              Save recovery backup in Settings
+            </Link>
+          )}
+          <p className="mt-2 text-caption text-fg-subtle">
+            Native TP/SL orders use explicit limit prices and can remain unfilled during gaps. Trailing
+            updates use five-second checks; pause or revocation stops new updates and leaves existing native
+            orders in place.
+          </p>
+        </PortfolioPanel>
+      ) : null}
       {agent.pack === "triggers" ? (
         <p className="text-small text-fg-muted">
           Triggers use a Coinbase USD reference and private 1Click execution. Checks are best effort; stops
@@ -88,7 +116,9 @@ export default async function AgentPage({
         agent={agent}
         ownerId={user.id}
         initial={runtime}
-        executionAvailable={deployedRuntimeReady()}
+        executionAvailable={
+          agent.pack !== "meme_hunter" && deployedRuntimeReady(agent.pack !== "whale_tracker")
+        }
       />
       {agent.pack !== "whale_tracker" ? (
         <AgentTradePreview key={`${agent.id}:${agent.revision}`} agent={agent} accountId={user.accountId} />

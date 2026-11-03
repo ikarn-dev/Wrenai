@@ -1,5 +1,5 @@
-import { ChartNoAxesCombined, ChartPie, History, type LucideIcon } from "lucide-react";
-import type { ReactElement } from "react";
+import { ChartNoAxesCombined, History, type LucideIcon } from "lucide-react";
+import type { ReactElement, ReactNode } from "react";
 import type { PortfolioPerformance } from "@/server/portfolio/performance";
 import { formatCompactMicroUsd } from "@/shared/money";
 import { PortfolioPanel } from "./panel";
@@ -51,7 +51,7 @@ function InsightCard({
   );
 }
 
-export function InsightCards({ performance }: { readonly performance: PortfolioPerformance }): ReactElement {
+export function InsightCards({ performance, allocation }: { readonly performance: PortfolioPerformance; readonly allocation: ReactNode }): ReactElement {
   return (
     <div className="grid gap-stack md:grid-cols-3">
       <InsightCard
@@ -71,14 +71,7 @@ export function InsightCards({ performance }: { readonly performance: PortfolioP
         }
         footer="Realized PnL; unknown costs are never treated as zero"
       />
-      <InsightCard
-        id="allocation"
-        title="Allocation"
-        figure="Largest holding"
-        icon={ChartPie}
-        empty="Needs balances in every location"
-        footer="Wallet, Intents and confidential balances"
-      />
+      {allocation}
       <InsightCard
         id="recent-activity"
         title="Recent activity"

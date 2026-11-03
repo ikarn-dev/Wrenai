@@ -18,6 +18,7 @@
     "db:generate": "node --env-file-if-exists=.env node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file-if-exists=.env node_modules/drizzle-kit/bin.cjs migrate",
     "db:import-sqlite": "node --env-file-if-exists=.env scripts/import-sqlite.ts"
+    ,"recover": "node scripts/recover-trading-account.ts"
   },
   "dependencies": {
     "@defuse-protocol/one-click-sdk-typescript": "0.1.26",

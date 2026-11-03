@@ -156,7 +156,7 @@ export function AgentOfferPrompt({
                 disabled={creating}
                 onClick={create}
                 aria-busy={creating}
-                className="inline-flex min-h-10 min-w-0 cursor-pointer items-center gap-2 rounded-sm px-3 text-small font-medium text-fg-strong transition-colors duration-200 ease-ios hover:bg-surface-2 disabled:cursor-progress pointer-coarse:min-h-11"
+                className="inline-flex min-h-10 min-w-0 cursor-pointer items-center gap-2 rounded-sm px-3 text-small font-medium text-fg-strong transition-colors duration-200 ease-ios hover:bg-surface-2 disabled:cursor-default pointer-coarse:min-h-11"
               >
                 {creating ? (
                   <LoaderCircle size={16} aria-hidden="true" className="shrink-0 motion-safe:animate-spin" />

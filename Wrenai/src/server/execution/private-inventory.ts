@@ -29,6 +29,16 @@ export async function synchronizePrivateInventory(db: AppDatabase, userId: strin
     throw new ExecutionError("not_ready", "Connect your private balance before activating trading.");
   }
   const syncToken = await beginInventorySync(db, userId, "confidential");
+  const rows = await readPrivateBalances(token);
+  await finishInventorySync(db, userId, {
+    scope: "confidential",
+    syncToken,
+    balances: rows.map((r) => ({ assetId: r.tokenId, amountUnits: r.available })),
+  });
+}
+
+/** The same complete provider read can supply display estimates without mutating financial inventory. */
+export async function readPrivateBalances(token: string): Promise<z.infer<typeof completeBalancesSchema>["balances"]> {
   const response = await fetch("https://1click.chaindefuser.com/v0/account/balances", {
     headers: { "User-Session": token, "User-Agent": "wrenai/0.1" },
     redirect: "error",
@@ -39,9 +49,5 @@ export async function synchronizePrivateInventory(db: AppDatabase, userId: strin
   if (new Set(rows.map((r) => r.tokenId)).size !== rows.length) {
     throw new ExecutionError("not_ready", "The complete private inventory contains duplicate assets.");
   }
-  await finishInventorySync(db, userId, {
-    scope: "confidential",
-    syncToken,
-    balances: rows.map((r) => ({ assetId: r.tokenId, amountUnits: r.available })),
-  });
+  return rows;
 }

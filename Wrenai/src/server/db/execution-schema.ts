@@ -53,6 +53,8 @@ export const executionInventory = pgTable(
     assetId: text("asset_id").notNull(),
     balanceUnits: units("balance_units").notNull(),
     observedAt: time("observed_at"),
+    syncToken: text("sync_token"),
+    syncExpiresAt: time("sync_expires_at"),
   },
   (t) => [
     primaryKey({ columns: [t.userId, t.scope, t.assetId] }),

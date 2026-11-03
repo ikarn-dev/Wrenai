@@ -16,6 +16,11 @@ import { synchronizePrivateInventory } from "./private-inventory";
 import { databaseTime, executionEvent, executionHash, ownedLedgerAction, requireLease } from "./records";
 
 export const paymentTerminalSchema = z.strictObject({
+  destination: z.enum(["confidential", "near_wallet"]).optional(),
+  destinationTxHashes: z
+    .array(z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,64}$/))
+    .max(20)
+    .optional(),
   amountIn: tokenUnitsSchema,
   amountOut: tokenUnitsSchema,
   refundedAmount: tokenUnitsSchema,
@@ -103,6 +108,12 @@ export async function reconcilePaymentAction(
     throw new ExecutionError("conflict", "The payment receipt does not include the acknowledged transfer.");
   }
   const evidence = paymentTerminalSchema.parse({
+    ...(saved.destination === "near_wallet"
+      ? {
+          destination: "near_wallet",
+          destinationTxHashes: details.destinationChainTxHashes?.map((tx) => tx.hash) ?? [],
+        }
+      : {}),
     amountIn: details.amountIn,
     amountOut: details.amountOut,
     refundedAmount: details.refundedAmount,
@@ -111,6 +122,17 @@ export async function reconcilePaymentAction(
     intentHashes: details.intentHashes.toSorted(),
     occurredAt,
   });
+  if (
+    saved.destination === "near_wallet" &&
+    BigInt(evidence.amountOut) > 0n &&
+    (evidence.destinationTxHashes?.length === 0 ||
+      new Set(evidence.destinationTxHashes).size !== evidence.destinationTxHashes?.length)
+  ) {
+    throw new ExecutionError(
+      "not_ready",
+      "The provider has not supplied unique public payout transaction references yet. Funds remain reserved.",
+    );
+  }
   await userTransaction(db, userId, async (tx) => {
     const row = await ownedLedgerAction(tx, userId, actionId),
       now = await databaseTime(tx);

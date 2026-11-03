@@ -101,7 +101,7 @@ function PendingStatus({ pending }: { readonly pending: PendingReply }): ReactEl
           type="button"
           disabled={pending.checking}
           onClick={pending.onCheck}
-          className="inline-flex h-7 cursor-pointer items-center rounded-xs px-2 text-caption text-accent-text transition-colors duration-200 ease-ios hover:bg-surface-2 disabled:cursor-progress pointer-coarse:h-11"
+          className="inline-flex h-7 cursor-pointer items-center rounded-xs px-2 text-caption text-accent-text transition-colors duration-200 ease-ios hover:bg-surface-2 disabled:cursor-default pointer-coarse:h-11"
         >
           {pending.checking ? "Checking…" : "Check response"}
         </button>

@@ -1,8 +1,11 @@
 import { bigint, customType, index, pgTable, text } from "drizzle-orm/pg-core";
 
-const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+const bytea = customType<{ data: Buffer; driverData: Uint8Array }>({
   dataType() {
     return "bytea";
+  },
+  fromDriver(value): Buffer {
+    return Buffer.from(value);
   },
 });
 const timestamp = (name: string) => bigint(name, { mode: "number" });

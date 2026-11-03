@@ -43,7 +43,7 @@ export async function reserveDefiExecution(
     const now = await databaseTime(tx);
     const current = await currentDefiPolicy(tx, userId, plan, now);
     for (const asset of plan.cash) {
-      await observedInventoryBalance(tx, userId, plan.scope, asset.assetId, now);
+      await observedInventoryBalance(tx, userId, asset.scope ?? plan.scope, asset.assetId, now);
     }
     const debits = plan.cash.filter((a) => BigInt(a.maxDebitUnits) > 0n);
     for (const asset of debits) {

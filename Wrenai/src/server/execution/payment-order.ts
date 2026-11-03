@@ -18,12 +18,14 @@ import { preparedOrderSchema } from "./intents-order";
 import { prepareIntentsOrder } from "./intents-quote";
 import { dryQuoteRequest, verifiedProviderQuote } from "./oneclick-quote";
 import { confirmExecutionPermission } from "./permissions";
+import { assertPublicPaymentRecipient } from "./public-payment-recipient";
 import { databaseTime, executionEvent, executionHash, type LedgerAction } from "./records";
 
 const paymentRecordSchema = z.strictObject({
   format: z.literal(1),
   amountUnits: z.string().regex(/^[1-9]\d{0,77}$/),
   recipient: z.string().min(2).max(64),
+  destination: z.enum(["confidential", "near_wallet"]).optional(),
   order: preparedOrderSchema,
 });
 export type PaymentRecord = z.infer<typeof paymentRecordSchema>;
@@ -104,6 +106,9 @@ export function verifiedPaymentQuote(
     dry: false,
     recipient: saved.recipient,
     swapType: QuoteRequest.swapType.EXACT_OUTPUT,
+    ...(saved.destination === "near_wallet"
+      ? { recipientType: QuoteRequest.recipientType.DESTINATION_CHAIN }
+      : {}),
     deadline: saved.order.requestDeadline,
   };
   const quote = verifiedProviderQuote(
@@ -187,6 +192,7 @@ export async function preparePaymentExecution(
     throw new ExecutionError("not_ready", "Connect the private balance before preparing a payment.");
   }
   const policy = policySchema.parse(JSON.parse(current.agent.policyJson));
+  await assertPublicPaymentRecipient(instruction);
   const order = await prepareIntentsOrder(
     {
       accountId: owner.accountId,
@@ -194,6 +200,7 @@ export async function preparePaymentExecution(
       outputAssetId: instruction.assetId,
       inputUnits: state.quantityUnits,
       paymentRecipient: instruction.recipient,
+      paymentDestination: instruction.destination,
       slippageBps: policy.maxSlippageBps,
       maximumProviderFeeBps: policy.maxProviderFeeBps,
     },
@@ -260,6 +267,7 @@ export async function preparePaymentExecution(
       format: 1,
       recipient: instruction.recipient,
       amountUnits: state.quantityUnits,
+      destination: instruction.destination,
       order: {
         format: 1,
         signalHash: executionHash({

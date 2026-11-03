@@ -28,6 +28,7 @@ export const positionKindSchema = z.enum([
 ]);
 const cashLimitSchema = z.strictObject({
   assetId,
+  scope: scopeSchema.optional(),
   maxDebitUnits: tokenUnitsSchema,
   minCreditUnits: tokenUnitsSchema,
 });
@@ -50,6 +51,7 @@ const defiPlanFields = z.strictObject({
   riskPolicyRevision: z.number().int().nonnegative(),
   budgetMode: z.literal("per_agent").optional(),
   reduceOnly: z.literal(true).optional(),
+  funding: z.literal(true).optional(),
   scope: scopeSchema,
   operation: operationSchema,
   venueId: reference,
@@ -81,6 +83,34 @@ const operationPositionKinds = {
 } as const;
 export const defiPlanSchema = defiPlanFields.pipe(
   defiPlanFields.superRefine((plan, ctx) => {
+    if (
+      plan.cash.some(
+        (cash) =>
+          cash.scope !== undefined &&
+          cash.scope !== plan.scope &&
+          (plan.operation !== "transfer" || cash.maxDebitUnits !== "0" || !plan.funding),
+      )
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "A foreign-location credit requires an explicit owned-account funding transfer.",
+      });
+    }
+    if (
+      plan.funding &&
+      (plan.operation !== "transfer" ||
+        plan.budgetMode !== "per_agent" ||
+        plan.cash.length !== 2 ||
+        plan.cash.filter((cash) => BigInt(cash.maxDebitUnits) > 0n).length !== 1 ||
+        !plan.cash.some(
+          (cash) => cash.scope !== undefined && cash.scope !== plan.scope && BigInt(cash.minCreditUnits) > 0n,
+        ))
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Funding must bind one source debit and one foreign-location credit.",
+      });
+    }
     if (plan.reduceOnly && (plan.budgetMode !== "per_agent" || plan.operation !== "perp_reduce")) {
       ctx.addIssue({
         code: "custom",
@@ -147,7 +177,7 @@ export const defiPlanSchema = defiPlanFields.pipe(
     }
     if (
       plan.operation === "transfer" &&
-      (plan.cash.length !== 1 || !plan.cash.some((a) => BigInt(a.maxDebitUnits) > 0n))
+      ((!plan.funding && plan.cash.length !== 1) || !plan.cash.some((a) => BigInt(a.maxDebitUnits) > 0n))
     ) {
       ctx.addIssue({ code: "custom", message: "A payment requires one positive asset debit." });
     }
@@ -156,6 +186,7 @@ export const defiPlanSchema = defiPlanFields.pipe(
 export type DefiPlan = z.infer<typeof defiPlanSchema>;
 
 export const defiReceiptSchema = z.strictObject({
+  fundingRefund: z.literal(true).optional(),
   providerEventId: reference,
   riskDebitMicroUsd: positiveTokenUnitsSchema,
   // Fee metadata is already included in riskDebitMicroUsd and is never charged a second time.

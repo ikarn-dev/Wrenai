@@ -59,6 +59,7 @@ export async function walletTokenHoldings(
 ): Promise<{
   readonly tokens: readonly WalletHolding[];
   readonly note: string;
+  readonly complete: boolean;
 }> {
   nearAccountSchema.parse(accountId);
   let candidates: readonly string[] = [];
@@ -135,6 +136,7 @@ export async function walletTokenHoldings(
   }
   return {
     tokens,
+    complete: !incomplete,
     note: incomplete
       ? "Some tokens could not be listed. Check any missing token by its NEAR contract. Balances are rechecked when saving."
       : "NEAR keeps storage and 0.05 NEAR for gas. Balances are rechecked when saving.",

@@ -98,7 +98,8 @@ export const AGENT_CATALOG = {
   },
   private_payments: {
     name: "Private Payments Agent",
-    description: "Prepare recipient, asset and payment requirements for review.",
+    description:
+      "Send allocated private-balance funds to confidential recipients or clearly labeled public NEAR wallets.",
     prompt: "Help me review a payment recipient and the requirements for a private payment route.",
     fields: ["Recipient account", "Asset, amount and timing", "Required privacy and approval rules"],
   },

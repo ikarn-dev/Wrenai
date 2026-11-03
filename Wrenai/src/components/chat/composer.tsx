@@ -79,7 +79,7 @@ export function ChatComposer({
               aria-label={stopping ? "Stopping reply" : "Stop reply"}
               disabled={stopping}
               onClick={onStop}
-              className="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-sm bg-surface-3 text-fg-strong transition-[background-color,scale] duration-200 ease-ios hover:bg-surface-4 active:scale-92 disabled:cursor-progress motion-reduce:active:scale-100 pointer-coarse:size-11"
+              className="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-sm bg-surface-3 text-fg-strong transition-[background-color,scale] duration-200 ease-ios hover:bg-surface-4 active:scale-92 disabled:cursor-default motion-reduce:active:scale-100 pointer-coarse:size-11"
             >
               <Square size={14} fill="currentColor" aria-hidden="true" />
             </button>

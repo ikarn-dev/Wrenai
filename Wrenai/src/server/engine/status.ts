@@ -4,6 +4,7 @@ import { ownedAgent } from "@/server/agents/records";
 import { agentRuntimes } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { executionActions } from "@/server/db/execution-schema";
+import { watchPerpsPosition } from "@/server/execution/hyperliquid/position-watch";
 import type { AgentRuntimeStatus } from "@/shared/agent-runtime";
 import { advanceLedgerAction } from "./ledger-action";
 
@@ -52,5 +53,11 @@ export async function reconcileAgentOrders(db: AppDatabase, userId: string, agen
   const snapshot = await agentRuntimeStatus(db, userId, agentId);
   for (const action of snapshot.pending) {
     await advanceLedgerAction(db, userId, action.id, "reconcile_only");
+  }
+  if (snapshot.pending.length === 0) {
+    const agent = await ownedAgent(db, userId, agentId);
+    if (agent.pack === "perps") {
+      await watchPerpsPosition(db, userId, agentId, false);
+    }
   }
 }

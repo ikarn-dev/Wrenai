@@ -99,7 +99,7 @@ export async function exportTradingRecovery(
     const account = await ensureTradingAccount(tx, user.id);
     const token = randomBytes(32).toString("base64url");
     await tx.insert(signInChallenges).values({
-      nonce: `trading-recovery-confirm:${user.id}:${account.id}:${token}`,
+      nonce: `trading-recovery-confirm:v2:${user.id}:${account.id}:${token}`,
       expiresAt: now + 600_000,
     });
     return { payload: tradingRecoveryPayload(account, user.accountId), confirmationToken: token };
@@ -125,7 +125,7 @@ export async function confirmTradingBackup(db: AppDatabase, userId: string, raw:
     if (!account) {
       throw new ExecutionError("not_found", "This trading account is unavailable or revoked.");
     }
-    const nonce = `trading-recovery-confirm:${userId}:${input.accountId}:${input.token}`;
+    const nonce = `trading-recovery-confirm:v2:${userId}:${input.accountId}:${input.token}`;
     const [challenge] = await tx
       .select()
       .from(signInChallenges)
@@ -150,7 +150,7 @@ export async function confirmTradingBackup(db: AppDatabase, userId: string, raw:
     }
     await tx
       .update(tradingAccounts)
-      .set({ backupConfirmedAt: now, backupFileHash: input.fileHash })
+      .set({ backupConfirmedAt: now, backupFileHash: input.fileHash, backupVersion: 2 })
       .where(eq(tradingAccounts.id, account.id));
   });
 }

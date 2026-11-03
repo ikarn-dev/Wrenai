@@ -8,8 +8,11 @@ import type { AppDatabase } from "@/server/db/client";
 import { executionActions } from "@/server/db/execution-schema";
 import { currentAgentStrategy } from "@/server/execution/asset-review";
 import { ExecutionError } from "@/server/execution/contracts";
+import { preparePerpsExecution } from "@/server/execution/hyperliquid/orders";
+import { watchPerpsPosition } from "@/server/execution/hyperliquid/position-watch";
 import { prepareSwapExecution } from "@/server/execution/intents-order";
 import { preparePaymentExecution } from "@/server/execution/payment-order";
+import { preparePerpsFunding } from "@/server/execution/perps-funding-order";
 import { databaseTime } from "@/server/execution/records";
 import { ExplorerFeedPending } from "@/server/research/explorer-contracts";
 import { advanceLedgerAction } from "./ledger-action";
@@ -64,8 +67,19 @@ export async function checkAgentCycle(
       marketCheckSeconds(agent?.pack ?? ""),
     );
   }
+  const perpsPosition =
+    agent?.pack === "perps"
+      ? await watchPerpsPosition(
+          db,
+          runtime.userId,
+          runtime.agentId,
+          agent.status === "running" &&
+            agent.revision === runtime.agentRevision &&
+            runtime.state === "active",
+        )
+      : null;
   if (agent?.status !== "running" || agent.revision !== runtime.agentRevision || runtime.state !== "active") {
-    return null;
+    return perpsPosition && perpsPosition.quantity !== "0" ? 5 : null;
   }
   const claim = await claimStrategyCheck(db, activationId, runId);
   if (!claim) {
@@ -84,24 +98,41 @@ export async function checkAgentCycle(
     intervalSeconds = planned.intervalSeconds;
     progress = planned.progress;
     reason = planned.reason;
-    if (planned.signal || planned.paymentRequestId) {
-      if (progress?.strategyState.format === 3) {
+    if (planned.signal || planned.paymentRequestId || planned.perpsRequest) {
+      if (progress?.strategyState.format === 3 || progress?.strategyState.format === 5) {
         await recordStrategyProgress(db, activationId, claim.token, progress.strategyState);
       }
-      const action = planned.paymentRequestId
-        ? await preparePaymentExecution(
-            db,
-            runtime.userId,
-            runtime.agentId,
-            runtime.agentRevision,
-            planned.paymentRequestId,
-          )
-        : await prepareSwapExecution(db, runtime.userId, {
-            requestId: planned.requestId ?? requestId,
-            agentId: runtime.agentId,
-            expectedRevision: runtime.agentRevision,
-            ...planned.signal,
-          });
+      const action = planned.perpsRequest
+        ? planned.perpsRequest.type === "funding"
+          ? await preparePerpsFunding(
+              db,
+              runtime.userId,
+              runtime.agentId,
+              runtime.agentRevision,
+              planned.perpsRequest.requestId,
+            )
+          : await preparePerpsExecution(
+              db,
+              runtime.userId,
+              runtime.agentId,
+              runtime.agentRevision,
+              planned.perpsRequest.requestId,
+              planned.perpsRequest.exitReason,
+            )
+        : planned.paymentRequestId
+          ? await preparePaymentExecution(
+              db,
+              runtime.userId,
+              runtime.agentId,
+              runtime.agentRevision,
+              planned.paymentRequestId,
+            )
+          : await prepareSwapExecution(db, runtime.userId, {
+              requestId: planned.requestId ?? requestId,
+              agentId: runtime.agentId,
+              expectedRevision: runtime.agentRevision,
+              ...planned.signal,
+            });
       actionId = action.id;
       if (progress && progress.strategyState.format !== 4) {
         progress = { ...progress, strategyState: { ...progress.strategyState, pendingActionId: action.id } };
@@ -139,7 +170,7 @@ export async function checkAgentCycle(
     progress,
   );
   if (progress?.completed) {
-    return null;
+    return perpsPosition && perpsPosition.quantity !== "0" ? 5 : null;
   }
   return actionId === null ? delay : advanceLedgerAction(db, runtime.userId, actionId);
 }

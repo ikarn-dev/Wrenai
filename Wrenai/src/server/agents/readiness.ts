@@ -7,13 +7,15 @@ import { instructionPrice } from "@/server/engine/instruction-price";
 import { freshMarketPrice } from "@/server/engine/market-price";
 import { readAgentTradeAssets } from "@/server/execution/asset-review";
 import { synchronizePrivateInventory } from "@/server/execution/private-inventory";
+import { assertPublicPaymentRecipient } from "@/server/execution/public-payment-recipient";
 import { allocationCeiling, committedCapital } from "@/server/positions/capital-records";
 import { isRemovedExecutablePack, REMOVED_AGENT_MESSAGE } from "@/shared/agent-scope";
 import type { AgentSummary } from "@/shared/agents";
 import { AgentError } from "./errors";
+import { assertPerpsReady } from "./perps-readiness";
 
 export const EXECUTION_UNAVAILABLE =
-  "Perps funding/orders/native protection and Meme Hunter listing/security execution need their venue adapters. A research report or saved setup does not enable trading.";
+  "Meme Hunter listing/security execution requires verified critical checks. A research report or saved setup does not enable trading.";
 
 export function deployedRuntimeReady(trading = true): boolean {
   if (!trading) {
@@ -31,15 +33,19 @@ export async function assertAgentReady(user: SessionUser, agent: AgentSummary): 
   }
   if (
     "format" in agent.strategy &&
-    !["private_payments", "spot_trader", "dca", "buy_the_dip", "sell_the_top", "whale_tracker"].includes(
-      agent.strategy.kind,
-    )
+    ![
+      "private_payments",
+      "spot_trader",
+      "dca",
+      "buy_the_dip",
+      "sell_the_top",
+      "whale_tracker",
+      "perps",
+    ].includes(agent.strategy.kind)
   ) {
     throw new AgentError(
       "not_ready",
-      agent.strategy.kind === "perps"
-        ? "Perps analysis is available. Live funding, venue orders and native protective exits are not connected yet."
-        : "Meme Hunter cannot trade until verified listing age, contract security, holder concentration and an executable exit route are available.",
+      "Meme Hunter cannot trade until verified listing age, contract security, holder concentration and an executable exit route are available.",
     );
   }
   if ("format" in agent.strategy && Date.now() >= Date.parse(agent.strategy.expiresAt)) {
@@ -78,6 +84,13 @@ export async function assertAgentReady(user: SessionUser, agent: AgentSummary): 
       "not_ready",
       "Review exact assets and the agent's trading allocation before starting.",
     );
+  }
+  if (agent.strategy.kind === "perps") {
+    await assertPerpsReady(db, user, agent);
+    return;
+  }
+  if (agent.strategy.kind === "private_payments") {
+    await assertPublicPaymentRecipient(agent.strategy);
   }
   await synchronizePrivateInventory(db, user.id);
   const instruction = agent.strategy;

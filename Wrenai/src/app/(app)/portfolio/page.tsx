@@ -7,6 +7,7 @@ import { InsightCards } from "@/components/portfolio/insight-cards";
 import { PortfolioOverview } from "@/components/portfolio/overview";
 import { PortfolioSection } from "@/components/portfolio/panel";
 import { AgentPerformanceCard, PnlCalendarCard } from "@/components/portfolio/pnl-cards";
+import { PortfolioValueCard } from "@/components/portfolio/value-card";
 import { RefreshPortfolioButton } from "@/components/portfolio/refresh-button";
 import { listAgents } from "@/server/agents/records";
 import { requireUser } from "@/server/auth/session";
@@ -41,7 +42,7 @@ export default async function PortfolioPage() {
         <TradingAccessPane accountId={user.accountId} reading={agentKey} />
       </div>
       <PortfolioSection id="insights" title="Insights">
-        <InsightCards performance={performance} />
+        <InsightCards performance={performance} allocation={<Suspense fallback={<p className="text-small text-fg-muted" role="status">Loading balance estimates…</p>}><PortfolioValueCard /></Suspense>} />
       </PortfolioSection>
       <PortfolioSection id="agents-overview" title="Agents">
         <div className="grid min-w-0 gap-stack xl:grid-cols-3">

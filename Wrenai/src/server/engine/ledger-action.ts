@@ -9,6 +9,7 @@ import { reconcilePaymentAction } from "@/server/execution/payment-reconciliatio
 import { databaseTime, ownedLedgerAction } from "@/server/execution/records";
 import { cancelReservedExecution } from "@/server/execution/reservations";
 import { advanceIntentsAction } from "./action";
+import { advancePerpsAction } from "./perps-action";
 
 export async function advanceLedgerAction(
   db: AppDatabase,
@@ -21,6 +22,9 @@ export async function advanceLedgerAction(
     return advanceIntentsAction(db, userId, actionId, mode);
   }
   const plan = defiPlanSchema.parse(JSON.parse(action.planJson));
+  if (plan.funding || (plan.scope === "hyperliquid" && plan.venueId === "hyperliquid")) {
+    return advancePerpsAction(db, userId, actionId, mode);
+  }
   if (
     plan.operation !== "transfer" ||
     plan.scope !== "confidential" ||

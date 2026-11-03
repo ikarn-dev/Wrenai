@@ -2,10 +2,12 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { strategyVersions } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
+import { agentTradingAccounts } from "@/server/db/trading-account-schema";
 import { agentInstructionSchema } from "@/shared/agent-instructions";
 import type { AgentPolicy } from "@/shared/agents";
 import { ExecutionError } from "./contracts";
 import type { DefiPlan } from "./defi-contracts";
+import { perpsCashAssetId, perpsInstrumentId } from "./hyperliquid/contracts";
 
 /** Position ownership/version/claims are also checked by checkDefiPositions under the same owner lock. */
 export async function verifiedReducingPerpExit(
@@ -37,6 +39,11 @@ export async function verifiedReducingPerpExit(
     .limit(1);
   const parsed = agentInstructionSchema.safeParse(version ? JSON.parse(version.configJson) : null);
   const instruction = parsed.success ? parsed.data : null;
+  const [account] = await db
+    .select()
+    .from(agentTradingAccounts)
+    .where(eq(agentTradingAccounts.agentId, plan.agentId))
+    .limit(1);
   const exposures = plan.positions.filter((p) => p.kind === "perp_long" || p.kind === "perp_short");
   const exposure = exposures[0];
   // Hyperliquid settles fees and collateral in six-decimal USDC account units.
@@ -45,14 +52,17 @@ export async function verifiedReducingPerpExit(
     instruction?.kind !== "perps" ||
     exposures.length !== 1 ||
     !exposure ||
-    exposure.instrumentId !== instruction.market ||
+    exposure.instrumentId !==
+      (account ? perpsInstrumentId(account.perpAddress, instruction.market) : instruction.market) ||
     exposure.kind !== (instruction.side === "long" ? "perp_long" : "perp_short") ||
     BigInt(exposure.beforeUnits) <= 0n ||
     BigInt(exposure.maxAfterUnits) >= BigInt(exposure.beforeUnits) ||
     plan.positions.some((p) => BigInt(p.maxAfterUnits) > BigInt(p.beforeUnits)) ||
     plan.cash.length !== 1 ||
     plan.cash.some(
-      (cash) => cash.assetId !== instruction.collateralAssetId || BigInt(cash.maxDebitUnits) > maximumFee,
+      (cash) =>
+        cash.assetId !== (account ? perpsCashAssetId(account.perpAddress) : instruction.collateralAssetId) ||
+        BigInt(cash.maxDebitUnits) > maximumFee,
     )
   ) {
     throw new ExecutionError(

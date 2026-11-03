@@ -36,6 +36,8 @@ export type ActivityCursor = z.infer<typeof activityCursorSchema>;
 export const activityRequestSchema = z.strictObject({
   filter: activityFilterSchema,
   cursor: activityCursorSchema.nullable(),
+  /** Skip the cached newest page (the Refresh button). Pages behind a cursor never change, so it has no effect there. */
+  fresh: z.boolean().default(false),
 });
 export const activityAmountSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("usd"), microUsd: tokenUnitsSchema, estimated: z.boolean() }),

@@ -1,14 +1,18 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
+import { and, eq, isNull, notInArray, sql } from "drizzle-orm";
 import type { AppDatabase } from "@/server/db/client";
-import { defiPositionClaims } from "@/server/db/defi-schema";
 import { executionActions, executionInventory, executionWallets } from "@/server/db/execution-schema";
 import { positionReservations } from "@/server/db/position-schema";
 import { userTransaction } from "@/server/db/user-transaction";
-import { releaseOwnedInput } from "@/server/positions/execution";
 import { ExecutionError, type ExecutionScope, inventoryObservationSchema, scopeSchema } from "./contracts";
-import { actionCashAssets, quarantinedAssets } from "./inventory-state";
+import { releaseFreshInventoryHolds } from "./inventory-release";
+import { quarantinedAssets } from "./inventory-state";
+import {
+  assertNoPartialInventorySync,
+  beginPartialInventorySync,
+  finishPartialInventorySync,
+} from "./partial-inventory";
 import { databaseTime, SNAPSHOT_MAX_AGE_MS } from "./records";
 
 const SYNC_DEADLINE_MS = 10_000;
@@ -18,11 +22,16 @@ export async function beginInventorySync(
   db: AppDatabase,
   userId: string,
   rawScope: unknown,
+  coveredAssetIds?: readonly string[],
 ): Promise<string> {
   const scope = scopeSchema.parse(rawScope);
+  if (coveredAssetIds !== undefined) {
+    return beginPartialInventorySync(db, userId, scope, coveredAssetIds);
+  }
   return userTransaction(db, userId, async (tx) => {
     await tx.insert(executionWallets).values({ userId, scope }).onConflictDoNothing();
     const now = await databaseTime(tx);
+    await assertNoPartialInventorySync(tx, userId, scope, now);
     const [wallet] = await tx
       .select()
       .from(executionWallets)
@@ -43,7 +52,15 @@ export async function beginInventorySync(
 }
 
 /** Accept only adapter-verified observations; this is not a client balance-credit endpoint. */
-export async function finishInventorySync(db: AppDatabase, userId: string, raw: unknown): Promise<void> {
+export async function finishInventorySync(
+  db: AppDatabase,
+  userId: string,
+  raw: unknown,
+  coveredAssetIds?: readonly string[],
+): Promise<void> {
+  if (coveredAssetIds !== undefined) {
+    return finishPartialInventorySync(db, userId, raw, coveredAssetIds);
+  }
   const observation = inventoryObservationSchema.parse(raw);
   await userTransaction(db, userId, async (tx) => {
     const now = await databaseTime(tx);
@@ -84,37 +101,6 @@ export async function finishInventorySync(db: AppDatabase, userId: string, raw: 
         })),
       );
     }
-    // A terminal receipt alone does not make its funds reusable. Refresh actual inventory first.
-    const terminal = await tx
-      .select()
-      .from(executionActions)
-      .where(
-        and(
-          eq(executionActions.userId, userId),
-          eq(executionActions.scope, observation.scope),
-          eq(executionActions.status, "settled"),
-          isNull(executionActions.reservationReleasedAt),
-        ),
-      );
-    const released = terminal.filter((action) =>
-      actionCashAssets(action).every((asset) => !frozen.includes(asset)),
-    );
-    if (released.length > 0) {
-      const ids = released.map((a) => a.id);
-      await tx
-        .update(executionActions)
-        .set({ reservationReleasedAt: now })
-        .where(inArray(executionActions.id, ids));
-      await tx
-        .update(defiPositionClaims)
-        .set({ releasedAt: now })
-        .where(and(eq(defiPositionClaims.userId, userId), inArray(defiPositionClaims.actionId, ids)));
-    }
-    await releaseOwnedInput(
-      tx,
-      userId,
-      released.map((action) => action.id),
-    );
     await tx
       .update(executionWallets)
       .set({
@@ -125,6 +111,7 @@ export async function finishInventorySync(db: AppDatabase, userId: string, raw: 
         syncRevision: null,
       })
       .where(where);
+    await releaseFreshInventoryHolds(tx, userId, now);
   });
 }
 

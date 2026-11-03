@@ -48,7 +48,13 @@ function rows(instruction: AgentInstruction): readonly { readonly label: string;
     case "private_payments":
       items.push(
         { label: "Recipient", value: instruction.recipient },
-        { label: "Destination", value: "Confidential balance" },
+        {
+          label: "Destination",
+          value:
+            instruction.destination === "near_wallet"
+              ? "Public NEAR wallet · recipient and payout visible on-chain"
+              : "Confidential balance",
+        },
         { label: "Earliest payment", value: instruction.executeAfter },
       );
       break;

@@ -5,7 +5,7 @@ import { Tooltip } from "radix-ui";
 import type { ReactElement } from "react";
 
 /**
- * Which agent types can trade today, in user terms (Spec §4 P0 and Copy Trading). No runtime or backend details:
+ * Which agent types can trade, in user terms. No runtime or backend details:
  * those stay in EXECUTION_UNAVAILABLE for the agent detail page.
  */
 export function AgentsInfo(): ReactElement {
@@ -29,8 +29,8 @@ export function AgentsInfo(): ReactElement {
             collisionPadding={12}
             className="z-50 max-w-60 card-shine rounded-md px-3 py-2.5 text-caption text-fg-muted shadow-float"
           >
-            Rebalancer, Triggers and some Copy Trading agents can trade once funded and authorized. Other
-            types are research only for now.
+            Funded agents need your authorization before trading. Meme Hunter stays blocked until its required
+            token checks can be verified. Whale Tracker sends alerts only.
           </Tooltip.Content>
         </Tooltip.Portal>
       </Tooltip.Root>

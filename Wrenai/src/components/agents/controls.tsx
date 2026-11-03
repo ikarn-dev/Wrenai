@@ -180,7 +180,7 @@ export function GlobalStop({
         onClick={toggle}
         aria-busy={busy}
         aria-label={busy ? `${label}: updating` : label}
-        className={`inline-flex h-8 min-w-24 items-center justify-center gap-1.5 rounded-sm px-3 text-small font-medium ring-1 ring-inset transition-colors duration-200 ease-ios aria-busy:cursor-progress pointer-coarse:h-11 ${engaged ? "bg-surface-3 text-fg-strong ring-line-strong/50 hover:bg-surface-4" : "bg-loss-soft text-loss ring-loss/40 hover:ring-loss"}`}
+        className={`inline-flex h-8 min-w-24 items-center justify-center gap-1.5 rounded-sm px-3 text-small font-medium ring-1 ring-inset transition-colors duration-200 ease-ios aria-busy:cursor-default pointer-coarse:h-11 ${engaged ? "bg-surface-3 text-fg-strong ring-line-strong/50 hover:bg-surface-4" : "bg-loss-soft text-loss ring-loss/40 hover:ring-loss"}`}
       >
         {busy ? (
           <LoaderCircle
