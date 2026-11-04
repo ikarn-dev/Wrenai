@@ -22,10 +22,15 @@ import { ChatError } from "./errors";
 import { openMessage } from "./message-record";
 import { readChatCache, writeChatCache } from "./redis-cache";
 
-export const storedReplySchema = z.strictObject({
-  reply: chatReplySchema,
-  attestation: attestationReceiptSchema,
-});
+export const storedReplySchema = z
+  .strictObject({
+    reply: chatReplySchema,
+    attestation: attestationReceiptSchema.nullable(),
+  })
+  .refine(
+    (stored) => (stored.reply.receipt === null) === (stored.attestation === null),
+    "The reply and verification evidence must have matching provenance.",
+  );
 export type TurnRow = typeof chatTurns.$inferSelect;
 
 export function displayTurn(row: TurnRow, cipher: ChatCipher, now = Date.now()): ChatTurn {

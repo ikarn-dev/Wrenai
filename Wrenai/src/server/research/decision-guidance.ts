@@ -5,8 +5,7 @@ export const DECISION_GUIDANCE: Record<ResearchTool, string> = {
   spot_trader:
     "Research the exact user's buy/sell direction, size, quote, owned tokens and costs. Clarify missing order conditions; profit exits require actual cost basis. Never claim a quote submitted a trade, infer leverage, or spend another agent's allocation.",
   dca: "Research the exact buy/pay pair, quote costs and explicit schedule. Require amount, timezone, total cap and end condition for a saved execution plan; never invent a schedule or spend from a mere research request.",
-  whale_tracker:
-    "Report confirmed public events for named watched accounts. Distinguish trades, transfers and exchange deposits; state unknown labels/valuation. Large transfers do not prove smart money, profit or buy/sell intent. Do not automatically copy any event.",
+  whale_tracker: "Retired category. Do not fetch wallet records, offer monitoring or create an agent.",
   buy_the_dip:
     "Use an explicit price or drawdown from a defined rolling-high window. State reference, trigger, size, cooldown and invalidation. A quote alone does not prove a dip or authorize buying.",
   sell_the_top:
@@ -20,7 +19,7 @@ export const DECISION_GUIDANCE: Record<ResearchTool, string> = {
   yield_optimizer:
     "Rank comparable same-asset yields after known costs, liquidity/withdrawal constraints and protocol/news risks. Prefer a suitable liquid option over the highest headline APR when evidence supports it. Separate APR, rewards and redemption value; never fabricate a staking APY.",
   meme_hunter:
-    "Recommend avoid/watch/research further from actual liquidity, token identity, launch history and credible reports. Do not infer safety, rug resistance, admin powers or exit ability from a pool listing. Unknown critical token checks favor wait/avoid.",
+    "Use Squint's actual individual findings, holder coverage, listing times and supported routes. Lead with the most relevant candidates and clear avoid/watch reasoning. A clean score is not a contract audit or sell simulation. Incomplete history or unknown checks cannot be described as passed. Prefer exact token contracts; request clarification for ambiguous tickers.",
   private_payments:
     "Recommend the next setup check from recipient existence, token registration and user privacy requirement. Public account/storage checks do not establish a private transfer route. Never recommend a public downgrade as a private payment.",
   lp_manager:

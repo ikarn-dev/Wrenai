@@ -125,7 +125,7 @@ export function validateReturnPlan(plan: DefiPlan, saved: PerpsReturnRecord, at:
     plan.operation !== "transfer" ||
     plan.scope !== "hyperliquid" ||
     plan.venueId !== "hyperliquid" ||
-    plan.budgetMode !== "per_agent" ||
+    (plan.budgetMode !== "per_agent" && plan.budgetMode !== "manual") ||
     plan.positions.length !== 0 ||
     plan.agentId !== saved.agentId ||
     plan.agentRevision !== saved.agentRevision ||

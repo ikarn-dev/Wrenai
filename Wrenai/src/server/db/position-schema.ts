@@ -12,9 +12,9 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { MAX_TOKEN_UNITS } from "@/shared/token-units";
-import { agents } from "./agent-schema";
 import { executionActions, executionFills } from "./execution-schema";
 import { users } from "./schema";
+import { executionSubjects } from "./subject-schema";
 
 const units = (name: string) => numeric(name, { precision: 78, scale: 0, mode: "bigint" });
 const time = (name: string) => bigint(name, { mode: "number" });
@@ -45,7 +45,10 @@ export const agentCapital = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.userId, t.agentId] }),
-    foreignKey({ columns: [t.userId, t.agentId], foreignColumns: [agents.userId, agents.id] }),
+    foreignKey({
+      columns: [t.userId, t.agentId],
+      foreignColumns: [executionSubjects.userId, executionSubjects.id],
+    }),
     check("agent_capital_limit_valid", sql`${t.limitMicroUsd} >= 0`),
   ],
 ).enableRLS();
@@ -142,7 +145,10 @@ export const positionRealizations = pgTable(
   },
   (t) => [
     foreignKey({ columns: [t.userId, t.fillId], foreignColumns: [executionFills.userId, executionFills.id] }),
-    foreignKey({ columns: [t.userId, t.agentId], foreignColumns: [agents.userId, agents.id] }),
+    foreignKey({
+      columns: [t.userId, t.agentId],
+      foreignColumns: [executionSubjects.userId, executionSubjects.id],
+    }),
     check(
       "position_realization_values_valid",
       sql`(${t.basisMicroUsd} IS NULL OR ${t.basisMicroUsd} >= 0) AND (${t.netProceedsMicroUsd} IS NULL OR ${t.netProceedsMicroUsd} >= 0) AND ${t.principalMicroUsd} >= 0`,
@@ -194,7 +200,10 @@ export const capitalEvents = pgTable(
   },
   (t) => [
     uniqueIndex("capital_event_owner_request_idx").on(t.userId, t.requestId),
-    foreignKey({ columns: [t.userId, t.agentId], foreignColumns: [agents.userId, agents.id] }),
+    foreignKey({
+      columns: [t.userId, t.agentId],
+      foreignColumns: [executionSubjects.userId, executionSubjects.id],
+    }),
     check(
       "capital_event_kind_valid",
       sql`${t.kind} IN ('user_limit', 'agent_limit', 'inventory_assigned', 'inventory_released')`,

@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { bigint, check, foreignKey, index, integer, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
-import { agents } from "./agent-schema";
 import { users } from "./schema";
+import { executionSubjects } from "./subject-schema";
 
 const time = (name: string) => bigint(name, { mode: "number" });
 export const tradingAccounts = pgTable(
@@ -54,7 +54,10 @@ export const agentTradingAccounts = pgTable(
     createdAt: time("created_at").notNull(),
   },
   (t) => [
-    foreignKey({ columns: [t.userId, t.agentId], foreignColumns: [agents.userId, agents.id] }),
+    foreignKey({
+      columns: [t.userId, t.agentId],
+      foreignColumns: [executionSubjects.userId, executionSubjects.id],
+    }),
     foreignKey({
       columns: [t.userId, t.rootId],
       foreignColumns: [tradingAccounts.userId, tradingAccounts.id],

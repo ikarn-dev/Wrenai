@@ -13,6 +13,7 @@ import type { TradeQuote } from "@/shared/trade-preview";
 import { type currentAgentStrategy, resolvedTradeAssets } from "./asset-review";
 import { ExecutionError } from "./contracts";
 import type { swapSignalSchema } from "./intents-order";
+import { memeSubmissionCheck } from "./meme-reference";
 
 /** External observations happen before the owner lock; only their freshness and state binding are checked inside it. */
 export async function instructionSubmissionCheck(
@@ -26,6 +27,9 @@ export async function instructionSubmissionCheck(
     return null;
   }
   const instruction = current.strategy;
+  if (instruction.kind === "meme_hunter") {
+    return memeSubmissionCheck(db, current, signal, quote, actionId);
+  }
   if (
     instruction.kind !== "spot_trader" &&
     instruction.kind !== "dca" &&

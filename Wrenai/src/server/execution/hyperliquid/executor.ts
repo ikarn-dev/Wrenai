@@ -4,6 +4,8 @@ import { z } from "zod";
 import { agentRuntimes } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { perpsStateSchema } from "@/server/engine/perps-state";
+import { guardManualAction } from "@/server/manual-trading/guard";
+import { manualPerpsContext } from "@/server/manual-trading/perps-context";
 import { agentInstructionSchema } from "@/shared/agent-instructions";
 import { policySchema } from "@/shared/agents";
 import { currentAgentStrategy } from "../asset-review";
@@ -29,10 +31,13 @@ export async function executePerpsAction(
   const action = await ownedLedgerAction(db, userId, actionId),
     plan = defiPlanSchema.parse(JSON.parse(action.planJson)),
     saved = await readHlOrder(db, action);
-  const current = await currentAgentStrategy(db, userId, action.agentId, action.agentRevision),
-    instruction = current.strategy;
+  const manual = action.origin === "manual" ? await manualPerpsContext(db, action) : null;
+  const current = manual
+    ? null
+    : await currentAgentStrategy(db, userId, action.agentId, action.agentRevision);
+  const instruction = manual?.instruction ?? current?.strategy;
   if (
-    instruction.kind !== "perps" ||
+    instruction?.kind !== "perps" ||
     action.status !== "reserved" ||
     plan.scope !== "hyperliquid" ||
     executionHash(instruction) !== saved.instructionHash ||
@@ -52,7 +57,7 @@ export async function executePerpsAction(
   if (effective.kind !== "perps") {
     throw new ExecutionError("conflict", "This is not a Perps order.");
   }
-  const policy = policySchema.parse(JSON.parse(current.agent.policyJson));
+  const policy = manual?.policy ?? policySchema.parse(JSON.parse(current?.agent.policyJson ?? "null"));
   const recomposed = composePerpsOrder(
     effective,
     policy,
@@ -116,6 +121,10 @@ export async function executePerpsAction(
     }
   }
   const validateSlot = async (tx: AppDatabase): Promise<void> => {
+    if (action.origin === "manual") {
+      await guardManualAction(tx, action, await databaseTime(tx), false);
+      return;
+    }
     const [runtime] = await tx
       .select()
       .from(agentRuntimes)

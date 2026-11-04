@@ -20,7 +20,7 @@ export interface AgentOffer {
 }
 
 export function latestAgentOffer(conversationId: string, turn: ChatTurn | undefined): AgentOffer | null {
-  if (turn?.state !== "complete" || !turn.reply) {
+  if (turn?.state !== "complete" || !turn.reply || turn.reply.manual) {
     return null;
   }
   const eligible =
@@ -100,7 +100,7 @@ export function AgentOfferPrompt({
           notify("warn", result.message);
           return;
         }
-        router.push(`/agents/setup/${result.value.id}`);
+        router.push(`/agents/new?setup=${result.value.id}`);
       } catch {
         if (current.current === source.key) {
           setError({ key: source.key, message: "Couldn’t save the setup. Try again." });

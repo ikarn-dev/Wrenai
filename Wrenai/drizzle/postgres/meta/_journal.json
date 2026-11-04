@@ -148,6 +148,34 @@
       "when": 1793682470038,
       "tag": "0020_address_inventory_leases",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793717291496,
+      "tag": "0021_simple_agent_funding",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793771996141,
+      "tag": "0022_manual_trading",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793772746531,
+      "tag": "0023_native_funding",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793811377954,
+      "tag": "0024_wallet_swaps",
+      "breakpoints": true
     }
   ]
 }

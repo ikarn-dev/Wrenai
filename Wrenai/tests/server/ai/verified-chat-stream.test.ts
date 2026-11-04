@@ -46,6 +46,24 @@ describe("verified streaming provider boundary", () => {
     vi.clearAllMocks();
     cloud.verify.mockResolvedValue(receipt);
   });
+  it("requests bounded JSON extraction while still verifying the complete response", async () => {
+    cloud.create.mockResolvedValue(
+      stream([chunk({ content: '{"clarification":null,"intent":{}}' }, "stop")]),
+    );
+    const result = await verifiedChatStream({
+      ...request,
+      tools: [],
+      allowTools: false,
+      json: true,
+      maxTokens: 600,
+    });
+    expect(result.receipt.signatureKind).toBe("provider_tee");
+    expect(cloud.create).toHaveBeenCalledWith(
+      expect.objectContaining({ response_format: { type: "json_object" }, max_tokens: 600 }),
+      expect.anything(),
+    );
+    expect(cloud.verify).toHaveBeenCalledTimes(1);
+  });
   it("assembles real provider nullable function chunks before verifying", async () => {
     cloud.create.mockResolvedValue(
       stream([

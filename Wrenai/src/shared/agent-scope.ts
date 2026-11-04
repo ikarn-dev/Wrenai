@@ -7,7 +7,6 @@ export const activeAgentToolSchema = z.enum([
   "spot_trader",
   "perps",
   "meme_hunter",
-  "whale_tracker",
   "buy_the_dip",
   "sell_the_top",
 ]);
@@ -16,7 +15,7 @@ export function isActiveAgentTool(value: unknown): value is ActiveAgentTool {
   return activeAgentToolSchema.safeParse(value).success;
 }
 export const REMOVED_AGENT_MESSAGE =
-  "This agent type has been removed. Choose Private Payments, DCA, Spot Trader, Perps, Meme Hunter, Whale Tracker, Buy the Dip or Sell the Top.";
+  "This agent type has been removed. Choose Private Payments, DCA, Spot Trader, Perps, Meme Hunter, Buy the Dip or Sell the Top.";
 export function isRemovedExecutablePack(pack: string): boolean {
-  return pack === "rebalancer" || pack === "copy_trading";
+  return pack === "rebalancer" || pack === "copy_trading" || pack === "whale_tracker";
 }

@@ -12,8 +12,8 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { MAX_TOKEN_UNITS } from "@/shared/token-units";
-import { agents } from "./agent-schema";
 import { users } from "./schema";
+import { executionSubjects } from "./subject-schema";
 
 const time = (name: string) => bigint(name, { mode: "number" });
 // 78 digits covers 256-bit token amounts. Drizzle maps these directly to bigint.
@@ -79,6 +79,9 @@ export const executionActions = pgTable(
     id: text("id").primaryKey(),
     userId: text("user_id").notNull(),
     agentId: text("agent_id").notNull(),
+    origin: text("origin", { enum: ["agent", "manual"] })
+      .notNull()
+      .default("agent"),
     requestId: text("request_id").notNull(),
     planHash: text("plan_hash").notNull(),
     planJson: text("plan_json").notNull(),
@@ -114,12 +117,16 @@ export const executionActions = pgTable(
     updatedAt: time("updated_at").notNull(),
   },
   (t) => [
+    check("execution_action_origin_valid", sql`${t.origin} IN ('agent', 'manual')`),
     uniqueIndex("execution_action_owner_request_idx").on(t.userId, t.requestId),
     uniqueIndex("execution_action_owner_id_idx").on(t.userId, t.id),
     uniqueIndex("execution_provider_request_idx").on(t.scope, t.providerRequestId),
     uniqueIndex("execution_terminal_receipt_idx").on(t.userId, t.scope, t.settlementReceiptId),
     index("execution_action_agent_time_idx").on(t.agentId, t.createdAt),
-    foreignKey({ columns: [t.userId, t.agentId], foreignColumns: [agents.userId, agents.id] }),
+    foreignKey({
+      columns: [t.userId, t.agentId],
+      foreignColumns: [executionSubjects.userId, executionSubjects.id],
+    }),
     foreignKey({
       columns: [t.userId, t.scope],
       foreignColumns: [executionWallets.userId, executionWallets.scope],
@@ -180,7 +187,7 @@ export const executionFills = pgTable(
       "execution_fill_amounts_valid",
       sql`${t.inputUnits} > 0 AND ${t.outputUnits} > 0 AND ${t.inputValueMicroUsd} > 0 AND (${t.feeMicroUsd} IS NULL OR ${t.feeMicroUsd} >= 0)`,
     ),
-    check("execution_fill_scope_valid", sql`${t.scope} IN ('intents', 'confidential')`),
+    check("execution_fill_scope_valid", sql`${t.scope} IN ('intents', 'confidential', 'native_near')`),
     check(
       "execution_fill_units_bound",
       sql`${t.inputUnits} <= ${maximumUnits} AND ${t.outputUnits} <= ${maximumUnits}`,

@@ -88,3 +88,21 @@
     transform: translateY(var(--menu-shift, 0)) scale(0.96);
   }
 }
+
+/* Activity indicator spokes (components/ui/activity-indicator.tsx): each fades from full to a quarter over the
+   period; staggered delays make the light travel round. Opacity only. */
+@utility activity-spoke {
+  animation: activity-spoke-fade 0.8s linear infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes activity-spoke-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.25;
+  }
+}

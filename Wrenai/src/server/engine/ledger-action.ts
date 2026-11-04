@@ -8,6 +8,8 @@ import { paymentRecord } from "@/server/execution/payment-order";
 import { reconcilePaymentAction } from "@/server/execution/payment-reconciliation";
 import { databaseTime, ownedLedgerAction } from "@/server/execution/records";
 import { cancelReservedExecution } from "@/server/execution/reservations";
+import { advanceRheaAction } from "@/server/execution/rhea/advance";
+import { advanceWalletConversion } from "@/server/funding/advance";
 import { advanceIntentsAction } from "./action";
 import { advancePerpsAction } from "./perps-action";
 
@@ -18,10 +20,16 @@ export async function advanceLedgerAction(
   mode: "execute" | "reconcile_only" = "execute",
 ): Promise<number> {
   const action = await ownedLedgerAction(db, userId, actionId);
+  if (action.kind === "swap" && action.scope === "native_near") {
+    return advanceRheaAction(db, userId, actionId, mode);
+  }
   if (action.kind === "swap") {
     return advanceIntentsAction(db, userId, actionId, mode);
   }
   const plan = defiPlanSchema.parse(JSON.parse(action.planJson));
+  if (plan.walletFundingId) {
+    return advanceWalletConversion(db, userId, actionId, mode);
+  }
   if (plan.funding || (plan.scope === "hyperliquid" && plan.venueId === "hyperliquid")) {
     return advancePerpsAction(db, userId, actionId, mode);
   }

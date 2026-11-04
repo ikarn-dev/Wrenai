@@ -54,7 +54,18 @@ describe("research validation failures", () => {
     expect(provider.registry).not.toHaveBeenCalled();
     expect(provider.news).not.toHaveBeenCalled();
   });
-  it.each(["dca", "spot_trader", "perps", "whale_tracker", "private_payments"])(
+  it("rejects removed Whale Tracker requests without reading markets or news", async () => {
+    const result = await runResearchTool(
+      "research_whale_tracker",
+      '{"accountId":"watched.near"}',
+      new AbortController().signal,
+    );
+    expect(result).toMatchObject({ status: "unavailable", items: [] });
+    expect(result.summary).toContain("removed");
+    expect(provider.registry).not.toHaveBeenCalled();
+    expect(provider.news).not.toHaveBeenCalled();
+  });
+  it.each(["dca", "spot_trader", "perps", "private_payments"])(
     "does not fetch markets or news for missing %s inputs",
     async (tool) => {
       const result = await runResearchTool(`research_${tool}`, "{}", new AbortController().signal);

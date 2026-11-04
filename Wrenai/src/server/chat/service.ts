@@ -4,6 +4,7 @@ import { prepareChatInference } from "@/server/ai/chat-preparation";
 import { InferenceError } from "@/server/ai/verified-completion";
 import type { SessionUser } from "@/server/auth/session";
 import type { AppDatabase } from "@/server/db/client";
+import { reportUnexpectedError } from "@/server/http/unexpected-error";
 import {
   type ChatEvent,
   type ChatInput,
@@ -16,6 +17,7 @@ import { chatStatus } from "@/shared/chat-status";
 import { type ChatCipher, chatCipher } from "./cipher";
 import { readChatContext } from "./context";
 import { ChatError } from "./errors";
+import { manualChatAnswer } from "./manual-answer";
 import { chatPrompt } from "./prompt";
 import { conversationHistory } from "./queries";
 import { readChatCache, writeChatCache } from "./redis-cache";
@@ -72,6 +74,8 @@ export async function answerChat(
   let saved: ChatTurn;
   let history: readonly ChatTurn[] = [];
   try {
+    // Every reply, trade previews included, comes from the verified model: quote requests go through the
+    // verified extraction in manualChatAnswer, so the saved turn always carries a signature receipt.
     const historyRead = async (): Promise<readonly ChatTurn[]> => {
       if (claim.turn.sequence === 1) {
         return [];
@@ -94,12 +98,15 @@ export async function answerChat(
     ]);
     history = previous;
     const prompt = chatPrompt(history, input.message, context, Date.now(), input.tool ?? null);
-    const completion = await researchAnswer(prompt.messages, deadline, emit, input.tool ?? null);
+    const completion =
+      (await manualChatAnswer(db, user, input, history, deadline, emit)) ??
+      (await researchAnswer(prompt.messages, deadline, emit, input.tool ?? null));
     deadline.throwIfAborted();
     emit({ type: "verified" });
     const { model, completionId, signatureKind, verifiedAt, evidenceHash } = completion.receipt;
     const reply = chatReplySchema.parse({
       content: completion.content,
+      ...("manual" in completion ? { manual: completion.manual } : {}),
       receipt: { model, completionId, signatureKind, verifiedAt, evidenceHash },
       context,
       historyTrimmed: prompt.historyTrimmed,
@@ -120,6 +127,9 @@ export async function answerChat(
     await finishChatTurn(db, user.id, input, claim.token, { state: "failed" }, cipher);
     if (error instanceof InferenceError) {
       throw new ChatError(error.code, error.message);
+    }
+    if (!(error instanceof ChatError)) {
+      reportUnexpectedError("chat", error);
     }
     throw new ChatError("unavailable", "The reply could not be completed. Your message is saved; try again.");
   }

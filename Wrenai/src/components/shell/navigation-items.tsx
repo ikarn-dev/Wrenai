@@ -64,7 +64,7 @@ interface NavigationItemsProps {
 export function NavigationItems({ items, view }: NavigationItemsProps): ReactElement {
   const pathname = usePathname();
   return (
-    <ul className={`flex gap-0.5 ${view === "mobile" ? "" : "flex-col"}`}>
+    <ul className={`flex gap-0.5 ${view === "mobile" ? "overflow-x-auto" : "flex-col"}`}>
       {items.map((item) => {
         const active = item.kind === "link" && isNavItemActive(pathname, item.href);
         const state = item.kind === "unavailable" ? ITEM_UNAVAILABLE : active ? ITEM_ACTIVE : ITEM_IDLE;
@@ -93,7 +93,7 @@ export function NavigationItems({ items, view }: NavigationItemsProps): ReactEle
           </>
         );
         return (
-          <li key={item.label} className={view === "mobile" ? "min-w-0 flex-1" : ""}>
+          <li key={item.label} className={view === "mobile" ? "min-w-14 shrink-0 flex-1" : ""}>
             <NavigationTooltip
               label={item.kind === "link" ? item.label : `${item.label} is not built yet`}
               shown={view === "collapsed" || item.kind === "unavailable"}

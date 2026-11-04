@@ -3,6 +3,8 @@ import { and, eq } from "drizzle-orm";
 import { strategyVersions } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { users } from "@/server/db/schema";
+import { verifiedWalletFunding } from "@/server/funding/source";
+import { manualEnvelope, ownedManualTrade } from "@/server/manual-trading/record";
 import { readAgentTradingAccount } from "@/server/trading-accounts/agent-account";
 import { activeTradingAccount } from "@/server/trading-accounts/vault";
 import { agentInstructionSchema } from "@/shared/agent-instructions";
@@ -10,6 +12,7 @@ import { ExecutionError } from "./contracts";
 import type { DefiPlan } from "./defi-contracts";
 import { perpsCashAssetId } from "./hyperliquid/contracts";
 import { verifiedReturnFunding } from "./hyperliquid/return-source";
+import { executionHash } from "./records";
 
 /** Funding moves already allocated principal; the exception is never authorized by a model-supplied flag alone. */
 export async function verifiedAccountFunding(
@@ -20,6 +23,22 @@ export async function verifiedAccountFunding(
 ): Promise<boolean> {
   if (!plan.funding) {
     return false;
+  }
+  if (plan.budgetMode === "manual" && plan.manualTradeId) {
+    const row = await ownedManualTrade(db, userId, plan.manualTradeId),
+      saved = manualEnvelope(row);
+    if (
+      (saved.kind !== "perps_funding" && saved.kind !== "perps_return") ||
+      executionHash(plan) !== executionHash(saved.plan) ||
+      row.status !== "confirmed" ||
+      (actionId && row.actionId !== actionId)
+    ) {
+      throw new ExecutionError("conflict", "The funding transfer requires its exact manual confirmation.");
+    }
+    return true;
+  }
+  if (plan.walletFundingId) {
+    return verifiedWalletFunding(db, userId, plan, actionId);
   }
   if (plan.returnFunds) {
     const [owner] = await db

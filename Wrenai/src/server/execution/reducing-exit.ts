@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { agentRuntimes, strategyVersions } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { instructionStateSchema } from "@/server/engine/instruction-state";
+import { memeStateSchema } from "@/server/engine/meme-state";
 import { unreservedOwnedUnits } from "@/server/positions/lots";
 import { agentInstructionSchema } from "@/shared/agent-instructions";
 import type { AgentPolicy } from "@/shared/agents";
@@ -42,6 +43,40 @@ export async function verifiedReducingExit(
     .from(agentRuntimes)
     .where(and(eq(agentRuntimes.userId, userId), eq(agentRuntimes.agentId, plan.agentId)))
     .limit(1);
+  if (instruction.kind === "meme_hunter") {
+    const hunter = runtime?.strategyStateJson
+      ? memeStateSchema.parse(JSON.parse(runtime.strategyStateJson))
+      : null;
+    const position = hunter?.positions.find((p) => p.asset.assetId === hunter.pendingAssetId);
+    const owned = await unreservedOwnedUnits(
+      db,
+      userId,
+      plan.agentId,
+      plan.scope,
+      plan.inputAssetId,
+      actionId,
+    );
+    if (
+      !runtime ||
+      runtime.strategyVersion !== plan.strategyVersion ||
+      runtime.agentRevision !== plan.agentRevision ||
+      !hunter ||
+      !position ||
+      position.spot.phase !== "holding" ||
+      !position.spot.exitTriggered ||
+      (hunter.pendingActionId !== null && hunter.pendingActionId !== actionId) ||
+      plan.inputAssetId !== position.asset.assetId ||
+      plan.outputAssetId !== instruction.payAssetId ||
+      BigInt(plan.inputUnits) > BigInt(position.spot.quantityUnits) ||
+      BigInt(plan.inputUnits) > owned
+    ) {
+      throw new ExecutionError(
+        "limit",
+        "A hunter exit must reduce its triggered, confirmed and still-owned exact-token position.",
+      );
+    }
+    return true;
+  }
   const state = runtime?.strategyStateJson
     ? instructionStateSchema.safeParse(JSON.parse(runtime.strategyStateJson))
     : null;

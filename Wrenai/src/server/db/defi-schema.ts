@@ -12,9 +12,9 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { MAX_TOKEN_UNITS } from "@/shared/token-units";
-import { agents } from "./agent-schema";
 import { executionActions } from "./execution-schema";
 import { positionLots } from "./position-schema";
+import { executionSubjects } from "./subject-schema";
 
 const units = (name: string) => numeric(name, { precision: 78, scale: 0, mode: "bigint" });
 const time = (name: string) => bigint(name, { mode: "number" });
@@ -70,7 +70,10 @@ export const executionPermissions = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.userId, t.permissionHash] }),
-    foreignKey({ columns: [t.userId, t.agentId], foreignColumns: [agents.userId, agents.id] }),
+    foreignKey({
+      columns: [t.userId, t.agentId],
+      foreignColumns: [executionSubjects.userId, executionSubjects.id],
+    }),
     check(
       "execution_permission_shape",
       sql`${t.permissionHash} ~ '^[a-f0-9]{64}$' AND (${t.expiresAt} IS NULL OR ${t.expiresAt} > ${t.confirmedAt}) AND octet_length(${t.permissionJson}) <= 16000`,
@@ -121,7 +124,10 @@ export const defiPositions = pgTable(
     updatedAt: time("updated_at").notNull(),
   },
   (t) => [
-    foreignKey({ columns: [t.userId, t.agentId], foreignColumns: [agents.userId, agents.id] }),
+    foreignKey({
+      columns: [t.userId, t.agentId],
+      foreignColumns: [executionSubjects.userId, executionSubjects.id],
+    }),
     foreignKey({
       columns: [t.userId, t.receiptId],
       foreignColumns: [executionReceipts.userId, executionReceipts.id],

@@ -42,7 +42,9 @@ export async function readPrivateBalances(
   token: string,
 ): Promise<z.infer<typeof completeBalancesSchema>["balances"]> {
   const response = await fetch("https://1click.chaindefuser.com/v0/account/balances", {
-    headers: { "User-Session": token, "User-Agent": "wrenai/0.1" },
+    // Account endpoints take the user session as a Bearer token; a User-Session header gets 401
+    // "Authorization token required" (checked against the live API, Nov 4, 2026).
+    headers: { Authorization: `Bearer ${token}`, "User-Agent": "wrenai/0.1" },
     redirect: "error",
     cache: "no-store",
     signal: AbortSignal.timeout(8000),

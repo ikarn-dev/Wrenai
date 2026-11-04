@@ -22,7 +22,7 @@ import {
 import { ensureTradingAccount, tradingRecoveryPayload } from "./vault";
 
 function recoveryMessage(accountId: string, agentId: string, expiresAt: number): string {
-  return `Export Wrenai trading-account recovery for ${accountId}.\nAgent: ${agentId}\nOrigin: ${serverEnv().appOrigin}\nExpires: ${new Date(expiresAt).toISOString()}\nThis does not authorize a transaction.`;
+  return `Export Wrenai trading-account recovery for ${accountId}.\nTrading context: ${agentId}\nOrigin: ${serverEnv().appOrigin}\nExpires: ${new Date(expiresAt).toISOString()}\nThis does not authorize a transaction.`;
 }
 function challengeId(userId: string, agentId: string, nonce: string): string {
   return `trading-recovery:${userId}:${agentId}:${nonce}`;
@@ -33,8 +33,11 @@ export async function issueRecoveryChallenge(
   user: SessionUser,
   raw: unknown,
 ): Promise<RecoveryChallenge> {
-  const { agentId } = recoveryRequestSchema.parse(raw);
-  await ownedAgent(db, user.id, agentId);
+  const input = recoveryRequestSchema.parse(raw);
+  const agentId = input.agentId ?? "manual";
+  if (input.agentId) {
+    await ownedAgent(db, user.id, input.agentId);
+  }
   const nonce = randomBytes(32).toString("base64url");
   const expiresAt = Date.now() + 300_000;
   await db.insert(signInChallenges).values({ nonce: challengeId(user.id, agentId, nonce), expiresAt });
@@ -52,8 +55,11 @@ export async function exportTradingRecovery(
   raw: unknown,
 ): Promise<RecoveryExport> {
   const input = recoverySignatureSchema.parse(raw);
-  await ownedAgent(db, user.id, input.agentId);
-  const id = challengeId(user.id, input.agentId, input.nonce);
+  if (input.agentId) {
+    await ownedAgent(db, user.id, input.agentId);
+  }
+  const contextId = input.agentId ?? "manual";
+  const id = challengeId(user.id, contextId, input.nonce);
   const [challenge] = await db.select().from(signInChallenges).where(eq(signInChallenges.nonce, id)).limit(1);
   const publicKey = parseEd25519PublicKey(input.publicKey);
   const signature = decodeSignature(input.signature);
@@ -67,7 +73,7 @@ export async function exportTradingRecovery(
       publicKey,
       signature,
       payload: {
-        message: recoveryMessage(user.accountId, input.agentId, challenge.expiresAt),
+        message: recoveryMessage(user.accountId, contextId, challenge.expiresAt),
         recipient: serverEnv().appHost,
         nonce: Buffer.from(input.nonce, "base64url"),
       },
@@ -80,7 +86,9 @@ export async function exportTradingRecovery(
     );
   }
   return userTransaction(db, user.id, async (tx) => {
-    await ownedAgent(tx, user.id, input.agentId);
+    if (input.agentId) {
+      await ownedAgent(tx, user.id, input.agentId);
+    }
     const now = await databaseTime(tx);
     const consumed = await tx
       .update(signInChallenges)

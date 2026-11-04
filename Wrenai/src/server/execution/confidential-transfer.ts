@@ -8,6 +8,7 @@ import { executionActions } from "@/server/db/execution-schema";
 import { delegatedKeys, users } from "@/server/db/schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import { openAgentKey } from "@/server/delegation/agent-key";
+import { synchronizePublicToken } from "@/server/funding/public-inventory";
 import { readKeyRegistration } from "@/server/intents/verifier";
 import { hashNep413Payload } from "@/server/near/nep413";
 import type { TradeQuote } from "@/shared/trade-preview";
@@ -20,7 +21,7 @@ import { commitSignedExecution, recordSubmissionStatus } from "./ownership";
 import { synchronizePrivateInventory } from "./private-inventory";
 import { databaseTime, executionEvent, type LedgerAction, ownedLedgerAction, requireLease } from "./records";
 
-/** Shared payment/deposit transport. Each caller independently verifies destination and strategy authority. */
+/** Shared signed transfer transport. Each caller independently verifies destination and strategy authority. */
 export async function submitConfidentialTransfer(
   db: AppDatabase,
   action: LedgerAction,
@@ -28,12 +29,21 @@ export async function submitConfidentialTransfer(
   saved: z.infer<typeof preparedOrderSchema>,
   quoteForOwner: (accountId: string) => TradeQuote,
   validateState: (tx: AppDatabase) => Promise<void>,
-  eventKind: "payment_submitted" | "perps_funding_submitted",
+  eventKind: "payment_submitted" | "perps_funding_submitted" | "wallet_conversion_submitted",
   checkRecipient?: () => Promise<void>,
 ): Promise<void> {
   const userId = action.userId,
     actionId = action.id,
     plan = defiPlanSchema.parse(JSON.parse(action.planJson));
+  if (
+    plan.scope !== "confidential" &&
+    (plan.scope !== "intents" || !plan.walletFundingId || eventKind !== "wallet_conversion_submitted")
+  ) {
+    throw new ExecutionError(
+      "not_ready",
+      "This transport requires a verified private transfer or owned wallet funding.",
+    );
+  }
   const [owner] = await db
     .select({ accountId: users.accountId })
     .from(users)
@@ -46,7 +56,7 @@ export async function submitConfidentialTransfer(
   const quote = quoteForOwner(owner.accountId),
     validated = validateGeneratedIntent(saved.generated, {
       signerId: owner.accountId,
-      scope: "confidential",
+      scope: plan.scope,
       depositAddress: saved.depositAddress,
       inputAssetId: quote.inputAssetId,
       inputUnits: quote.inputUnits,
@@ -77,6 +87,9 @@ export async function submitConfidentialTransfer(
       "not_ready",
       "The shared transfer authorization is revoked or could not be verified.",
     );
+  }
+  if (plan.scope === "intents") {
+    await synchronizePublicToken(db, userId, owner.accountId, quote.inputAssetId);
   }
   const signingKey = openAgentKey(key.sealedSecret, key.publicKey),
     payload = validated.intent.intent.payload;

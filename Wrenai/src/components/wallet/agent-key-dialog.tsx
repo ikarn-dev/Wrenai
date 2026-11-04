@@ -2,21 +2,21 @@
 
 import { useLenis } from "lenis/react";
 import { Dialog } from "radix-ui";
-import { useEffect, useState } from "react";
+import { type ReactElement, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AgentKeyIntro } from "./agent-key-intro";
 import { AuthorizeKeyPanel } from "./authorize-key-panel";
 
 interface AgentKeyDialogProps {
   readonly accountId: string;
+  readonly onAuthorized?: () => Promise<void>;
 }
 
 /**
  * The agent key popup, centered over the page. "Later", Escape or a click outside close it. While the wallet step
- * runs it can't be closed, so the result has somewhere to show. Setting the key up refreshes the page, which then
- * no longer renders this.
+ * runs it can't be closed, so the result has somewhere to show. Success closes it and refreshes caller caches.
  */
-export function AgentKeyDialog({ accountId }: AgentKeyDialogProps) {
+export function AgentKeyDialog({ accountId, onAuthorized }: AgentKeyDialogProps): ReactElement {
   const [open, setOpen] = useState(false);
   const [working, setWorking] = useState(false);
   const lenis = useLenis();
@@ -61,7 +61,15 @@ export function AgentKeyDialog({ accountId }: AgentKeyDialogProps) {
             </div>
           </Dialog.Description>
           <div className="mt-6">
-            <AuthorizeKeyPanel accountId={accountId} onLater={close} onWorkingChange={setWorking} />
+            <AuthorizeKeyPanel
+              accountId={accountId}
+              onLater={close}
+              onWorkingChange={setWorking}
+              onAuthorized={async () => {
+                setOpen(false);
+                await onAuthorized?.();
+              }}
+            />
           </div>
         </Dialog.Content>
       </Dialog.Portal>

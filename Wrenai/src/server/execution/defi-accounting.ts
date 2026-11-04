@@ -20,10 +20,19 @@ import {
   requireLease,
 } from "./records";
 
+function cashBound(plan: DefiPlan, cash: DefiReceipt["cash"][number]): DefiPlan["cash"][number] | undefined {
+  const candidates = plan.cash.filter(
+    (bound) =>
+      bound.assetId === cash.assetId &&
+      (cash.scope === undefined || (bound.scope ?? plan.scope) === cash.scope),
+  );
+  return candidates.length === 1 ? candidates[0] : undefined;
+}
+
 function validateReceipt(plan: DefiPlan, receipt: DefiReceipt): void {
   const fundingInput = plan.funding ? plan.cash.find((cash) => BigInt(cash.maxDebitUnits) > 0n) : undefined;
   const fundingDebit = fundingInput
-    ? receipt.cash.find((cash) => cash.assetId === fundingInput.assetId)
+    ? receipt.cash.find((cash) => cashBound(plan, cash) === fundingInput)
     : undefined;
   if (
     receipt.fundingRefund &&
@@ -37,7 +46,8 @@ function validateReceipt(plan: DefiPlan, receipt: DefiReceipt): void {
   if (
     receipt.cash.length !== plan.cash.length ||
     receipt.positions.length !== plan.positions.length ||
-    new Set(receipt.cash.map((a) => a.assetId)).size !== receipt.cash.length ||
+    new Set(receipt.cash.map((a) => `${cashBound(plan, a)?.scope ?? plan.scope}:${a.assetId}`)).size !==
+      receipt.cash.length ||
     new Set(receipt.positions.map((p) => p.positionId)).size !== receipt.positions.length ||
     (!plan.reduceOnly && BigInt(receipt.riskDebitMicroUsd) > BigInt(plan.notionalMicroUsd)) ||
     (receipt.feeMicroUsd !== null && BigInt(receipt.feeMicroUsd) > BigInt(receipt.riskDebitMicroUsd))
@@ -57,7 +67,7 @@ function validateReceipt(plan: DefiPlan, receipt: DefiReceipt): void {
     throw new ExecutionError("conflict", "Borrowed proceeds require their full verified capital valuation.");
   }
   for (const cash of receipt.cash) {
-    const bound = plan.cash.find((a) => a.assetId === cash.assetId);
+    const bound = cashBound(plan, cash);
     const minimumCredit =
       receipt.fundingRefund &&
       fundingInput &&
@@ -277,7 +287,7 @@ export async function settleDefiExecution(
         id: randomUUID(),
         userId,
         agentId: action.agentId,
-        scope: plan.cash.find((bound) => bound.assetId === cash.assetId)?.scope ?? action.scope,
+        scope: cashBound(plan, cash)?.scope ?? action.scope,
         assetId: cash.assetId,
         sourceId: receiptId,
         sourceKind: "receipt",

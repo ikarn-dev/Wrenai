@@ -67,6 +67,8 @@ interface StreamRequest {
   readonly tools: readonly ChatToolDefinition[];
   readonly signal: AbortSignal;
   readonly allowTools: boolean;
+  readonly json?: boolean;
+  readonly maxTokens?: number;
   readonly onDelta: (text: string) => void;
   readonly onVerification?: () => void;
 }
@@ -88,7 +90,8 @@ async function attemptStream(
       model,
       stream: true,
       temperature: 0,
-      max_tokens: 4_000,
+      max_tokens: request.maxTokens ?? 4_000,
+      ...(request.json ? { response_format: { type: "json_object" as const } } : {}),
       messages: [...request.messages],
       ...(request.allowTools && request.tools.length
         ? { tools: [...request.tools], tool_choice: "auto" }

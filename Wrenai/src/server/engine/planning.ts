@@ -12,13 +12,13 @@ import { isRemovedExecutablePack, REMOVED_AGENT_MESSAGE } from "@/shared/agent-s
 import { policySchema } from "@/shared/agents";
 import { planSpotInstruction } from "./instruction-planning";
 import { freshMarketPrice } from "./market-price";
+import { planMemeCheck } from "./meme-check";
 import { planPaymentCheck } from "./payment-check";
 import { planPerpsCheck } from "./perps-check";
 import type { PricedHolding } from "./rebalance";
 import type { RuntimeStrategyState } from "./strategy-state";
 import { INITIAL_TRIGGER_STATE, triggerDecision, triggerStateSchema } from "./trigger";
 import { applyTriggerReceipt } from "./trigger-receipt";
-import { planWhaleCheck } from "./whale-check";
 
 export interface StrategyCheckPlan {
   readonly signal: Omit<
@@ -101,11 +101,11 @@ export async function planStrategyCheck(
     if (instruction.kind === "private_payments") {
       return planPaymentCheck(db, runtime, instruction);
     }
-    if (instruction.kind === "whale_tracker") {
-      return planWhaleCheck(db, runtime, instruction);
-    }
     if (instruction.kind === "perps") {
       return planPerpsCheck(db, runtime, instruction);
+    }
+    if (instruction.kind === "meme_hunter") {
+      return planMemeCheck(db, current, instruction, runtime.strategyStateJson);
     }
     if (
       instruction.kind === "spot_trader" ||

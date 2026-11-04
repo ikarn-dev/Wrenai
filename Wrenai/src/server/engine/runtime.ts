@@ -12,6 +12,7 @@ import { executionActions } from "@/server/db/execution-schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import { ExecutionError } from "@/server/execution/contracts";
 import { databaseTime, executionHash } from "@/server/execution/records";
+import { REMOVED_AGENT_MESSAGE } from "@/shared/agent-scope";
 import type { agentCommandSchema } from "@/shared/agents";
 import { strategySchema } from "@/shared/agents";
 import {
@@ -38,6 +39,9 @@ export async function prepareAgentRuntime(
       return existing.activationId;
     }
     const agent = await ownedAgent(tx, userId, input.agentId);
+    if (agent.pack === "whale_tracker") {
+      throw new AgentError("not_ready", REMOVED_AGENT_MESSAGE);
+    }
     if (
       agent.revision !== input.expectedRevision ||
       agent.status === "running" ||

@@ -1,13 +1,16 @@
 import type { ReactElement } from "react";
 import { requireUser } from "@/server/auth/session";
 import { database } from "@/server/db/client";
+import { recordPortfolioHistory } from "@/server/portfolio/history";
 import { readPortfolioValuation } from "@/server/portfolio/valuation";
 import { formatCompactMicroUsd } from "@/shared/money";
+import { PortfolioHistoryChart } from "./history-chart";
 import { PortfolioPanel } from "./panel";
 
 export async function PortfolioValueCard(): Promise<ReactElement> {
   const user = await requireUser();
   const value = await readPortfolioValuation(database(), user);
+  const history = await recordPortfolioHistory(database(), user.id, value);
   return (
     <PortfolioPanel
       id="allocation"
@@ -16,6 +19,7 @@ export async function PortfolioValueCard(): Promise<ReactElement> {
       <p className="font-mono text-num-lg tabular-nums text-fg-strong">
         {value.settling ? "Settling" : formatCompactMicroUsd(value.knownMicroUsd)}
       </p>
+      <PortfolioHistoryChart points={history} />
       <dl className="flex flex-col gap-3">
         {value.locations.map((location) => (
           <div key={location.id} className="flex items-baseline justify-between gap-3 text-small">

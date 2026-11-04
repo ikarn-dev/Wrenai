@@ -37,6 +37,7 @@ vi.mock("@/server/agents/mutations", () => ({
 }));
 vi.mock("@/server/agents/readiness", () => ({ assertAgentReady: calls.ready }));
 vi.mock("@/server/engine/start", () => ({ startAgentRuntime: calls.start }));
+vi.mock("@/server/research/intents", () => ({ intentTokens: async () => ({ tokens: [] }) }));
 
 describe("agent action authorization and fail-closed launch", () => {
   beforeEach(() => {
@@ -73,7 +74,7 @@ describe("agent action authorization and fail-closed launch", () => {
     expect(calls.parse).not.toHaveBeenCalled();
     expect(calls.save).not.toHaveBeenCalled();
   });
-  it.each(["rebalancer", "copy_trading", "triggers"])(
+  it.each(["rebalancer", "copy_trading", "triggers", "whale_tracker"])(
     "rejects a retired %s parse before inference",
     async (pack) => {
       expect(
@@ -104,8 +105,9 @@ describe("agent action authorization and fail-closed launch", () => {
     const requestId = crypto.randomUUID();
     const input = { requestId, draftId, policy: DEFAULT_POLICY, agentId: null, expectedRevision: null };
     calls.save.mockReturnValue("created-agent");
+    calls.draft.mockResolvedValue([{ pack: "spot_trader" }]);
     expect(await saveAgentStrategy(input)).toEqual({ ok: true, value: { agentId: "created-agent" } });
-    expect(calls.save).toHaveBeenCalledWith(expect.any(Object), "owner", input);
+    expect(calls.save).toHaveBeenCalledWith(expect.any(Object), "owner", input, undefined, []);
     expect(await saveAgentStrategy({ ...input, userId: "someone-else" })).toMatchObject({
       ok: false,
       code: "invalid_input",

@@ -85,6 +85,10 @@ export async function researchAnswer(
       }),
     );
     signal.throwIfAborted();
+    const inputIssue = results.find(({ report }) => report.assessment?.decision === "needs_input");
+    if (inputIssue?.report.assessment) {
+      throw new InferenceError("invalid_input", inputIssue.report.assessment.summary);
+    }
     for (const { request, report } of results) {
       if (!reported.has(request.key)) {
         reported.add(request.key);

@@ -1,8 +1,9 @@
 "use client";
 
 import { cloneElement, type ReactElement, useId } from "react";
-import { type AgentPolicy, approvalSchema } from "@/shared/agents";
-import { APPROVAL_LABELS } from "./strategy-summary";
+import type { AgentPolicy } from "@/shared/agents";
+import { parseUsd, usdInputSchema } from "@/shared/agents";
+import { formatExactMicroUsd } from "@/shared/money";
 
 export const INPUT_CLASS =
   "h-11 w-full rounded-sm border border-line bg-surface-2 px-3 text-body text-fg-strong placeholder:text-fg-subtle disabled:opacity-60";
@@ -37,6 +38,7 @@ interface PolicyFieldsProps {
   readonly disabled: boolean;
 }
 export function PolicyFields({ policy, onChange, disabled }: PolicyFieldsProps): ReactElement {
+  const tradeLimit = usdInputSchema.safeParse(policy.maxTradeUsd);
   const moneyFields = [
     { key: "budgetUsd", label: "Capital risk ceiling (USD)" },
     { key: "maxTradeUsd", label: "Maximum per trade (USD)" },
@@ -49,77 +51,73 @@ export function PolicyFields({ policy, onChange, disabled }: PolicyFieldsProps):
     { key: "cooldownSeconds", label: "Cooldown (seconds)", min: 0, max: 86400 },
   ] as const;
   return (
-    <fieldset disabled={disabled} className="grid min-w-0 gap-5 sm:grid-cols-2">
-      <legend className="mb-5 text-h3 text-fg-strong">Your trading limits</legend>
-      {moneyFields.map(({ key, label }) => (
-        <Field key={key} label={label}>
-          <input
-            className={`${INPUT_CLASS} font-mono tabular-nums`}
-            inputMode="decimal"
-            required
-            value={policy[key]}
-            onChange={(event) => onChange({ ...policy, [key]: event.target.value })}
-          />
-        </Field>
-      ))}
-      <Field label="Approval mode">
-        <select
-          className={INPUT_CLASS}
-          value={policy.approvalMode}
-          onChange={(event) => {
-            const mode = approvalSchema.safeParse(event.target.value);
-            if (mode.success) {
-              onChange({ ...policy, approvalMode: mode.data });
-            }
-          }}
-        >
-          {Object.entries(APPROVAL_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </Field>
-      {policy.approvalMode === "above_size" ? (
-        <Field label="Ask above (USD)">
-          <input
-            className={`${INPUT_CLASS} font-mono tabular-nums`}
-            inputMode="decimal"
-            required
-            value={policy.approvalThresholdUsd}
-            onChange={(event) => onChange({ ...policy, approvalThresholdUsd: event.target.value })}
-          />
-        </Field>
-      ) : null}
-      {numericFields.map(({ key, label, min, max }) => (
-        <Field key={key} label={label}>
-          <input
-            type="number"
-            step="1"
-            min={min}
-            max={max}
-            required
-            className={`${INPUT_CLASS} font-mono tabular-nums`}
-            value={Number.isNaN(policy[key]) ? "" : policy[key]}
-            onChange={(event) => onChange({ ...policy, [key]: event.target.valueAsNumber })}
-          />
-        </Field>
-      ))}
-      <p className="text-caption text-fg-subtle sm:col-span-2">
-        100 basis points = 1%. Only you can change these limits. A budget does not deposit or move funds.
-      </p>
-      <label className="flex items-start gap-3 text-small sm:col-span-2">
-        <input
-          type="checkbox"
-          className="mt-1"
-          checked={policy.allowRiskReducingExits === true}
-          onChange={(event) => onChange({ ...policy, allowRiskReducingExits: event.target.checked })}
-        />
-        <span>
-          Allow verified position-reducing exits after entry limits are reached. Exits still require owned
-          tokens and fee/slippage limits.
+    <div className="space-y-3">
+      <p className="text-small text-fg-muted">
+        Autonomous within your limits ·{" "}
+        <span className="font-mono tabular-nums">
+          {tradeLimit.success
+            ? `${formatExactMicroUsd(parseUsd(tradeLimit.data))} per trade`
+            : "set a per-trade limit"}
         </span>
-      </label>
-    </fieldset>
+        .
+      </p>
+      <details className="rounded-sm border border-line p-3">
+        <summary className="cursor-pointer text-small">Risk limits</summary>
+        <fieldset disabled={disabled} className="mt-4 grid min-w-0 gap-5 sm:grid-cols-2">
+          <legend className="sr-only">Trading limits</legend>
+          {moneyFields.map(({ key, label }) => (
+            <Field key={key} label={label}>
+              <input
+                className={`${INPUT_CLASS} font-mono tabular-nums`}
+                inputMode="decimal"
+                required
+                value={policy[key]}
+                onChange={(event) => onChange({ ...policy, [key]: event.target.value })}
+              />
+            </Field>
+          ))}
+          {policy.approvalMode !== "autonomous" ? (
+            <label className="flex items-center gap-3 text-small sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={false}
+                required
+                onChange={() => onChange({ ...policy, approvalMode: "autonomous" })}
+              />
+              Allow autonomous execution within these limits
+            </label>
+          ) : null}
+          {numericFields.map(({ key, label, min, max }) => (
+            <Field key={key} label={label}>
+              <input
+                type="number"
+                step="1"
+                min={min}
+                max={max}
+                required
+                className={`${INPUT_CLASS} font-mono tabular-nums`}
+                value={Number.isNaN(policy[key]) ? "" : policy[key]}
+                onChange={(event) => onChange({ ...policy, [key]: event.target.valueAsNumber })}
+              />
+            </Field>
+          ))}
+          <p className="text-caption text-fg-subtle sm:col-span-2">
+            100 basis points = 1%. Only you can change these limits. A budget does not deposit or move funds.
+          </p>
+          <label className="flex items-start gap-3 text-small sm:col-span-2">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={policy.allowRiskReducingExits === true}
+              onChange={(event) => onChange({ ...policy, allowRiskReducingExits: event.target.checked })}
+            />
+            <span>
+              Allow verified position-reducing exits after entry limits are reached. Exits still require owned
+              tokens and fee/slippage limits.
+            </span>
+          </label>
+        </fieldset>
+      </details>
+    </div>
   );
 }

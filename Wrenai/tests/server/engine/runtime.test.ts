@@ -29,6 +29,13 @@ function input(): {
   return { requestId: crypto.randomUUID(), agentId: context.agentId, expectedRevision: 1, command: "resume" };
 }
 describe("database-fenced durable agent lifecycle", () => {
+  it("rejects a retired watchlist agent before creating any runtime", async () => {
+    await context.db.update(agents).set({ pack: "whale_tracker" }).where(eq(agents.id, context.agentId));
+    await expect(prepareAgentRuntime(context.db, "owner", input())).rejects.toMatchObject({
+      code: "not_ready",
+    });
+    expect(await context.db.select().from(agentRuntimes)).toEqual([]);
+  });
   it("stays paused until a queued worker claims it and deduplicates activation/run retries", async () => {
     const request = input();
     const id = await prepareAgentRuntime(context.db, "owner", request);

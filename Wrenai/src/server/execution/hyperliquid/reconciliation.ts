@@ -91,13 +91,13 @@ export async function reconcilePerpsAction(
     if (!identity.parentTerminal || result.risk <= 0n) {
       return "pending";
     }
-    const agent = await ownedAgent(db, userId, action.agentId);
+    const agent = action.origin === "manual" ? null : await ownedAgent(db, userId, action.agentId);
     if (
       saved.role === "entry" &&
       result.quantity > 0n &&
       repairProtection &&
-      agent.status === "running" &&
-      !(await killSwitchEngaged(db, userId))
+      (agent === null || agent.status === "running") &&
+      (action.origin === "manual" || !(await killSwitchEngaged(db, userId)))
     ) {
       try {
         const protectedPosition = await maintainPerpsProtection(db, action, saved, result.quantity);
@@ -113,15 +113,17 @@ export async function reconcilePerpsAction(
           await executionEvent(tx, action, "hl_protection_unconfirmed", await databaseTime(tx), {
             code: error.code,
           });
-          await tx
-            .update(agents)
-            .set({
-              status: "error",
-              reason:
-                "The Perps position is open but native protection could not be confirmed. Reconcile it and check the trading address before restarting.",
-              updatedAt: await databaseTime(tx),
-            })
-            .where(eq(agents.id, action.agentId));
+          if (action.origin === "agent") {
+            await tx
+              .update(agents)
+              .set({
+                status: "error",
+                reason:
+                  "The Perps position is open but native protection could not be confirmed. Reconcile it and check the trading address before restarting.",
+                updatedAt: await databaseTime(tx),
+              })
+              .where(eq(agents.id, action.agentId));
+          }
         });
       }
     }

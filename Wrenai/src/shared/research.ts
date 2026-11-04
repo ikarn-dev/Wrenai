@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { agentTokenBudgetSchema } from "./agent-budget";
 
-// Retired entries are history metadata only. Active requests use the separate eight-family allowlist.
+// Retired entries are history metadata only. Active requests use the separate seven-family allowlist.
 export const RESEARCH_TOOLS = {
   spot_trader: {
     label: "Spot Trader",
@@ -14,9 +14,8 @@ export const RESEARCH_TOOLS = {
       "Research a scheduled spot purchase pair and costs. Scheduling needs a separately reviewed agent.",
   },
   whale_tracker: {
-    label: "Whale / Smart Money Tracker",
-    description:
-      "Inspect confirmed public movements for an explicit watched account. Large transfers alone do not establish profitable smart money.",
+    label: "Whale Tracker (removed)",
+    description: "Historical report metadata only. This research tool is retired.",
   },
   buy_the_dip: {
     label: "Buy the Dip",
@@ -50,7 +49,7 @@ export const RESEARCH_TOOLS = {
   meme_hunter: {
     label: "Meme Hunter",
     description:
-      "Discover live NEAR meme-token markets, liquidity and available launch information. Never call a token safe.",
+      "Read Squint's latest NEAR listings, token risk checks, holders and route coverage. Resolve exact contracts, explain flagged/unknown evidence and never call a token safe.",
   },
   private_payments: {
     label: "Private Payments",

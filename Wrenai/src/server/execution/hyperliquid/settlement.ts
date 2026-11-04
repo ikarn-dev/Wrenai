@@ -21,6 +21,7 @@ import type { HlAccountState } from "./account-state";
 import { type PerpsCheckpoint, perpsCheckpointSchema } from "./checkpoint";
 import type { HlOrder } from "./contracts";
 import type { PerpsFillAccounting } from "./fill-accounting";
+import type { HlFunding } from "./funding-observation";
 import type { HlFill } from "./observations";
 import type { HlOrderRecord } from "./order-record";
 
@@ -35,6 +36,7 @@ export async function settlePerpsFills(
   openOrderIds: ReadonlySet<number>,
   known: ReadonlyMap<number, HlOrder>,
   previous?: PerpsCheckpoint,
+  funding: readonly HlFunding[] = [],
 ): Promise<void> {
   const plan = defiPlanSchema.parse(JSON.parse(action.planJson)),
     cash = plan.cash[0],
@@ -45,7 +47,7 @@ export async function settlePerpsFills(
     !exposure ||
     !collateral ||
     result.risk <= 0n ||
-    fills.length === 0 ||
+    (fills.length === 0 && funding.length === 0) ||
     result.debit > BigInt(cash.maxDebitUnits)
   ) {
     throw new ExecutionError(
@@ -70,8 +72,14 @@ export async function settlePerpsFills(
             )
           ).principalMicroUsd;
     const total = debitedPrincipal + BigInt(saved.beforeCollateralPrincipal);
-    const continuingPrincipal =
-      saved.role === "entry"
+    const fundingOnly = fills.length === 0 && funding.length > 0;
+    const continuingPrincipal = fundingOnly
+      ? BigInt(saved.beforeCollateralUnits) === 0n
+        ? 0n
+        : (BigInt(saved.beforeCollateralPrincipal) *
+            minimumUnits(result.collateral, BigInt(saved.beforeCollateralUnits))) /
+          BigInt(saved.beforeCollateralUnits)
+      : saved.role === "entry"
         ? result.debit === 0n
           ? 0n
           : (debitedPrincipal * minimumUnits(result.collateral, result.debit)) / result.debit
@@ -85,6 +93,7 @@ export async function settlePerpsFills(
       stateTime: state.time,
       fills: fills.map((fill) => ({ ...fill })),
       orderIds: [...known.keys()].sort((a, b) => a - b),
+      funding: funding.map((row) => ({ ...row })),
     };
     await settleDefiExecution(tx, action.userId, action.id, token, {
       providerEventId: `hl:${saved.address.toLowerCase()}:${action.requestId}`,

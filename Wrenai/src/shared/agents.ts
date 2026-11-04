@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { agentBudgetInputSchema } from "./agent-budget";
 import { AGENT_CATALOG } from "./agent-catalog";
 import { agentInstructionSchema } from "./agent-instructions";
 import { activeAgentToolSchema } from "./agent-scope";
@@ -35,6 +36,7 @@ export const AGENT_PACK_NAMES = [
   "rebalancer",
   "triggers",
   "copy_trading",
+  "whale_tracker",
   ...activeAgentToolSchema.options,
 ] as const;
 export const packSchema = z.enum(AGENT_PACK_NAMES);
@@ -210,6 +212,7 @@ export const parseStrategyInputSchema = z.strictObject({
   requestId: z.uuid(),
   pack: packSchema,
   strategyText: strategyTextSchema,
+  budget: agentBudgetInputSchema.optional(),
 });
 export const saveAgentSchema = z.strictObject({
   requestId: z.uuid(),
@@ -222,6 +225,9 @@ export const saveAgentSchema = z.strictObject({
     .string()
     .regex(/^[a-f0-9]{64}$/)
     .optional(),
+});
+export const saveAgentWithBudgetSchema = saveAgentSchema.extend({
+  budget: agentBudgetInputSchema.nullable(),
 });
 export const agentCommandSchema = z.strictObject({
   requestId: z.uuid(),

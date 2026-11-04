@@ -22,6 +22,9 @@ vi.mock("@/server/env", () => ({
 vi.mock("@/server/execution/oneclick-quote", () => ({ oneClickJson: vi.fn() }));
 const registration = vi.hoisted(() => vi.fn());
 vi.mock("@/server/intents/verifier", () => ({ readKeyRegistration: registration }));
+vi.mock("@/server/near/rpc", () => ({
+  callViewFunction: async () => ({ value: "252812b3", blockHeight: 1 }),
+}));
 let context: Awaited<ReturnType<typeof executionTestContext>>;
 beforeEach(async () => {
   context = await executionTestContext();

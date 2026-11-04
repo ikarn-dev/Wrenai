@@ -110,7 +110,7 @@ export function AgentSetupReview({ draft }: { readonly draft: AgentSetupDraft })
           className="rounded-sm border border-line bg-surface-1 p-3 text-body leading-relaxed"
         />
       </label>
-      {active && draft.tool !== "whale_tracker" ? (
+      {active ? (
         <TokenBudget value={budget} onChange={setBudget} excludeId={draft.id} disabled={busy} />
       ) : null}
       <div className="flex flex-wrap gap-3">

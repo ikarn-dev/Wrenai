@@ -97,6 +97,29 @@ describe("Postgres-backed agent management", () => {
     expect((await readAgent(context.db, owner, await create())).name).not.toBe(agent.name);
   });
 
+  it("rejects saved retired watchlist drafts and blocks old agent resume/clone while permitting deletion", async () => {
+    const draftId = await draft();
+    await context.db
+      .update(tables.strategyDrafts)
+      .set({ pack: "whale_tracker" })
+      .where(eq(tables.strategyDrafts.id, draftId));
+    await expect(
+      saveAgent(context.db, owner, {
+        requestId: crypto.randomUUID(),
+        draftId,
+        policy: DEFAULT_POLICY,
+        agentId: null,
+        expectedRevision: null,
+      }),
+    ).rejects.toMatchObject({ code: "not_ready" });
+    const id = await create();
+    await context.db.update(tables.agents).set({ pack: "whale_tracker" }).where(eq(tables.agents.id, id));
+    await expect(command(id, "resume")).rejects.toMatchObject({ code: "not_ready" });
+    await expect(command(id, "clone")).rejects.toMatchObject({ code: "not_ready" });
+    await command(id, "delete");
+    expect(await listAgents(context.db, owner)).toEqual([]);
+  });
+
   it("recovers creates after lost responses and rejects request-ID payload changes", async () => {
     const input = {
       requestId: crypto.randomUUID(),

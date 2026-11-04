@@ -9,10 +9,16 @@ export async function planRiskPolicy(
   db: AppDatabase,
   userId: string,
   plan: {
-    readonly budgetMode?: "per_agent" | undefined;
+    readonly budgetMode?: "per_agent" | "manual" | undefined;
     readonly riskPolicyRevision: number;
   },
 ): Promise<UserRiskPolicyRecord | null> {
+  if (plan.budgetMode === "manual") {
+    throw new ExecutionError(
+      "conflict",
+      "Manual trades require their exact single-use confirmation, not agent spending authority.",
+    );
+  }
   if (plan.budgetMode === "per_agent") {
     if (plan.riskPolicyRevision !== 0) {
       throw new ExecutionError("not_ready", "The budget policy binding is inconsistent.");

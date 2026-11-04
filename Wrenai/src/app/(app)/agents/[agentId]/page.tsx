@@ -2,21 +2,27 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { AgentAdvancedOptions } from "@/components/agents/advanced-options";
+import { AgentAllocations } from "@/components/agents/allocations";
 import { AgentAvatar } from "@/components/agents/avatar";
+import { NativeAgentFunding } from "@/components/agents/native-funding";
 import { PerpsReturnFunds } from "@/components/agents/perps-return";
 import { AgentRuntimePanel } from "@/components/agents/runtime-status";
 import { PolicySummary, StrategySummary } from "@/components/agents/strategy-summary";
 import { AgentTradePreview } from "@/components/agents/trade-preview";
+import { AgentWalletFunding } from "@/components/agents/wallet-funding";
 import { PortfolioPanel } from "@/components/portfolio/panel";
+import { TradingRecovery } from "@/components/settings/trading-recovery";
 import { Badge } from "@/components/ui/badge";
 import { AgentError } from "@/server/agents/errors";
 import { readAgent } from "@/server/agents/mutations";
 import { agentHistory } from "@/server/agents/queries";
-import { deployedRuntimeReady, EXECUTION_UNAVAILABLE } from "@/server/agents/readiness";
+import { deployedRuntimeReady } from "@/server/agents/readiness";
 import { requireUser } from "@/server/auth/session";
 import { database } from "@/server/db/client";
 import { agentRuntimeStatus } from "@/server/engine/status";
 import { readAgentTradingAccount } from "@/server/trading-accounts/agent-account";
+import { tradingAccountSummary } from "@/server/trading-accounts/vault";
 import { type AgentSummary, PACKS } from "@/shared/agents";
 
 function timestamp(value: number): string {
@@ -44,10 +50,11 @@ export default async function AgentPage({
     }
     throw error;
   }
-  const [history, runtime, venueAccount] = await Promise.all([
+  const [history, runtime, venueAccount, recovery] = await Promise.all([
     agentHistory(user.id, agent.id),
     agentRuntimeStatus(database(), user.id, agent.id),
     agent.pack === "perps" ? readAgentTradingAccount(database(), user.id, agent.id) : Promise.resolve(null),
+    agent.pack === "perps" ? tradingAccountSummary(database(), user.id) : Promise.resolve(null),
   ]);
   return (
     <div className="flex min-w-0 flex-col gap-6">
@@ -74,7 +81,17 @@ export default async function AgentPage({
       </header>
       {agent.pack === "meme_hunter" ? (
         <p className="rounded-sm border border-line bg-surface-2 p-3 text-small text-fg-muted">
-          {EXECUTION_UNAVAILABLE}
+          Scans new listings with{" "}
+          <a
+            href="https://nearsquint.tech"
+            target="_blank"
+            rel="noreferrer"
+            className="text-accent-text underline underline-offset-4"
+          >
+            Squint
+          </a>
+          . Trades require complete token, liquidity and route checks. Unsupported tokens are skipped; passing
+          checks cannot guarantee a future exit.
         </p>
       ) : null}
       {agent.pack === "perps" ? (
@@ -86,13 +103,19 @@ export default async function AgentPage({
           </p>
           {venueAccount ? (
             <p className="mt-3 break-all font-mono text-small tabular-nums">{venueAccount.perpAddress}</p>
+          ) : null}
+          {!recovery?.derivedBackupConfirmed ? (
+            <div className="mt-4">
+              <TradingRecovery
+                accountId={user.accountId}
+                agents={[{ id: agent.id, name: agent.name }]}
+                initial={recovery}
+              />
+            </div>
           ) : (
-            <Link
-              href="/settings"
-              className="mt-3 inline-flex min-h-11 items-center text-small text-accent-text underline underline-offset-4"
-            >
-              Save recovery backup in Settings
-            </Link>
+            <p className="mt-3 text-small text-accent-text">
+              Recovery backup saved. Each agent uses a separate trading address.
+            </p>
           )}
           <p className="mt-2 text-caption text-fg-subtle">
             Native TP/SL orders use explicit limit prices and can remain unfilled during gaps. Trailing
@@ -121,64 +144,71 @@ export default async function AgentPage({
           unrelated, stale and unexecutable activity is skipped. This is not a complete wallet-history feed.
         </p>
       ) : null}
+      {"format" in agent.strategy ? (
+        <AgentWalletFunding
+          key={`${agent.id}:${agent.revision}`}
+          agent={agent}
+          ownerId={user.id}
+          accountId={user.accountId}
+        />
+      ) : null}
+      <NativeAgentFunding agent={agent} user={user} />
       <AgentRuntimePanel
         agent={agent}
         ownerId={user.id}
         initial={runtime}
-        executionAvailable={
-          agent.pack !== "meme_hunter" && deployedRuntimeReady(agent.pack !== "whale_tracker")
-        }
+        executionAvailable={deployedRuntimeReady()}
       />
-      {agent.pack !== "whale_tracker" ? (
-        <AgentTradePreview key={`${agent.id}:${agent.revision}`} agent={agent} accountId={user.accountId} />
-      ) : null}
       <div className="grid min-w-0 items-start gap-stack xl:grid-cols-2">
         <PortfolioPanel id="strategy" title="Your strategy">
-          <p className="whitespace-pre-wrap text-body leading-relaxed text-fg">{agent.strategyText}</p>
           <StrategySummary strategy={agent.strategy} />
         </PortfolioPanel>
         <PortfolioPanel id="limits" title="Trading limits">
           <PolicySummary policy={agent.policy} />
         </PortfolioPanel>
       </div>
-      <div className="grid min-w-0 gap-stack xl:grid-cols-2">
-        <PortfolioPanel id="versions" title="Strategy versions">
-          <ol className="flex flex-col gap-5">
-            {history.versions.map((version) => (
-              <li key={version.id} className="flex flex-col gap-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-small font-medium">Version {version.version}</h3>
+      <AgentAdvancedOptions>
+        <AgentTradePreview key={`${agent.id}:${agent.revision}`} agent={agent} accountId={user.accountId} />
+        <AgentAllocations agentId={agent.id} ownerId={user.id} />
+        <div className="grid min-w-0 gap-stack xl:grid-cols-2">
+          <PortfolioPanel id="versions" title="Strategy versions">
+            <ol className="flex flex-col gap-5">
+              {history.versions.map((version) => (
+                <li key={version.id} className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-small font-medium">Version {version.version}</h3>
+                    <time
+                      dateTime={new Date(version.createdAt).toISOString()}
+                      className="font-mono text-caption text-fg-subtle"
+                    >
+                      {timestamp(version.createdAt)} UTC
+                    </time>
+                  </div>
+                  <p className="text-small leading-relaxed text-fg-muted">{version.strategyText}</p>
+                  <p className="text-caption text-fg-subtle">
+                    Model verified · {version.model} · {timestamp(version.verifiedAt)} UTC
+                  </p>
+                </li>
+              ))}
+            </ol>
+          </PortfolioPanel>
+          <PortfolioPanel id="history" title="Agent history">
+            <ol className="flex flex-col gap-5">
+              {history.events.map((event) => (
+                <li key={event.id} className="flex flex-col gap-1">
+                  <p className="text-small text-fg">{event.message}</p>
                   <time
-                    dateTime={new Date(version.createdAt).toISOString()}
+                    dateTime={new Date(event.createdAt).toISOString()}
                     className="font-mono text-caption text-fg-subtle"
                   >
-                    {timestamp(version.createdAt)} UTC
+                    {timestamp(event.createdAt)} UTC
                   </time>
-                </div>
-                <p className="text-small leading-relaxed text-fg-muted">{version.strategyText}</p>
-                <p className="text-caption text-fg-subtle">
-                  Model verified · {version.model} · {timestamp(version.verifiedAt)} UTC
-                </p>
-              </li>
-            ))}
-          </ol>
-        </PortfolioPanel>
-        <PortfolioPanel id="history" title="Agent history">
-          <ol className="flex flex-col gap-5">
-            {history.events.map((event) => (
-              <li key={event.id} className="flex flex-col gap-1">
-                <p className="text-small text-fg">{event.message}</p>
-                <time
-                  dateTime={new Date(event.createdAt).toISOString()}
-                  className="font-mono text-caption text-fg-subtle"
-                >
-                  {timestamp(event.createdAt)} UTC
-                </time>
-              </li>
-            ))}
-          </ol>
-        </PortfolioPanel>
-      </div>
+                </li>
+              ))}
+            </ol>
+          </PortfolioPanel>
+        </div>
+      </AgentAdvancedOptions>
     </div>
   );
 }

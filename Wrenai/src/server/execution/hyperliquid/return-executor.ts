@@ -7,6 +7,7 @@ import { executionEvents } from "@/server/db/execution-schema";
 import { delegatedKeys } from "@/server/db/schema";
 import { agentTradingAccounts } from "@/server/db/trading-account-schema";
 import { userTransaction } from "@/server/db/user-transaction";
+import { manualReturnSource } from "@/server/manual-trading/return-source";
 import { activeTradingAccount } from "@/server/trading-accounts/vault";
 import { type HlUsdSend, hlUsdSendSchema } from "@/shared/perps-return";
 import { ExecutionError } from "../contracts";
@@ -70,7 +71,12 @@ export async function executePerpsReturn(
         "This return already has signing bytes. Reconcile it without resending.",
       );
     }
-    const { account } = await ownedReturnSource(tx, userId, ledger.agentId, actionId),
+    const { account } = await (ledger.origin === "manual" ? manualReturnSource : ownedReturnSource)(
+        tx,
+        userId,
+        ledger.agentId,
+        actionId,
+      ),
       root = await activeTradingAccount(tx, userId);
     const [key] = await tx.select().from(delegatedKeys).where(eq(delegatedKeys.userId, userId)).limit(1);
     const now = await databaseTime(tx);

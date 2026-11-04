@@ -2,11 +2,11 @@ import "server-only";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { ownedAgent } from "@/server/agents/records";
 import type { AppDatabase } from "@/server/db/client";
-import { defiPositions, executionReceipts } from "@/server/db/defi-schema";
-import { executionActions } from "@/server/db/execution-schema";
+import { defiPositions } from "@/server/db/defi-schema";
 import { positionLots, positionRealizations, positionReservations } from "@/server/db/position-schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import type { ExecutionScope } from "@/server/execution/contracts";
+import { readDefiPerformance } from "@/server/portfolio/defi-performance";
 import { assignedCapitalLimit, attributedPrincipal, committedCapital } from "./capital-records";
 
 interface PositionBalance {
@@ -97,25 +97,19 @@ export async function readAgentPositions(
       .select()
       .from(defiPositions)
       .where(and(eq(defiPositions.userId, userId), eq(defiPositions.agentId, agentId)));
-    const [receipts] = await tx
-      .select({ count: sql<string>`count(*)::text` })
-      .from(executionReceipts)
-      .innerJoin(executionActions, eq(executionActions.id, executionReceipts.actionId))
-      .where(
-        and(
-          eq(executionReceipts.userId, userId),
-          eq(executionActions.agentId, agentId),
-          eq(executionReceipts.kind, "defi"),
-        ),
-      );
-    const unpricedDefiReceipts = Number(receipts?.count ?? "0");
+    const [outcomes] = await readDefiPerformance(tx, userId, agentId);
+    const unpricedDefiReceipts = outcomes?.unknown ?? 0;
+    const defiPnl = BigInt(outcomes?.total ?? "0"),
+      defiCount = outcomes?.count ?? 0;
     return {
       capitalCeilingMicroUsd: await assignedCapitalLimit(tx, userId, agentId),
       attributedPrincipalMicroUsd: await attributedPrincipal(tx, userId, agentId),
       committedCapitalMicroUsd: await committedCapital(tx, userId, agentId),
       realizedPnlMicroUsd:
-        count === 0 || unknown > 0 || unpricedDefiReceipts > 0 ? null : BigInt(pnl?.amount ?? "0"),
-      realizationCount: count,
+        count + defiCount === 0 || unknown > 0 || unpricedDefiReceipts > 0
+          ? null
+          : BigInt(pnl?.amount ?? "0") + defiPnl,
+      realizationCount: count + defiCount,
       unpricedRealizations: unknown,
       positions: [...grouped.values()],
       defiPositions: defi,

@@ -70,10 +70,13 @@ export async function executeIntentsAction(
   if (action.status !== "reserved") {
     return { actionId, status: action.status };
   }
-  const currentScope = await currentAgentStrategy(db, userId, action.agentId, action.agentRevision);
+  const currentScope =
+    action.origin === "manual"
+      ? null
+      : await currentAgentStrategy(db, userId, action.agentId, action.agentRevision);
   if (
-    isRemovedExecutablePack(currentScope.agent.pack) ||
-    isRemovedExecutablePack(currentScope.strategy.kind)
+    currentScope &&
+    (isRemovedExecutablePack(currentScope.agent.pack) || isRemovedExecutablePack(currentScope.strategy.kind))
   ) {
     throw new ExecutionError("not_ready", REMOVED_AGENT_MESSAGE);
   }
@@ -125,12 +128,14 @@ export async function executeIntentsAction(
     );
   }
   await synchronizePrivateInventory(db, userId);
-  const current = await currentAgentStrategy(db, action.userId, action.agentId, action.agentRevision);
-  const checkInstruction = await instructionSubmissionCheck(db, current, prepared.signal, quote, action.id);
+  const current = currentScope;
+  const checkInstruction = current
+    ? await instructionSubmissionCheck(db, current, prepared.signal, quote, action.id)
+    : null;
   const checkMarket =
-    current.strategy.kind === "triggers"
+    current?.strategy.kind === "triggers"
       ? await triggerSubmissionCheck(db, action, prepared, quote, current)
-      : current.strategy.kind === "copy_trading"
+      : current?.strategy.kind === "copy_trading"
         ? await copySubmissionCheck(db, action, prepared, quote, current)
         : null;
   const payload = validated.intent.intent.payload;

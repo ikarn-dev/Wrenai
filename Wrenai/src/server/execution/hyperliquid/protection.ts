@@ -5,6 +5,7 @@ import { strategyVersions } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { defiPositions } from "@/server/db/defi-schema";
 import { executionEvents } from "@/server/db/execution-schema";
+import { manualPerpsContext } from "@/server/manual-trading/perps-context";
 import { agentInstructionSchema } from "@/shared/agent-instructions";
 import { policySchema } from "@/shared/agents";
 import { ExecutionError } from "../contracts";
@@ -37,7 +38,9 @@ export async function maintainPerpsProtection(
       and(eq(strategyVersions.agentId, entry.agentId), eq(strategyVersions.version, entry.strategyVersion)),
     )
     .limit(1);
-  const instruction = agentInstructionSchema.parse(version ? JSON.parse(version.configJson) : null);
+  const manual = entry.origin === "manual" ? await manualPerpsContext(db, entry) : null;
+  const instruction =
+    manual?.instruction ?? agentInstructionSchema.parse(version ? JSON.parse(version.configJson) : null);
   if (
     instruction.kind !== "perps" ||
     instruction.action !== "open" ||
@@ -45,8 +48,8 @@ export async function maintainPerpsProtection(
   ) {
     throw new ExecutionError("conflict", "Native protection has no reviewed opening instruction.");
   }
-  const agent = await ownedAgent(db, entry.userId, entry.agentId),
-    policy = policySchema.parse(JSON.parse(agent.policyJson));
+  const agent = manual ? null : await ownedAgent(db, entry.userId, entry.agentId),
+    policy = manual?.policy ?? policySchema.parse(JSON.parse(agent?.policyJson ?? "null"));
   const market = await readHlMarket(instruction.market),
     mark = hlUnits(market.mark, 18),
     oldStop = checkpoint?.stop ?? instruction.exits.stopLossPrice;
@@ -121,6 +124,10 @@ export async function maintainPerpsProtection(
         { type: "cancelByCloid", cancels },
         async (tx) => {
           const source = await ownedLedgerAction(tx, entry.userId, entry.id);
+          if (entry.origin === "manual") {
+            await manualPerpsContext(tx, source);
+            return;
+          }
           const activeAgent = await ownedAgent(tx, entry.userId, entry.agentId);
           if (activeAgent.status !== "running" || (await killSwitchEngaged(tx, entry.userId))) {
             throw new ExecutionError(
@@ -182,14 +189,18 @@ export async function maintainPerpsProtection(
   await sendHlRequest(db, entry, "", `protect:${index}`, wire, async (tx) => {
     const source = await ownedLedgerAction(tx, entry.userId, entry.id),
       plan = defiPlanSchema.parse(JSON.parse(source.planJson));
-    const activeAgent = await ownedAgent(tx, entry.userId, entry.agentId);
-    if (activeAgent.status !== "running" || (await killSwitchEngaged(tx, entry.userId))) {
+    const activeAgent = entry.origin === "manual" ? null : await ownedAgent(tx, entry.userId, entry.agentId);
+    if (activeAgent && (activeAgent.status !== "running" || (await killSwitchEngaged(tx, entry.userId)))) {
       throw new ExecutionError(
         "not_ready",
         "Protection updates stopped with the agent. Existing native orders remain active.",
       );
     }
-    await requireExecutionPermission(tx, entry.userId, plan, await databaseTime(tx));
+    if (entry.origin === "manual") {
+      await manualPerpsContext(tx, source);
+    } else {
+      await requireExecutionPermission(tx, entry.userId, plan, await databaseTime(tx));
+    }
     const rows = await tx
       .select()
       .from(defiPositions)

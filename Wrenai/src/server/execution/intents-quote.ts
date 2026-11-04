@@ -27,6 +27,7 @@ export const intentsOrderRequestSchema = z.strictObject({
     z.literal(HYPERLIQUID_BRIDGE_USDC),
   ]),
   perpsRecipient: hlAddressSchema.optional(),
+  walletShield: z.literal(true).optional(),
   paymentDestination: z.enum(["confidential", "near_wallet"]).optional(),
   inputUnits: positiveTokenUnitsSchema,
   slippageBps: z.number().int().min(1).max(500),
@@ -61,6 +62,12 @@ export async function prepareIntentsOrder(
 ): Promise<PreparedIntentsOrder> {
   const input = intentsOrderRequestSchema.parse(raw);
   if (
+    input.walletShield &&
+    (input.paymentRecipient || input.perpsRecipient || input.inputAssetId !== input.outputAssetId)
+  ) {
+    throw new ExecutionError("conflict", "Wallet funding must keep the same token and owner.");
+  }
+  if (
     Boolean(input.perpsRecipient) !== (input.outputAssetId === HYPERLIQUID_BRIDGE_USDC) ||
     (input.perpsRecipient && input.paymentRecipient)
   ) {
@@ -75,7 +82,7 @@ export async function prepareIntentsOrder(
   if (
     input.paymentRecipient
       ? input.inputAssetId !== input.outputAssetId || input.paymentRecipient === input.accountId
-      : input.inputAssetId === input.outputAssetId
+      : !input.walletShield && input.inputAssetId === input.outputAssetId
   ) {
     throw new ExecutionError("not_ready", "A swap requires different reviewed assets.");
   }
@@ -86,10 +93,11 @@ export async function prepareIntentsOrder(
       input.outputAssetId,
       input.inputUnits,
       Math.max(0, input.slippageBps - 1),
-      "confidential",
+      input.walletShield ? "intents" : "confidential",
       Date.now(),
     ),
     dry: false,
+    ...(input.walletShield ? { recipientType: QuoteRequest.recipientType.CONFIDENTIAL_INTENTS } : {}),
     ...(input.paymentRecipient
       ? {
           recipient: input.paymentRecipient,
@@ -104,10 +112,19 @@ export async function prepareIntentsOrder(
       : {}),
   };
   const providerQuote = await oneClickJson("/v0/quote", request, signal, sessionToken);
-  const quote = verifiedProviderQuote(providerQuote, request, "confidential", Date.now(), input.slippageBps);
+  const quote = verifiedProviderQuote(
+    providerQuote,
+    request,
+    input.walletShield ? "intents" : "confidential",
+    Date.now(),
+    input.slippageBps,
+  );
   const deposit = depositSchema.parse(providerQuote).quote;
   if (quote.appFeeBps > input.maximumProviderFeeBps) {
-    throw new ExecutionError("limit", "The quoted provider fee exceeds your reviewed fee allowance.");
+    throw new ExecutionError(
+      "limit",
+      `Blocked: the provider fee is ${quote.appFeeBps / 100}%, over your ${input.maximumProviderFeeBps / 100}% fee limit.`,
+    );
   }
   const generated = generatedIntentSchema.parse(
     await oneClickJson(
@@ -124,7 +141,7 @@ export async function prepareIntentsOrder(
   );
   const validated = validateGeneratedIntent(generated, {
     signerId: input.accountId,
-    scope: "confidential",
+    scope: input.walletShield ? "intents" : "confidential",
     depositAddress: deposit.depositAddress,
     inputAssetId: input.inputAssetId,
     inputUnits: quote.inputUnits,

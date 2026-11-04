@@ -1,9 +1,10 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import { z } from "zod";
 import { ownedAgent } from "@/server/agents/records";
 import { agentEvents, strategyVersions } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
+import { positionLots } from "@/server/db/position-schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import { type IntentToken, intentTokens } from "@/server/research/intents";
 import { instructionAssets } from "@/shared/agent-instructions";
@@ -16,6 +17,7 @@ import {
 } from "@/shared/trade-preview";
 import { ExecutionError } from "./contracts";
 import { databaseTime, executionHash } from "./records";
+import { nativeTokenAsset } from "./rhea/inventory";
 
 const aliases: Readonly<Record<AssetSymbol, readonly string[]>> = {
   NEAR: ["NEAR", "WNEAR"],
@@ -105,6 +107,39 @@ const storedBindings = z.strictObject({
     .min(1)
     .max(6),
 });
+/** Bind independently verified metadata to the exact identities and metadata reviewed by the owner. */
+export function resolvedInstructionAssets(
+  strategy: Extract<Strategy, { format: 2 }>,
+  stored: string | null,
+  metadata: readonly TradeAsset[],
+): readonly TradeAsset[] {
+  if (stored === null) {
+    return [];
+  }
+  const bindings = storedBindings.parse(JSON.parse(stored));
+  const assets = instructionAssets(strategy).map((id) => {
+    const asset = metadata.find((candidate) => candidate.assetId === id);
+    if (!asset) {
+      throw new ExecutionError("not_ready", `The reviewed token ${id} could not be verified.`);
+    }
+    return asset;
+  });
+  if (
+    bindings.strategyHash !== executionHash(strategy) ||
+    bindings.assets.length !== assets.length ||
+    new Set(bindings.assets.map((a) => a.assetId)).size !== assets.length ||
+    assets.some(
+      (asset) =>
+        !bindings.assets.some(
+          (binding) => binding.assetId === asset.assetId && binding.symbol === asset.assetId,
+        ),
+    ) ||
+    (bindings.metadataHash !== undefined && bindings.metadataHash !== executionHash(assets))
+  ) {
+    throw new ExecutionError("not_ready", "The reviewed token identities or metadata changed.");
+  }
+  return assets;
+}
 export function resolvedTradeAssets(
   strategy: Strategy,
   stored: string | null,
@@ -113,25 +148,10 @@ export function resolvedTradeAssets(
   if (stored === null) {
     return [];
   }
-  const bindings = storedBindings.parse(JSON.parse(stored));
   if ("format" in strategy) {
-    const assets = instructionTradeAssets(strategy, tokens);
-    if (
-      bindings.strategyHash !== executionHash(strategy) ||
-      bindings.assets.length !== assets.length ||
-      new Set(bindings.assets.map((a) => a.assetId)).size !== assets.length ||
-      assets.some(
-        (asset) =>
-          !bindings.assets.some(
-            (binding) => binding.assetId === asset.assetId && binding.symbol === asset.assetId,
-          ),
-      ) ||
-      (bindings.metadataHash !== undefined && bindings.metadataHash !== executionHash(assets))
-    ) {
-      throw new ExecutionError("not_ready", "The reviewed token identities or metadata changed.");
-    }
-    return assets;
+    return resolvedInstructionAssets(strategy, stored, instructionTradeAssets(strategy, tokens));
   }
+  const bindings = storedBindings.parse(JSON.parse(stored));
   const symbols = strategyAssetSymbols(strategy);
   if (
     bindings.strategyHash !== executionHash(strategy) ||
@@ -168,6 +188,30 @@ export async function readAgentTradeAssets(
   revision: number,
 ): Promise<AgentTradeAssets> {
   const current = await currentAgentStrategy(db, userId, agentId, revision);
+  if (current.strategy.kind === "meme_hunter" && current.strategy.payAssetId === "nep141:wrap.near") {
+    const [native] = await db
+      .select({ id: positionLots.id })
+      .from(positionLots)
+      .where(
+        and(
+          eq(positionLots.userId, userId),
+          eq(positionLots.agentId, agentId),
+          eq(positionLots.scope, "native_near"),
+          gt(positionLots.remainingUnits, 0n),
+        ),
+      )
+      .limit(1);
+    if (native) {
+      const cash = await nativeTokenAsset(current.strategy.payAssetId);
+      return {
+        agentId,
+        revision,
+        strategyVersion: current.agent.version,
+        choices: [{ symbol: cash.assetId, candidates: [cash] }],
+        reviewed: resolvedInstructionAssets(current.strategy, current.version.resolvedAssetsJson, [cash]),
+      };
+    }
+  }
   const { tokens } = await intentTokens();
   if ("format" in current.strategy) {
     const ids = instructionAssets(current.strategy);

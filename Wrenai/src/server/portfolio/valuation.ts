@@ -1,17 +1,17 @@
 import "server-only";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import type { SessionUser } from "@/server/auth/session";
 import type { AppDatabase } from "@/server/db/client";
 import { executionActions } from "@/server/db/execution-schema";
-import { positionLots } from "@/server/db/position-schema";
+import { walletFundings } from "@/server/db/funding-schema";
 import { agentTradingAccounts, tradingAccounts } from "@/server/db/trading-account-schema";
 import { connectedBalanceToken } from "@/server/execution/balance-session";
-import { freshTradingBalances } from "@/server/execution/balances";
 import { readHlAccount } from "@/server/execution/hyperliquid/account-state";
 import { hlUnits } from "@/server/execution/hyperliquid/decimal";
 import { readPrivateBalances } from "@/server/execution/private-inventory";
 import { decimal } from "@/server/research/decimal";
 import { type IntentToken, intentTokens } from "@/server/research/intents";
+import { readPublicIntentsInventory } from "./public-intents";
 import { walletTokenHoldings } from "./wallet-tokens";
 
 export interface PortfolioLocationValue {
@@ -143,40 +143,20 @@ async function privateValue(
   );
 }
 async function trackedIntentsValue(
-  db: AppDatabase,
+  _db: AppDatabase,
   user: SessionUser,
   tokens: readonly IntentToken[],
 ): Promise<PortfolioLocationValue> {
-  const lots = await db
-    .selectDistinct({ assetId: positionLots.assetId })
-    .from(positionLots)
-    .where(
-      and(
-        eq(positionLots.userId, user.id),
-        eq(positionLots.scope, "intents"),
-        gt(positionLots.remainingUnits, 0n),
-      ),
-    )
-    .limit(101);
-  if (lots.length === 0) {
-    return unavailable("intents", "Public Intents", "No complete public Intents inventory is connected");
-  }
-  const balances: Balance[] = [];
-  for (let offset = 0; offset < Math.min(100, lots.length); offset += 6) {
-    const assets = lots.slice(offset, Math.min(100, offset + 6)).map((lot) => lot.assetId);
-    const values = await freshTradingBalances(db, user.id, user.accountId, assets, "intents");
-    if (values.status !== "verified") {
-      throw new Error("Incomplete public inventory.");
-    }
-    balances.push(...values.balances.map((row) => ({ assetId: row.assetId, quantity: BigInt(row.units) })));
-  }
+  const inventory = await readPublicIntentsInventory(user.accountId);
   return valuedLocation(
     "intents",
     "Public Intents",
-    balances,
+    inventory.balances,
     tokens,
-    false,
-    "Tracked assets only; undiscovered balances are excluded",
+    inventory.complete,
+    inventory.complete
+      ? "Finalized complete token inventory; reference prices"
+      : "Public token inventory exceeds the supported page limit",
   );
 }
 async function perpsValue(db: AppDatabase, userId: string): Promise<PortfolioLocationValue> {
@@ -242,12 +222,23 @@ export async function readPortfolioValuation(
   db: AppDatabase,
   user: SessionUser,
 ): Promise<PortfolioValuation> {
-  const [registry, pending] = await Promise.allSettled([
+  const [registry, pending, funding] = await Promise.allSettled([
     intentTokens(),
     db
       .select({ id: executionActions.id })
       .from(executionActions)
       .where(and(eq(executionActions.userId, user.id), isNull(executionActions.reservationReleasedAt)))
+      .limit(1),
+    db
+      .select({ id: walletFundings.id })
+      .from(walletFundings)
+      .where(
+        and(
+          eq(walletFundings.userId, user.id),
+          ne(walletFundings.state, "prepared"),
+          ne(walletFundings.state, "complete"),
+        ),
+      )
       .limit(1),
   ]);
   const tokens = registry.status === "fulfilled" ? registry.value.tokens : [];
@@ -272,7 +263,11 @@ export async function readPortfolioValuation(
       : unavailable(spec.id, spec.label, "Balance data is unavailable");
   });
   const knownMicroUsd = locations.reduce((sum, location) => sum + location.knownMicroUsd, 0n),
-    settling = pending.status !== "fulfilled" || pending.value.length > 0;
+    settling =
+      pending.status !== "fulfilled" ||
+      pending.value.length > 0 ||
+      funding.status !== "fulfilled" ||
+      funding.value.length > 0;
   return {
     locations,
     knownMicroUsd,

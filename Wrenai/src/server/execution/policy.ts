@@ -4,6 +4,7 @@ import { killSwitchEngaged, ownedAgent } from "@/server/agents/records";
 import type { AppDatabase } from "@/server/db/client";
 import { delegatedKeys } from "@/server/db/schema";
 import { allocationCeiling, committedCapital } from "@/server/positions/capital-records";
+import { activeTradingAccount } from "@/server/trading-accounts/vault";
 import { type AgentPolicy, parseUsd, policySchema } from "@/shared/agents";
 import type { UserRiskPolicyRecord } from "@/shared/risk-policy";
 import { minimumUnits } from "@/shared/token-units";
@@ -30,8 +31,9 @@ export async function currentExecutionPolicy(
   actionId?: string,
 ): Promise<ExecutionPolicy> {
   const agent = await ownedAgent(db, userId, plan.agentId);
-  // Both currently supported packs are confidential-only; a plan cannot select a public fallback.
-  if (plan.scope !== "confidential") {
+  const native =
+    plan.scope === "native_near" && agent.pack === "meme_hunter" && plan.budgetMode === "per_agent";
+  if (plan.scope !== "confidential" && !native) {
     throw new ExecutionError(
       "not_ready",
       "The current strategy packs require confidential Intents execution.",
@@ -45,14 +47,18 @@ export async function currentExecutionPolicy(
   }
   const riskPolicy = await planRiskPolicy(db, userId, plan);
   await checkStrategyAssets(db, plan);
+  const root = native ? await activeTradingAccount(db, userId) : null;
   const [key] = await db.select().from(delegatedKeys).where(eq(delegatedKeys.userId, userId)).limit(1);
   if (
     key === undefined ||
     key.activatedAt === null ||
     key.activatedAtBlock === null ||
-    (signingPublicKey !== undefined && key.publicKey !== signingPublicKey)
+    (signingPublicKey !== undefined && (native ? root?.nativePublicKey : key.publicKey) !== signingPublicKey)
   ) {
     throw new ExecutionError("not_ready", "The bound Intents authorization is no longer active.");
+  }
+  if (native && (!root || root.backupConfirmedAt === null)) {
+    throw new ExecutionError("not_ready", "Confirm the native recovery backup before trading.");
   }
   const policy = policySchema.parse(JSON.parse(agent.policyJson));
   const riskReducingExit = await verifiedReducingExit(db, userId, plan, policy, actionId);
@@ -67,7 +73,7 @@ export async function currentExecutionPolicy(
     policy,
     riskReducingExit,
     riskPolicy,
-    publicKey: key.publicKey,
+    publicKey: native && root?.backupConfirmedAt ? root.nativePublicKey : key.publicKey,
     policyHash: executionHash(
       riskPolicy
         ? {

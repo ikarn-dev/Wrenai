@@ -1,9 +1,8 @@
 import "server-only";
 import { and, eq, gte, lt, sql } from "drizzle-orm";
 import type { AppDatabase } from "@/server/db/client";
-import { executionReceipts } from "@/server/db/defi-schema";
-import { executionActions } from "@/server/db/execution-schema";
 import { positionRealizations } from "@/server/db/position-schema";
+import { readDefiPerformance, readDefiPerformanceDays } from "./defi-performance";
 
 export interface PerformanceValue {
   readonly agentId: string;
@@ -32,7 +31,7 @@ export async function readPortfolioPerformance(
     start = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1),
     end = Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1);
   const p = positionRealizations;
-  const [totals, days, defi] = await Promise.all([
+  const [totals, days, defi, defiDays] = await Promise.all([
     db
       .select({
         agentId: p.agentId,
@@ -56,31 +55,20 @@ export async function readPortfolioPerformance(
       .from(p)
       .where(and(eq(p.userId, userId), gte(p.recordedAt, start), lt(p.recordedAt, end)))
       .groupBy(sql`day`),
-    db
-      .select({
-        agentId: executionActions.agentId,
-        count: sql<number>`count(*)::int`,
-        date: sql<string>`to_char(to_timestamp(${executionReceipts.recordedAt} / 1000.0) AT TIME ZONE 'UTC', 'YYYY-MM-DD')`.as(
-          "day",
-        ),
-      })
-      .from(executionReceipts)
-      .innerJoin(executionActions, eq(executionActions.id, executionReceipts.actionId))
-      .where(and(eq(executionReceipts.userId, userId), eq(executionReceipts.kind, "defi")))
-      .groupBy(executionActions.agentId, sql`day`),
+    readDefiPerformance(db, userId),
+    readDefiPerformanceDays(db, userId, start, end),
   ]);
   const agentIds = new Set([...totals.map((row) => row.agentId), ...defi.map((row) => row.agentId)]);
   const agents = [...agentIds].map((agentId): PerformanceValue => {
     const row = totals.find((value) => value.agentId === agentId),
-      missing = defi
-        .filter((value) => value.agentId === agentId)
-        .reduce((sum, value) => sum + value.count, 0);
-    const unpriced = (row?.unknown ?? 0) + missing,
-      count = (row?.count ?? 0) + missing;
+      venue = defi.find((value) => value.agentId === agentId);
+    const unpriced = (row?.unknown ?? 0) + (venue?.unknown ?? 0),
+      count = (row?.count ?? 0) + (venue?.count ?? 0);
     return {
       agentId,
-      realizedPnlMicroUsd: count > 0 && unpriced === 0 ? BigInt(row?.total ?? "0") : null,
-      basisMicroUsd: count > 0 && unpriced === 0 ? BigInt(row?.basis ?? "0") : null,
+      realizedPnlMicroUsd:
+        count > 0 && unpriced === 0 ? BigInt(row?.total ?? "0") + BigInt(venue?.total ?? "0") : null,
+      basisMicroUsd: count > 0 && unpriced === 0 && !venue ? BigInt(row?.basis ?? "0") : null,
       count,
       unpriced,
     };
@@ -91,22 +79,23 @@ export async function readPortfolioPerformance(
       { date: row.date, pnlMicroUsd: row.unknown ? null : BigInt(row.total), count: row.count },
     ]),
   );
-  for (const row of defi) {
-    const at = Date.parse(`${row.date}T00:00:00Z`);
-    if (at >= start && at < end) {
-      const previous = calendar.get(row.date);
-      calendar.set(row.date, {
-        date: row.date,
-        pnlMicroUsd: null,
-        count: (previous?.count ?? 0) + row.count,
-      });
-    }
+  for (const row of defiDays) {
+    const day = row.date,
+      previous = calendar.get(day);
+    calendar.set(day, {
+      date: day,
+      pnlMicroUsd:
+        row.unknown > 0 || previous?.pnlMicroUsd === null
+          ? null
+          : (previous?.pnlMicroUsd ?? 0n) + BigInt(row.total),
+      count: (previous?.count ?? 0) + row.count,
+    });
   }
   const count = agents.reduce((sum, row) => sum + row.count, 0),
     unpriced = agents.reduce((sum, row) => sum + row.unpriced, 0);
   return {
     agents,
-    days: [...calendar.values()],
+    days: [...calendar.values()].toSorted((a, b) => a.date.localeCompare(b.date)),
     count,
     unpriced,
     totalMicroUsd:

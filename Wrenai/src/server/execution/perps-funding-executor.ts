@@ -3,13 +3,14 @@ import { and, eq } from "drizzle-orm";
 import { agentRuntimes } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { perpsStateSchema } from "@/server/engine/perps-state";
+import { guardManualAction } from "@/server/manual-trading/guard";
 import { submitConfidentialTransfer } from "./confidential-transfer";
 import { ExecutionError } from "./contracts";
 import { defiPlanSchema } from "./defi-contracts";
 import { verifiedAccountFunding } from "./funding-policy";
 import { synchronizePerpsInventory } from "./hyperliquid/account-state";
 import { perpsFundingRecord, verifiedFundingQuote } from "./perps-funding-order";
-import { ownedLedgerAction } from "./records";
+import { databaseTime, ownedLedgerAction } from "./records";
 
 export async function executePerpsFunding(
   db: AppDatabase,
@@ -33,6 +34,10 @@ export async function executePerpsFunding(
     (owner) => verifiedFundingQuote(action, saved, owner, Date.now()),
     async (tx) => {
       await verifiedAccountFunding(tx, userId, plan);
+      if (action.origin === "manual") {
+        await guardManualAction(tx, action, await databaseTime(tx), false);
+        return;
+      }
       const [runtime] = await tx
         .select()
         .from(agentRuntimes)

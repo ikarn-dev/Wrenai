@@ -17,7 +17,13 @@ import { executionActions } from "@/server/db/execution-schema";
 import { positionLots } from "@/server/db/position-schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import { hasOpenTriggerPosition } from "@/server/engine/strategy-state";
+import { registryTradeAsset } from "@/server/execution/asset-review";
+import { executionHash } from "@/server/execution/records";
+import { assertNoWalletFunding } from "@/server/funding/records";
 import { assignedCapitalLimit } from "@/server/positions/capital-records";
+import type { IntentToken } from "@/server/research/intents";
+import { instructionAssets } from "@/shared/agent-instructions";
+import { REMOVED_AGENT_MESSAGE } from "@/shared/agent-scope";
 import {
   type AgentSummary,
   type agentCommandSchema,
@@ -36,7 +42,7 @@ import {
   ownedAgent,
   stopUserAgents,
 } from "./records";
-import { bindAgentSetup } from "./setup-binding";
+import { bindAgentSetup, releaseSetupWalletReservation } from "./setup-binding";
 
 function requestHash(input: unknown): string {
   return createHash("sha256").update(JSON.stringify(input)).digest("hex");
@@ -116,6 +122,7 @@ export async function saveAgent(
   userId: string,
   input: z.infer<typeof saveAgentSchema>,
   cipher?: ChatCipher,
+  tokens?: readonly IntentToken[],
 ): Promise<string> {
   return userTransaction(db, userId, async (tx) => {
     const repeated = await repeatRequest(tx, userId, input.requestId, input);
@@ -129,6 +136,9 @@ export async function saveAgent(
       .limit(1);
     if (draft === undefined || draft.consumedAt !== null || draft.expiresAt <= Date.now()) {
       throw new AgentError("conflict", "This strategy review expired or was already saved. Parse it again.");
+    }
+    if (draft.pack === "whale_tracker") {
+      throw new AgentError("not_ready", REMOVED_AGENT_MESSAGE);
     }
     const config = strategySchema.parse(JSON.parse(draft.configJson));
     attestationReceiptSchema.parse(JSON.parse(draft.attestationJson));
@@ -157,6 +167,7 @@ export async function saveAgent(
     } else {
       agent = await ownedAgent(tx, userId, input.agentId);
       assertRevision(agent, input.expectedRevision);
+      await assertNoWalletFunding(tx, userId, agent.id);
       if (parseUsd(input.policy.budgetUsd) < (await assignedCapitalLimit(tx, userId, agent.id))) {
         throw new AgentError(
           "invalid_input",
@@ -218,6 +229,9 @@ export async function saveAgent(
       strategyText: draft.strategyText,
       configJson: draft.configJson,
       attestationJson: draft.attestationJson,
+      ...("format" in config && tokens
+        ? { resolvedAssetsJson: reviewedInstructionAssets(config, tokens) }
+        : {}),
       createdAt: Date.now(),
     });
     await tx.update(strategyDrafts).set({ consumedAt: Date.now() }).where(eq(strategyDrafts.id, draft.id));
@@ -234,6 +248,33 @@ export async function saveAgent(
     );
     await recordRequest(tx, userId, input.requestId, input, agent.id);
     return agent.id;
+  });
+}
+
+function reviewedInstructionAssets(
+  instruction: Extract<AgentSummary["strategy"], { format: 2 }>,
+  tokens: readonly IntentToken[],
+): string | null {
+  const ids = instructionAssets(instruction);
+  if (ids.length === 0) {
+    return null;
+  }
+  const assets = ids.map((id) => {
+    const token = tokens.find((candidate) => candidate.assetId === id);
+    if (!token) {
+      throw new AgentError(
+        "not_ready",
+        `No supported route exists for ${id}. Choose a supported token before saving.`,
+      );
+    }
+    return registryTradeAsset(token);
+  });
+  return JSON.stringify({
+    strategyHash: executionHash(instruction),
+    metadataHash: executionHash(assets),
+    assets: assets
+      .map(({ symbol, assetId }) => ({ symbol, assetId }))
+      .toSorted((a, b) => a.symbol.localeCompare(b.symbol)),
   });
 }
 
@@ -277,6 +318,9 @@ export async function commandAgent(
     }
     const agent = await ownedAgent(tx, userId, input.agentId);
     assertRevision(agent, input.expectedRevision);
+    if (agent.pack === "whale_tracker" && (input.command === "resume" || input.command === "clone")) {
+      throw new AgentError("not_ready", REMOVED_AGENT_MESSAGE);
+    }
     let resultId = agent.id;
     if (input.command === "clone") {
       resultId = await cloneAgent(tx, userId, agent);
@@ -288,6 +332,7 @@ export async function commandAgent(
         throw new AgentError("conflict", "Stop this agent before deleting it.");
       }
       if (input.command === "delete") {
+        await assertNoWalletFunding(tx, userId, agent.id);
         const [position] = await tx
           .select({ id: positionLots.id })
           .from(positionLots)
@@ -320,6 +365,7 @@ export async function commandAgent(
             "Release attributed holdings and capital, and reconcile or cancel outstanding actions before deleting.",
           );
         }
+        await releaseSetupWalletReservation(tx, userId, agent.id);
       }
       const status =
         input.command === "resume" ? "running" : input.command === "pause" ? "paused" : "stopped";

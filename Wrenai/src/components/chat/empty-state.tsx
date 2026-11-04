@@ -1,19 +1,19 @@
-import { ArrowLeftRight, Sprout, Wallet } from "lucide-react";
+import { CalendarClock, ChartNoAxesCombined, Wallet } from "lucide-react";
 import type { ReactElement } from "react";
 import { JarvisMark } from "./jarvis-mark";
 
 const PROMPTS = [
   {
-    icon: ArrowLeftRight,
-    title: "Find arbitrage",
+    icon: ChartNoAxesCombined,
+    title: "Analyze a market",
     prompt:
-      "Find current NEAR arbitrage candidates. Check live quotes and distinguish indicative gaps from confirmed opportunities.",
+      "Analyze BTC perpetuals using current price action, chart indicators, funding and recent news. Give a clear bias and explain entry, take-profit, stop-loss and invalidation.",
   },
   {
-    icon: Sprout,
-    title: "Explore yields",
+    icon: CalendarClock,
+    title: "Plan recurring buys",
     prompt:
-      "Compare current NEAR yield opportunities using live data, including costs and withdrawal requirements.",
+      "Help me plan recurring NEAR purchases. Ask for my spending token, amount and schedule before proposing an agent.",
   },
   {
     icon: Wallet,
@@ -29,7 +29,7 @@ export function ChatEmptyState({ onPrompt }: { readonly onPrompt: (prompt: strin
     <div className="mx-auto flex w-full max-w-reading flex-col items-center px-1 pt-6 pb-8 text-center">
       <JarvisMark size={44} />
       <h2 className="mt-5 text-h1">How can I help?</h2>
-      <p className="mt-1.5 text-small text-fg-muted">Ask about your wallet, agents, yields and quotes.</p>
+      <p className="mt-1.5 text-small text-fg-muted">Ask about markets, your wallet or your agents.</p>
       <div className="mt-6 flex flex-wrap justify-center gap-2">
         {PROMPTS.map(({ icon: Icon, title, prompt }) => (
           <button

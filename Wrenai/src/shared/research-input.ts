@@ -24,9 +24,6 @@ export function researchInputIssue(tool: ResearchTool, input: ResearchInput): st
       return "Specify the amount in an asset from the requested pair.";
     }
   }
-  if (tool === "whale_tracker" && (!input.accountId || /^0x/i.test(input.accountId))) {
-    return "Provide a public NEAR account to inspect. External-chain whale coverage is not connected.";
-  }
   if (tool === "perps" && !input.symbols.length) {
     return "Which perpetual market should I analyze, such as NEAR, BTC or ETH?";
   }

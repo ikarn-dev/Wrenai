@@ -59,7 +59,9 @@ export async function freshTradingBalances(
     url.searchParams.append("tokenIds", assetId);
   }
   const response = await fetch(url, {
-    headers: { "User-Session": token, "User-Agent": "wrenai/0.1" },
+    // Account endpoints take the user session as a Bearer token; a User-Session header gets 401
+    // "Authorization token required" (checked against the live API, Nov 4, 2026).
+    headers: { Authorization: `Bearer ${token}`, "User-Agent": "wrenai/0.1" },
     redirect: "error",
     cache: "no-store",
     signal: AbortSignal.timeout(8000),

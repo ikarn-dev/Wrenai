@@ -54,7 +54,8 @@ export function TradingRecovery({
       setError(null);
       setMessage("Preparing ownership check…");
       try {
-        const challenge = await requestRecoveryBackup({ agentId });
+        const context = agentId === "manual" ? { manual: true as const } : { agentId };
+        const challenge = await requestRecoveryBackup(context);
         if (!challenge.ok) {
           setError(challenge.message);
           return;
@@ -81,7 +82,7 @@ export function TradingRecovery({
           return;
         }
         const exported = await exportRecoveryBackup({
-          agentId,
+          ...context,
           nonce: challenge.value.nonce,
           publicKey: signed.value.publicKey,
           signature: signed.value.signature,
@@ -136,9 +137,6 @@ export function TradingRecovery({
       }
     });
   }
-  if (agents.length === 0) {
-    return <p className="text-small text-fg-muted">Save an agent before setting up a trading account.</p>;
-  }
   const field =
     "min-h-11 w-full rounded-sm border border-line-strong bg-sunken px-3 text-small disabled:text-fg-disabled";
   return (
@@ -157,8 +155,9 @@ export function TradingRecovery({
       {!confirmation ? (
         <form onSubmit={submit} className="space-y-4" aria-busy={busy}>
           <label className="flex flex-col gap-2 text-small">
-            <span>Saved agent</span>
-            <select name="agentId" required disabled={busy} defaultValue={agents[0]?.id} className={field}>
+            <span>Trading account</span>
+            <select name="agentId" required disabled={busy} defaultValue="manual" className={field}>
+              <option value="manual">Manual Spot and Perps</option>
               {agents.map((agent) => (
                 <option key={agent.id} value={agent.id}>
                   {agent.name}

@@ -41,6 +41,7 @@ const titles: Readonly<Record<string, string>> = {
   inventory_assigned: "Assets allocated to agent",
   inventory_released: "Agent allocation released",
   daily_limit: "Daily spending limit updated",
+  native_funding: "Native account funding",
   recovery_created: "Trading account created",
   backup_confirmed: "Recovery backup confirmed",
   access_revoked: "Trading account access revoked",
@@ -86,7 +87,7 @@ function entry(raw: unknown): ActivityEntry {
     status,
     description:
       row.category === "trade"
-        ? `${venues[row.scope ?? ""] ?? "Trading"}${row.status === "unknown" ? " · Awaiting provider confirmation" : ""}`
+        ? `${row.message ? `${row.message} · ` : ""}${venues[row.scope ?? ""] ?? "Trading"}${row.status === "unknown" ? " · Awaiting provider confirmation" : ""}`
         : row.message.slice(0, 500),
     occurredAt: row.occurred_at,
     transactionHash: null,
@@ -115,7 +116,7 @@ export async function appActivityPage(
         NULL::text AS scope, created_at AS occurred_at, NULL::text AS amount, agent_id, NULL::text AS action_id
       FROM agent_events WHERE user_id = ${userId}
       UNION ALL
-      SELECT 'trade:' || id, 'trade', kind, '', status, scope, created_at, NULL::text, agent_id, id
+      SELECT 'trade:' || id, 'trade', kind, CASE WHEN origin='manual' THEN 'Manual trade' ELSE '' END, status, scope, created_at, NULL::text, agent_id, id
       FROM execution_actions WHERE user_id = ${userId}
       UNION ALL
       SELECT 'capital:' || id, 'funding', kind,
@@ -123,6 +124,11 @@ export async function appActivityPage(
           ELSE 'Agent inventory allocation changed.' END,
         'recorded', NULL::text, recorded_at, NULL::text, agent_id, NULL::text
       FROM capital_events WHERE user_id = ${userId}
+      UNION ALL
+      SELECT 'native-funding:' || id, 'funding', 'native_funding',
+        CASE WHEN state='complete' THEN 'Native trading account funded.' WHEN state='cancelled' THEN 'Native funding review cancelled.' ELSE 'Native trading account funding pending.' END,
+        'recorded', 'native_near', coalesce(completed_at,created_at), NULL::text, subject_id, NULL::text
+      FROM native_deposits WHERE user_id = ${userId}
       UNION ALL
       SELECT 'risk:' || revision::text, 'settings', 'daily_limit', 'Account-wide daily spending limit.',
         'recorded', NULL::text, created_at, daily_cap_micro_usd::text, NULL::text, NULL::text

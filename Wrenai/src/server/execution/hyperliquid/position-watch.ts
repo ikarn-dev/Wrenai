@@ -7,6 +7,7 @@ import { databaseTime, executionEvent, executionHash, ownedLedgerAction } from "
 import { readHlAccount, synchronizePerpsInventory } from "./account-state";
 import { type PerpsCheckpoint, readPerpsCheckpoint } from "./checkpoint";
 import { accountPerpsFills } from "./fill-accounting";
+import { fundingOnlyAccounting, observedIsolatedCollateral, readHlFunding } from "./funding-observation";
 import { corroboratePerpsLiquidations } from "./liquidation";
 import { settleNativePerpsExit } from "./native-exit";
 import { readHlFills, readHlOpenOrders, readHlTransfers } from "./observations";
@@ -73,6 +74,28 @@ export async function watchPerpsPosition(
   );
   if (!result) {
     return checkpoint;
+  }
+  if (
+    fills.length === 0 &&
+    (result.cashAfter.toString() !== checkpoint.cash ||
+      observedIsolatedCollateral(observed).toString() !== checkpoint.collateral)
+  ) {
+    const funding = await readHlFunding(original.address, checkpoint.time + 1, observed.time);
+    const accounting = fundingOnlyAccounting(saved, checkpoint, observed, result, funding);
+    await settleNativePerpsExit(
+      db,
+      entry,
+      saved,
+      checkpoint,
+      accounting,
+      observed,
+      [],
+      openIds,
+      identified.known,
+      funding,
+    );
+    await synchronizePerpsInventory(db, userId, agentId);
+    return readPerpsCheckpoint(db, userId, agentId);
   }
   if (fills.length > 0) {
     await settleNativePerpsExit(

@@ -13,7 +13,11 @@ export const metadata: Metadata = { title: "Chat" };
 export default async function ChatPage({
   searchParams,
 }: {
-  readonly searchParams: Promise<{ readonly conversation?: string; readonly tool?: string }>;
+  readonly searchParams: Promise<{
+    readonly conversation?: string;
+    readonly tool?: string;
+    readonly prompt?: string;
+  }>;
 }) {
   const user = await requireUser();
   const params = await searchParams;
@@ -27,7 +31,16 @@ export default async function ChatPage({
   return (
     <ChatScreen
       initialId={id}
-      initialPrompt={!conversation && tool.success ? AGENT_CATALOG[tool.data].prompt : ""}
+      initialPrompt={
+        !conversation
+          ? z
+              .string()
+              .trim()
+              .max(2000)
+              .catch("")
+              .parse(params.prompt ?? (tool.success ? AGENT_CATALOG[tool.data].prompt : ""))
+          : ""
+      }
       conversation={conversation}
       history={history}
     />

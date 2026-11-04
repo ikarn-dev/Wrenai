@@ -123,6 +123,7 @@ const payment = z.strictObject({
   destination: z.enum(["confidential", "near_wallet"]).default("confidential"),
   executeAfter: z.iso.datetime(),
 });
+// Historical records only; all creation, research and execution entry points reject this kind.
 const whale = z.strictObject({
   ...common,
   kind: z.literal("whale_tracker"),

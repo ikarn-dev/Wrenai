@@ -14,6 +14,7 @@ import { freshDryQuote } from "@/server/execution/oneclick-quote";
 import { tradePreviewSnapshot } from "@/server/execution/preview";
 import { synchronizePrivateInventory } from "@/server/execution/private-inventory";
 import { databaseTime, executionHash } from "@/server/execution/records";
+import { assertNoWalletFunding } from "@/server/funding/records";
 import { assignInventory } from "@/server/positions/attribution";
 import { setAgentCapitalLimit } from "@/server/positions/capital-limits";
 import { agentFundingSchema } from "@/shared/agent-funding";
@@ -112,6 +113,7 @@ export async function allocatePreviewBalance(db: AppDatabase, userId: string, ra
       return;
     }
     const agent = await ownedAgent(tx, userId, preview.agentId);
+    await assertNoWalletFunding(tx, userId, agent.id);
     const now = await databaseTime(tx);
     if (
       agent.status === "running" ||

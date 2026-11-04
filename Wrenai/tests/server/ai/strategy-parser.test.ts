@@ -65,6 +65,13 @@ describe("attested strategy parsing", () => {
     );
     expect(cloud.verify).toHaveBeenCalledWith("completion-1");
   });
+  it("rejects a removed Whale Tracker strategy before requesting inference", async () => {
+    await expect(
+      parseAttestedStrategy("whale_tracker", "Track movements for watched.near"),
+    ).rejects.toMatchObject({ code: "not_ready" });
+    expect(cloud.create).not.toHaveBeenCalled();
+    expect(cloud.verify).not.toHaveBeenCalled();
+  });
 
   it("refuses gateway-only signatures even for otherwise valid strategy JSON", async () => {
     cloud.verify.mockResolvedValue({ ...verified, signatureKind: "gateway" });

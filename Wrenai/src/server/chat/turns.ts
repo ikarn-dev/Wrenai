@@ -214,7 +214,7 @@ export async function finishChatTurn(
   token: string,
   outcome:
     | { readonly state: "failed" | "cancelled" }
-    | { readonly state: "complete"; readonly reply: ChatReply; readonly receipt: AttestationReceipt },
+    | { readonly state: "complete"; readonly reply: ChatReply; readonly receipt: AttestationReceipt | null },
   cipher: ChatCipher = chatCipher(),
   now = Date.now(),
 ): Promise<ChatTurn> {

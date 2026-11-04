@@ -7,6 +7,7 @@ import { agentTradingAccounts } from "@/server/db/trading-account-schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import { ExecutionError } from "@/server/execution/contracts";
 import { databaseTime } from "@/server/execution/records";
+import { requireManualSubject } from "@/server/manual-trading/subject";
 import { derivePerpsWallet } from "@/shared/perps-derivation";
 import { PERPS_DERIVATION } from "@/shared/trading-recovery";
 import { activeTradingAccount, tradingAccountSigningKeys } from "./vault";
@@ -24,12 +25,17 @@ export async function readAgentTradingAccount(
   return row ?? null;
 }
 /** Only first activation/funding can derive an address. Agent creation never sets up keys. */
-export async function ensureAgentTradingAccount(
+async function ensureTradingAddress(
   db: AppDatabase,
   userId: string,
   agentId: string,
+  manual: boolean,
 ): Promise<typeof agentTradingAccounts.$inferSelect> {
-  await ownedAgent(db, userId, agentId);
+  if (manual) {
+    await requireManualSubject(db, userId, agentId);
+  } else {
+    await ownedAgent(db, userId, agentId);
+  }
   const root = await activeTradingAccount(db, userId);
   if (!root || root.backupVersion < 2 || root.backupConfirmedAt === null) {
     throw new ExecutionError(
@@ -39,10 +45,13 @@ export async function ensureAgentTradingAccount(
   }
   const keys = await tradingAccountSigningKeys(db, userId, root.id);
   return userTransaction(db, userId, async (tx) => {
-    const agent = await ownedAgent(tx, userId, agentId),
+    const agent = manual ? null : await ownedAgent(tx, userId, agentId),
       current = await activeTradingAccount(tx, userId);
+    if (manual) {
+      await requireManualSubject(tx, userId, agentId);
+    }
     if (
-      agent.pack !== "perps" ||
+      (!manual && agent?.pack !== "perps") ||
       current?.id !== root.id ||
       current.backupVersion < 2 ||
       current.backupConfirmedAt === null
@@ -106,4 +115,19 @@ export async function agentPerpsSigningWallet(
     throw new ExecutionError("conflict", "The derived trading identity does not match its funded address.");
   }
   return derived;
+}
+
+export async function ensureAgentTradingAccount(
+  db: AppDatabase,
+  userId: string,
+  agentId: string,
+): Promise<typeof agentTradingAccounts.$inferSelect> {
+  return ensureTradingAddress(db, userId, agentId, false);
+}
+export async function ensureManualTradingAccount(
+  db: AppDatabase,
+  userId: string,
+  subjectId: string,
+): Promise<typeof agentTradingAccounts.$inferSelect> {
+  return ensureTradingAddress(db, userId, subjectId, true);
 }

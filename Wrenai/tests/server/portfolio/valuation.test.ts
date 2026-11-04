@@ -13,7 +13,13 @@ vi.mock("@/server/research/intents", () => ({ intentTokens: vi.fn() }));
 vi.mock("@/server/portfolio/wallet-tokens", () => ({ walletTokenHoldings: vi.fn() }));
 vi.mock("@/server/execution/balance-session", () => ({ connectedBalanceToken: vi.fn() }));
 vi.mock("@/server/execution/private-inventory", () => ({ readPrivateBalances: vi.fn() }));
-vi.mock("@/server/execution/hyperliquid/account-state", () => ({ readHlAccount: vi.fn() }));
+vi.mock("@/server/execution/hyperliquid/account-state", async (original) => ({
+  ...(await original<typeof import("@/server/execution/hyperliquid/account-state")>()),
+  readHlAccount: vi.fn(),
+}));
+vi.mock("@/server/portfolio/public-intents", () => ({
+  readPublicIntentsInventory: async () => ({ balances: [], complete: true, blockHeight: 1 }),
+}));
 const now = Date.now();
 const usdc: IntentToken = {
   assetId: "nep141:usdc.near",

@@ -4,6 +4,7 @@ import type { AppDatabase } from "@/server/db/client";
 import { evaluateGuard } from "@/server/guard/evaluate";
 import type { GuardVerdict } from "@/server/guard/types";
 import { allocationCeiling, committedCapital } from "@/server/positions/capital-records";
+import { activeTradingAccount } from "@/server/trading-accounts/vault";
 import { parseUsd, policySchema } from "@/shared/agents";
 import { minimumUnits } from "@/shared/token-units";
 import { ExecutionError, type ExecutionPlan } from "./contracts";
@@ -36,7 +37,10 @@ export async function swapGuardVerdict(
   approvalGranted = false,
 ): Promise<GuardVerdict> {
   const agent = await ownedAgent(db, userId, plan.agentId);
-  if (plan.scope !== "confidential") {
+  if (
+    plan.scope !== "confidential" &&
+    !(plan.scope === "native_near" && agent.pack === "meme_hunter" && plan.budgetMode === "per_agent")
+  ) {
     throw new ExecutionError("not_ready", "The current swap packs cannot select public execution.");
   }
   await checkStrategyAssets(db, plan);
@@ -45,16 +49,25 @@ export async function swapGuardVerdict(
   const risk = await planRiskPolicy(db, userId, plan);
   const usage = await readSpendingUsage(db, userId, agent.id, now, actionId);
   const submissions = await readSubmissionUsage(db, userId, agent.id, now);
+  const nativeAccount = plan.scope === "native_near" ? await activeTradingAccount(db, userId) : null;
+  if (plan.scope === "native_near" && !nativeAccount?.backupConfirmedAt) {
+    throw new ExecutionError(
+      "not_ready",
+      "Confirm the native trading account recovery backup before trading.",
+    );
+  }
   return evaluateGuard(
     {
       id: plan.requestId,
       agentId: agent.id,
-      tier: "private",
+      tier: plan.scope === "native_near" ? "public" : "private",
       kind: "swap",
       purpose: riskReducingExit ? "exit" : agent.pack === "rebalancer" ? "rebalance" : "entry",
       sellAssetId: plan.inputAssetId,
       buyAssetId: plan.outputAssetId,
-      destination: { type: "confidential" },
+      destination: nativeAccount
+        ? { type: "chain", chain: "near", address: nativeAccount.nativeAccountId }
+        : { type: "confidential" },
       amountMicroUsd: BigInt(plan.notionalMicroUsd),
       slippageBps: plan.slippageBps,
       providerFeeBps: plan.providerFeeBps ?? 0,
@@ -68,7 +81,7 @@ export async function swapGuardVerdict(
       newCapitalMicroUsd: 0n,
       riskReducingExit,
       allowedAssetIds: new Set([plan.inputAssetId, plan.outputAssetId]),
-      allowedChains: new Set(),
+      allowedChains: new Set(nativeAccount ? ["near"] : []),
       limits: {
         maxTradeMicroUsd: parseUsd(policy.maxTradeUsd),
         userDailyCapMicroUsd: risk ? parseUsd(risk.policy.dailyCapUsd) : null,

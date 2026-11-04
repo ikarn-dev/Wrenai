@@ -3,14 +3,15 @@ import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { AgentCatalog } from "@/components/agents/catalog";
 import { AgentEditor } from "@/components/agents/editor";
-import { NewAgentSetup } from "@/components/agents/new-setup";
 import { setupBindingHash } from "@/server/agents/setup-binding";
 import { requireUser } from "@/server/auth/session";
 import { readAgentSetup } from "@/server/chat/agent-drafts";
 import { database } from "@/server/db/client";
+import { readManualPreview } from "@/server/manual-trading/service";
 import { budgetTokenAmount } from "@/shared/agent-budget";
 import { isActiveAgentTool } from "@/shared/agent-scope";
 import { packSchema } from "@/shared/agents";
+import { manualAgentBrief } from "@/shared/manual-agent-brief";
 import { researchToolSchema } from "@/shared/research";
 
 export const metadata: Metadata = { title: "New agent" };
@@ -19,7 +20,12 @@ export const maxDuration = 120;
 export default async function NewAgentPage({
   searchParams,
 }: {
-  readonly searchParams: Promise<{ readonly setup?: string; readonly tool?: string }>;
+  readonly searchParams: Promise<{
+    readonly setup?: string;
+    readonly tool?: string;
+    readonly manual?: string;
+    readonly brief?: string;
+  }>;
 }) {
   const user = await requireUser();
   const query = await searchParams;
@@ -34,16 +40,19 @@ export default async function NewAgentPage({
       if (draft.agentId) {
         redirect(`/agents/${draft.agentId}`);
       }
-      const allocation = draft.budget
-        ? `\nReviewed spending allocation: ${budgetTokenAmount(draft.budget.units, draft.budget.decimals)} ${draft.budget.symbol}; exact wallet asset ${draft.budget.assetId}; decimals ${draft.budget.decimals}; smallest units ${draft.budget.units}.\nThis identifies the spending token only; do not invent any other token identity or price.`
-        : "";
       return (
         <AgentEditor
           setup={{
             id: draft.id,
             hash: setupBindingHash(draft),
             pack: pack.data,
-            brief: `${draft.brief}${allocation}`.slice(0, 4000),
+            brief: draft.brief,
+            budget: draft.budget
+              ? {
+                  assetId: draft.budget.assetId,
+                  amount: budgetTokenAmount(draft.budget.units, draft.budget.decimals),
+                }
+              : null,
           }}
         />
       );
@@ -58,7 +67,20 @@ export default async function NewAgentPage({
     if (!tool.success || !isActiveAgentTool(tool.data)) {
       notFound();
     }
-    return <NewAgentSetup tool={tool.data} />;
+    const pack = packSchema.safeParse(tool.data);
+    if (!pack.success) {
+      notFound();
+    }
+    const manual = z.uuid().safeParse(query.manual);
+    const initialBrief = manual.success
+      ? manualAgentBrief((await readManualPreview(database(), user.id, manual.data)).intent)
+      : z
+          .string()
+          .trim()
+          .max(3000)
+          .catch("")
+          .parse(query.brief ?? "");
+    return <AgentEditor initialPack={pack.data} initialBrief={initialBrief} />;
   }
   return <AgentCatalog />;
 }

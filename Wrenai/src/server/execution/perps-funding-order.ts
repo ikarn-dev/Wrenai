@@ -17,19 +17,14 @@ import { reserveDefiExecution } from "./defi-reservations";
 import { verifiedAccountFunding } from "./funding-policy";
 import { synchronizePerpsInventory } from "./hyperliquid/account-state";
 import { HYPERLIQUID_BRIDGE_USDC, perpsCashAssetId } from "./hyperliquid/contracts";
-import { preparedOrderSchema } from "./intents-order";
 import { prepareIntentsOrder } from "./intents-quote";
 import { dryQuoteRequest, verifiedProviderQuote } from "./oneclick-quote";
 import { confirmExecutionPermission } from "./permissions";
+import { fundingRecordSchema, type PerpsFundingRecord } from "./perps-funding-record";
 import { synchronizePrivateInventory } from "./private-inventory";
 import { databaseTime, executionEvent, executionHash, type LedgerAction } from "./records";
 
-const fundingRecordSchema = z.strictObject({
-  format: z.literal(1),
-  recipient: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
-  order: preparedOrderSchema,
-});
-export type PerpsFundingRecord = z.infer<typeof fundingRecordSchema>;
+export { fundingRecordSchema, type PerpsFundingRecord } from "./perps-funding-record";
 export async function perpsFundingRecord(db: AppDatabase, action: LedgerAction): Promise<PerpsFundingRecord> {
   const rows = await db
     .select()
@@ -48,7 +43,7 @@ export async function perpsFundingRecord(db: AppDatabase, action: LedgerAction):
   return fundingRecordSchema.parse(JSON.parse(rows[0].detailJson));
 }
 export function verifiedFundingQuote(
-  action: LedgerAction,
+  action: Pick<LedgerAction, "planJson" | "notionalMicroUsd">,
   saved: PerpsFundingRecord,
   accountId: string,
   now: number,

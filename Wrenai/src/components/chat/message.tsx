@@ -1,5 +1,8 @@
 import { RotateCcw, ShieldCheck } from "lucide-react";
 import { memo, type ReactElement, type ReactNode } from "react";
+import { QuoteRequest } from "@/components/trading/quote-request";
+import { TradeCard } from "@/components/trading/trade-card";
+import { WalletSwapCard } from "@/components/trading/wallet-swap-card";
 import type { ChatReply, ChatTurn } from "@/shared/chat";
 import { CopyButton } from "./copy-button";
 import { JarvisMark } from "./jarvis-mark";
@@ -60,7 +63,10 @@ function JarvisRow({ children }: { readonly children: ReactNode }) {
   );
 }
 
-function Receipt({ reply }: { readonly reply: ChatReply }): ReactElement {
+function Receipt({ reply }: { readonly reply: ChatReply }): ReactElement | null {
+  if (!reply.receipt) {
+    return null;
+  }
   return (
     <details className="group/receipt min-w-0 text-caption">
       <summary className="inline-flex h-7 cursor-pointer list-none items-center gap-1.5 rounded-xs px-2 text-fg-subtle transition-colors duration-200 ease-ios hover:bg-surface-2 hover:text-fg-strong pointer-coarse:h-11 [&::-webkit-details-marker]:hidden">
@@ -111,6 +117,26 @@ function PendingStatus({ pending }: { readonly pending: PendingReply }): ReactEl
 }
 
 function ReplyBody({ reply }: { readonly reply: ChatReply }) {
+  if (reply.manual) {
+    return (
+      <>
+        <p className="text-body text-fg">{reply.manual.text}</p>
+        {reply.manual.quoteRequest ? <QuoteRequest request={reply.manual.quoteRequest} /> : null}
+        {reply.manual.tradeIds.map((id) => (
+          <TradeCard key={id} id={id} />
+        ))}
+        {reply.manual.walletSwapIds?.map((id) => (
+          <WalletSwapCard key={id} id={id} />
+        ))}
+        {/* The model's extraction behind the card is signed and checked; previews saved before that have none. */}
+        {reply.receipt ? (
+          <div className={`-ml-2 flex items-start gap-0.5 ${HOVER_ACTIONS}`}>
+            <Receipt reply={reply} />
+          </div>
+        ) : null}
+      </>
+    );
+  }
   return (
     <>
       <ChatMarkdown content={reply.content} />

@@ -24,10 +24,9 @@ export function AgentFunding({
   }
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
     const values = {
       previewId: preview.id,
-      agentCapitalUsd: String(data.get("agentCapitalUsd") ?? ""),
+      agentCapitalUsd: agent.policy.budgetUsd,
     };
     const input = JSON.stringify(values);
     if (request.current?.input !== input) {
@@ -61,22 +60,6 @@ export function AgentFunding({
           </span>{" "}
           {preview.input.tokenSymbol} from this preview to this agent.
         </p>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        {([{ name: "agentCapitalUsd", label: "This agent’s limit · USD" }] as const).map((field) => (
-          <label key={field.name} className="flex flex-col gap-2 text-small">
-            <span>{field.label}</span>
-            <input
-              name={field.name}
-              type="text"
-              inputMode="decimal"
-              required
-              defaultValue={agent.policy.budgetUsd}
-              disabled={busy || allocated}
-              className="min-h-11 w-full rounded-sm border border-line bg-surface-2 px-3 font-mono text-small"
-            />
-          </label>
-        ))}
       </div>
       <Button type="submit" disabled={busy || allocated}>
         {busy ? "Allocating…" : allocated ? "Allocated" : "Allocate input balance"}

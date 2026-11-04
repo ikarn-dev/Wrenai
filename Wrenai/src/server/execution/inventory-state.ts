@@ -9,7 +9,7 @@ import { IN_FLIGHT, invalidateInventory, type LedgerAction, swapAction } from ".
 export function actionCashAssets(action: LedgerAction): readonly string[] {
   if (action.kind === "swap") {
     const swap = swapAction(action);
-    return [swap.inputAssetId, swap.outputAssetId];
+    return [swap.inputAssetId, swap.outputAssetId, ...(swap.scope === "native_near" ? ["native:near"] : [])];
   }
   return defiPlanSchema.parse(JSON.parse(action.planJson)).cash.map((asset) => asset.assetId);
 }

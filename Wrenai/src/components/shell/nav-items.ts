@@ -1,5 +1,7 @@
 import {
+  ArrowLeftRight,
   BrainCircuit,
+  ChartCandlestick,
   ChartPie,
   Fingerprint,
   History,
@@ -12,7 +14,7 @@ import type { Route } from "next";
 interface NavItemLabel {
   readonly label: string;
   readonly icon: LucideIcon;
-  readonly group: "main" | "settings";
+  readonly group: "main" | "markets" | "settings";
 }
 
 export type NavItem = NavItemLabel &
@@ -25,6 +27,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { kind: "link", href: "/chat", label: "Chat", icon: MessagesSquare, group: "main" },
   { kind: "link", href: "/activity", label: "Activity", icon: History, group: "main" },
   { kind: "link", href: "/proof", label: "Proof", icon: Fingerprint, group: "main" },
+  { kind: "link", href: "/spot", label: "Spot", icon: ArrowLeftRight, group: "markets" },
+  { kind: "link", href: "/perps", label: "Perps", icon: ChartCandlestick, group: "markets" },
   { kind: "link", href: "/settings", label: "Settings", icon: Settings, group: "settings" },
 ];
 

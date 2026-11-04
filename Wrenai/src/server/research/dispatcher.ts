@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import type { ChatToolDefinition } from "@/server/ai/verified-chat-stream";
+import { SquintUnavailable } from "@/server/squint/contracts";
 import {
   type ActiveAgentTool,
   activeAgentToolSchema,
@@ -16,13 +17,13 @@ import {
   researchToolSchema,
 } from "@/shared/research";
 import { researchInputIssue } from "@/shared/research-input";
-import { memeResearch, paymentResearch } from "./accounts-launches";
+import { paymentResearch } from "./accounts-launches";
 import { DECISION_GUIDANCE } from "./decision-guidance";
 import { perpMarkets } from "./hyperliquid";
 import { drySwapQuote } from "./intents";
+import { memeResearch } from "./memes";
 import { researchNews } from "./news";
 import { perpTechnicalAnalysis } from "./perp-technicals";
-import { whaleResearch } from "./whales";
 
 export const RESEARCH_DEFINITIONS: readonly ChatToolDefinition[] = activeAgentToolSchema.options.map(
   (tool) => ({
@@ -108,8 +109,6 @@ async function toolReport(
       return { ...base, status: "partial", ...(await memeResearch(input, signal)) };
     case "private_payments":
       return { ...base, status: "partial", ...(await paymentResearch(input, signal)) };
-    case "whale_tracker":
-      return { ...base, status: "partial", ...(await whaleResearch(input, signal)) };
     case "dca":
     case "spot_trader":
     case "buy_the_dip":
@@ -180,7 +179,18 @@ export async function runResearchTool(
   const result =
     market.status === "fulfilled"
       ? market.value
-      : unavailable(`${RESEARCH_TOOLS[tool].label} data is unavailable. Try again shortly.`);
+      : market.reason instanceof SquintUnavailable && ["ambiguous", "not_found"].includes(market.reason.code)
+        ? {
+            ...unavailable(market.reason.message),
+            assessment: {
+              decision: "needs_input" as const,
+              summary: market.reason.message,
+              reasons: [],
+              conditions: [],
+              sourceIds: [],
+            },
+          }
+        : unavailable(`${RESEARCH_TOOLS[tool].label} data is unavailable. Try again shortly.`);
   const validated = researchReportSchema.safeParse({
     ...result,
     status: result.items.length ? result.status : "unavailable",

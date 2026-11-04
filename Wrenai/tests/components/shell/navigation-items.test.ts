@@ -26,7 +26,18 @@ describe("app navigation", () => {
 
   it("keeps the mobile bar focused on available screens with room for touch targets", () => {
     const markup = renderToStaticMarkup(createElement(MobileNav));
-    expect(links(markup)).toEqual(["/portfolio", "/agents", "/chat", "/activity", "/proof", "/settings"]);
+    expect(links(markup)).toEqual([
+      "/portfolio",
+      "/agents",
+      "/chat",
+      "/activity",
+      "/proof",
+      "/spot",
+      "/perps",
+      "/settings",
+    ]);
+    expect(markup).toContain("overflow-x-auto");
+    expect(markup).toContain("min-w-14");
     expect(markup).not.toContain('aria-disabled="true"');
   });
 
@@ -48,7 +59,16 @@ describe("app navigation", () => {
     "links the implemented Proof screen in the %s navigation",
     (view) => {
       const markup = renderNavigation(view);
-      expect(links(markup)).toEqual(["/portfolio", "/agents", "/chat", "/activity", "/proof", "/settings"]);
+      expect(links(markup)).toEqual([
+        "/portfolio",
+        "/agents",
+        "/chat",
+        "/activity",
+        "/proof",
+        "/spot",
+        "/perps",
+        "/settings",
+      ]);
       expect(markup).not.toContain('aria-disabled="true"');
       expect(markup).not.toContain('aria-label="Proof is not built yet"');
     },

@@ -32,7 +32,7 @@ export function AgentCatalog(): ReactElement {
                   href={`/agents/new?tool=${tool}`}
                   className="inline-flex h-8 items-center gap-1.5 rounded-sm bg-surface-3 px-3 text-small font-medium text-accent-text ring-1 ring-line-strong/40 ring-inset transition-[background-color,scale] duration-200 ease-ios hover:bg-surface-4 active:scale-97 motion-reduce:active:scale-100 pointer-coarse:h-11"
                 >
-                  Create setup
+                  Create agent
                   <ArrowRight {...ICON} />
                 </Link>
                 <Link

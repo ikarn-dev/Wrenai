@@ -7,6 +7,12 @@ export function minimumUnits(first: bigint, second: bigint): bigint {
   }
   return second;
 }
+export function maximumUnits(first: bigint, second: bigint): bigint {
+  if (first > second) {
+    return first;
+  }
+  return second;
+}
 export const tokenUnitsSchema = z
   .string()
   .regex(/^(?:0|[1-9]\d{0,77})$/)

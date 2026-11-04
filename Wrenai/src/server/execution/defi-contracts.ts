@@ -49,9 +49,11 @@ const defiPlanFields = z.strictObject({
   agentRevision: z.number().int().positive(),
   strategyVersion: z.number().int().positive(),
   riskPolicyRevision: z.number().int().nonnegative(),
-  budgetMode: z.literal("per_agent").optional(),
+  budgetMode: z.enum(["per_agent", "manual"]).optional(),
+  manualTradeId: z.uuid().optional(),
   reduceOnly: z.literal(true).optional(),
   funding: z.literal(true).optional(),
+  walletFundingId: z.uuid().optional(),
   returnFunds: z.literal(true).optional(),
   fundingFeeUnits: tokenUnitsSchema.optional(),
   scope: scopeSchema,
@@ -85,6 +87,22 @@ const operationPositionKinds = {
 } as const;
 export const defiPlanSchema = defiPlanFields.pipe(
   defiPlanFields.superRefine((plan, ctx) => {
+    if ((plan.budgetMode === "manual") !== (plan.manualTradeId !== undefined)) {
+      ctx.addIssue({ code: "custom", message: "Manual orders require an exact confirmation binding." });
+    }
+    if (
+      plan.walletFundingId &&
+      (!plan.funding ||
+        plan.returnFunds ||
+        plan.scope !== "intents" ||
+        plan.venueId !== "near-intents" ||
+        plan.positions.length !== 0)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Wallet funding requires a bound public-to-private owner transfer.",
+      });
+    }
     if (
       (plan.returnFunds &&
         (!plan.funding || plan.scope !== "hyperliquid" || plan.fundingFeeUnits !== "1000000")) ||
@@ -113,7 +131,7 @@ export const defiPlanSchema = defiPlanFields.pipe(
     if (
       plan.funding &&
       (plan.operation !== "transfer" ||
-        plan.budgetMode !== "per_agent" ||
+        plan.budgetMode === undefined ||
         plan.cash.length !== 2 ||
         plan.cash.filter((cash) => BigInt(cash.maxDebitUnits) > 0n).length !== 1 ||
         !plan.cash.some(
@@ -125,17 +143,17 @@ export const defiPlanSchema = defiPlanFields.pipe(
         message: "Funding must bind one source debit and one foreign-location credit.",
       });
     }
-    if (plan.reduceOnly && (plan.budgetMode !== "per_agent" || plan.operation !== "perp_reduce")) {
+    if (plan.reduceOnly && (plan.budgetMode === undefined || plan.operation !== "perp_reduce")) {
       ctx.addIssue({
         code: "custom",
         message: "Only position-reducing per-agent exits can request the protection exception.",
       });
     }
-    if (plan.budgetMode === "per_agent" ? plan.riskPolicyRevision !== 0 : plan.riskPolicyRevision <= 0) {
+    if (plan.budgetMode !== undefined ? plan.riskPolicyRevision !== 0 : plan.riskPolicyRevision <= 0) {
       ctx.addIssue({ code: "custom", message: "An action must explicitly bind its budget policy." });
     }
     if (
-      new Set(plan.cash.map((a) => a.assetId)).size !== plan.cash.length ||
+      new Set(plan.cash.map((a) => `${a.scope ?? plan.scope}:${a.assetId}`)).size !== plan.cash.length ||
       new Set(plan.positions.map((p) => p.positionId)).size !== plan.positions.length ||
       new Set(plan.positions.map((p) => `${p.kind}:${p.instrumentId}`)).size !== plan.positions.length
     ) {
@@ -209,6 +227,7 @@ export const defiReceiptSchema = z.strictObject({
     .array(
       z.strictObject({
         assetId,
+        scope: scopeSchema.optional(),
         debitUnits: tokenUnitsSchema,
         creditUnits: tokenUnitsSchema,
         creditValueMicroUsd: tokenUnitsSchema.nullable(),

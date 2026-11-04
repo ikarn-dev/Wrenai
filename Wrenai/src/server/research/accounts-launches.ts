@@ -6,7 +6,6 @@ import { displayDecimal } from "./decimal";
 import { publicLeaderResearch } from "./explorer-research";
 import { publicFills } from "./hyperliquid";
 import { intentTokens, selectToken } from "./intents";
-import { poolItems, rheaPools } from "./rhea";
 
 const nearAccount = z
   .string()
@@ -154,51 +153,5 @@ export async function paymentResearch(
     sources: [registry.source, source],
     summary:
       "Recipient and available token registration checks are complete. This is payment research/setup information, not a transfer or authorization.",
-  };
-}
-
-export async function memeResearch(
-  input: ResearchInput,
-  signal?: AbortSignal,
-): Promise<{
-  readonly items: readonly ResearchItem[];
-  readonly sources: readonly ResearchSource[];
-  readonly summary: string;
-}> {
-  const pools = await rheaPools(signal);
-  const launchPools = pools.pools
-    .filter((pool) => pool.token_account_ids.some((id) => id.endsWith(".meme-cooking.near")))
-    .sort((a, b) => Number(b.id) - Number(a.id));
-  const selected = input.symbols.length
-    ? launchPools.filter(
-        (pool) =>
-          pool.token_account_ids.some((id) => input.symbols.includes(id)) ||
-          pool.token_symbols?.some((symbol) =>
-            input.symbols.some((value) => value.toUpperCase() === symbol.toUpperCase()),
-          ),
-      )
-    : launchPools;
-  const finalizable = await Promise.allSettled([
-    callViewFunction("meme-cooking.near", "get_finalizable_memes", { skip: 0, limit: 5 }, signal),
-  ]);
-  const source: ResearchSource = {
-    id: "meme-cooking",
-    label: "Meme.Cooking finalizable auction view",
-    url: "https://meme.cooking/",
-    observedAt: Date.now(),
-  };
-  const count =
-    finalizable[0]?.status === "fulfilled" && Array.isArray(finalizable[0].value.value)
-      ? finalizable[0].value.value.length
-      : null;
-  const items = poolItems(selected, [], 5).map((item) => ({
-    ...item,
-    title: `Meme market · ${item.title}`,
-    note: "Meme.Cooking subaccount token listed in a RHEA pool. Pool sequence is not a verified launch date. Taxes, holders, admin powers and future exit ability are not established.",
-  }));
-  return {
-    items,
-    sources: [pools.source, source],
-    summary: `Read current RHEA-listed Meme.Cooking token pools${count === null ? "; the auction view was unavailable" : ` and observed ${count} currently finalizable auction(s)`}. These are research candidates, not safety ratings; Nearly/other factory launches are not inferred from ticker names.`,
   };
 }

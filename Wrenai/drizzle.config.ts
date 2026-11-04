@@ -7,6 +7,10 @@ export default defineConfig({
   dialect: "postgresql",
   schema: [
     "./src/server/db/schema.ts",
+    "./src/server/db/subject-schema.ts",
+    "./src/server/db/manual-schema.ts",
+    "./src/server/db/native-schema.ts",
+    "./src/server/db/native-funding-schema.ts",
     "./src/server/db/agent-schema.ts",
     "./src/server/db/chat-schema.ts",
     "./src/server/db/defi-schema.ts",
@@ -16,6 +20,9 @@ export default defineConfig({
     "./src/server/db/risk-schema.ts",
     "./src/server/db/telegram-schema.ts",
     "./src/server/db/trading-account-schema.ts",
+    "./src/server/db/funding-schema.ts",
+    "./src/server/db/portfolio-schema.ts",
+    "./src/server/db/wallet-swap-schema.ts",
   ],
   out: "./drizzle/postgres",
   ...(DATABASE_URL === undefined || DATABASE_URL === ""

@@ -119,3 +119,32 @@ export async function fulfilSetupBudget(
     .set({ sealedDraft: cipher.seal(owner, row.id, "agent-setup", JSON.stringify(updated)) })
     .where(eq(chatAgentDrafts.id, row.id));
 }
+
+/** Deleting an unfunded agent releases its wallet earmark while retaining the encrypted setup history. */
+export async function releaseSetupWalletReservation(
+  db: AppDatabase,
+  owner: string,
+  agentId: string,
+): Promise<void> {
+  const rows = await db.select().from(chatAgentDrafts).where(eq(chatAgentDrafts.userId, owner)).limit(101);
+  if (rows.length > 100) {
+    throw new AgentError("not_ready", "Discard unused setups before changing allocations.");
+  }
+  if (rows.length === 0) {
+    return;
+  }
+  const cipher = chatCipher();
+  for (const row of rows) {
+    const draft = agentSetupDraftSchema.parse(
+      JSON.parse(cipher.open(owner, row.id, "agent-setup", row.sealedDraft)),
+    );
+    if (draft.agentId !== agentId || !draft.budget) {
+      continue;
+    }
+    const next = { ...draft, budget: { ...draft.budget, walletReservedUnits: "0" } };
+    await db
+      .update(chatAgentDrafts)
+      .set({ sealedDraft: cipher.seal(owner, row.id, "agent-setup", JSON.stringify(next)) })
+      .where(eq(chatAgentDrafts.id, row.id));
+  }
+}

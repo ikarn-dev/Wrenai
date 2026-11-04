@@ -14,6 +14,7 @@ import { prepareSwapExecution } from "@/server/execution/intents-order";
 import { preparePaymentExecution } from "@/server/execution/payment-order";
 import { preparePerpsFunding } from "@/server/execution/perps-funding-order";
 import { databaseTime } from "@/server/execution/records";
+import { prepareRheaAgentSwap } from "@/server/execution/rhea/agent-order";
 import { ExplorerFeedPending } from "@/server/research/explorer-contracts";
 import { advanceLedgerAction } from "./ledger-action";
 import { planStrategyCheck, type StrategyCheckPlan } from "./planning";
@@ -99,7 +100,11 @@ export async function checkAgentCycle(
     progress = planned.progress;
     reason = planned.reason;
     if (planned.signal || planned.paymentRequestId || planned.perpsRequest) {
-      if (progress?.strategyState.format === 3 || progress?.strategyState.format === 5) {
+      if (
+        progress?.strategyState.format === 3 ||
+        progress?.strategyState.format === 5 ||
+        progress?.strategyState.format === 6
+      ) {
         await recordStrategyProgress(db, activationId, claim.token, progress.strategyState);
       }
       const action = planned.perpsRequest
@@ -127,12 +132,16 @@ export async function checkAgentCycle(
               runtime.agentRevision,
               planned.paymentRequestId,
             )
-          : await prepareSwapExecution(db, runtime.userId, {
-              requestId: planned.requestId ?? requestId,
-              agentId: runtime.agentId,
-              expectedRevision: runtime.agentRevision,
-              ...planned.signal,
-            });
+          : await (planned.signal?.scope === "native_near" ? prepareRheaAgentSwap : prepareSwapExecution)(
+              db,
+              runtime.userId,
+              {
+                requestId: planned.requestId ?? requestId,
+                agentId: runtime.agentId,
+                expectedRevision: runtime.agentRevision,
+                ...planned.signal,
+              },
+            );
       actionId = action.id;
       if (progress && progress.strategyState.format !== 4) {
         progress = { ...progress, strategyState: { ...progress.strategyState, pendingActionId: action.id } };

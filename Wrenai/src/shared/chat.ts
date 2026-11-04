@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { inferenceModelSchema } from "@/shared/ai-models";
+import { chatQuoteRequestSchema } from "./chat-quote";
 import { researchReportSchema, researchToolSchema } from "./research";
 
 export const MAX_CHAT_MESSAGE = 8_000;
@@ -40,13 +41,27 @@ export const chatContextSchema = z.strictObject({
 });
 export type ChatContext = z.infer<typeof chatContextSchema>;
 
-export const chatReplySchema = z.strictObject({
-  content: z.string().min(1).max(32_000),
-  receipt: chatReceiptSchema,
-  context: chatContextSchema.nullable(),
-  historyTrimmed: z.boolean(),
-  research: z.array(researchReportSchema).max(6).optional(),
-});
+export const chatReplySchema = z
+  .strictObject({
+    manual: z
+      .strictObject({
+        text: z.string().max(800),
+        tradeIds: z.array(z.uuid()).max(1),
+        /** Swaps paid from the wallet (wallet_swaps), shown as wallet swap cards. */
+        walletSwapIds: z.array(z.uuid()).max(1).optional(),
+        quoteRequest: chatQuoteRequestSchema.optional(),
+      })
+      .optional(),
+    content: z.string().min(1).max(32_000),
+    receipt: chatReceiptSchema.nullable(),
+    context: chatContextSchema.nullable(),
+    historyTrimmed: z.boolean(),
+    research: z.array(researchReportSchema).max(6).optional(),
+  })
+  .refine(
+    (reply) => reply.receipt !== null || (reply.manual !== undefined && !reply.research?.length),
+    "A model answer requires verification evidence.",
+  );
 export type ChatReply = z.infer<typeof chatReplySchema>;
 
 export const chatTurnSchema = z.strictObject({

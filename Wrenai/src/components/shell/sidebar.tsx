@@ -10,6 +10,7 @@ import { NAV_ITEMS } from "./nav-items";
 import { NavigationItems, NavigationTooltip } from "./navigation-items";
 
 const MAIN_ITEMS = NAV_ITEMS.filter((item) => item.group === "main");
+const MARKET_ITEMS = NAV_ITEMS.filter((item) => item.group === "markets");
 const SETTINGS_ITEMS = NAV_ITEMS.filter((item) => item.group === "settings");
 const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
@@ -102,6 +103,22 @@ function SidebarView({ collapsed, onCollapsedChange }: SidebarProps): ReactEleme
           >
             <div data-lenis-prevent className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
               <NavigationItems items={MAIN_ITEMS} view={collapsed ? "collapsed" : "expanded"} />
+              {/* A labelled section. The row keeps one height in both widths: the label fades out as the sidebar
+                  narrows and a short rule fades in, so nothing below it moves. */}
+              <div
+                className="relative mt-3 mb-1 flex h-7 items-center px-2.5"
+                aria-hidden={collapsed ? true : undefined}
+              >
+                <span
+                  className={`text-caption font-medium whitespace-nowrap text-fg-subtle transition-opacity duration-300 ease-ios motion-reduce:transition-none ${collapsed ? "opacity-0" : "opacity-100"}`}
+                >
+                  Markets
+                </span>
+                <span
+                  className={`absolute inset-x-3 top-1/2 h-px bg-line-card transition-opacity duration-300 ease-ios motion-reduce:transition-none ${collapsed ? "opacity-100" : "opacity-0"}`}
+                />
+              </div>
+              <NavigationItems items={MARKET_ITEMS} view={collapsed ? "collapsed" : "expanded"} />
             </div>
             <div className="flex shrink-0 flex-col gap-0.5 border-t border-line-card pt-2">
               <NavigationItems items={SETTINGS_ITEMS} view={collapsed ? "collapsed" : "expanded"} />

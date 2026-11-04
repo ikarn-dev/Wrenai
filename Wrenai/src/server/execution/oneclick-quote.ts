@@ -38,7 +38,8 @@ export async function oneClickJson(
     | "/v0/auth/authenticate"
     | "/v0/auth/refresh"
     | "/v0/generate-intent"
-    | "/v0/submit-intent",
+    | "/v0/submit-intent"
+    | "/v0/deposit/submit",
   body: unknown,
   signal?: AbortSignal,
   sessionToken?: string,

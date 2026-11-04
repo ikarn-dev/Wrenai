@@ -2,10 +2,12 @@ import "server-only";
 import { base64 } from "@scure/base";
 import { z } from "zod";
 import { serverEnv } from "@/server/env";
+import { nearAccountSchema } from "@/shared/agent-budget";
 
 const RPC_TIMEOUT_MS = 8_000;
 
 export class NearRpcError extends Error {
+  override readonly name = "NearRpcError";
   readonly code = "near_rpc_unavailable";
 }
 
@@ -32,6 +34,10 @@ const viewResultSchema = z.union([
   z.object({
     result: z.array(z.number().int().min(0).max(255)),
     block_height: z.number().int().nonnegative(),
+    block_hash: z
+      .string()
+      .regex(/^[1-9A-HJ-NP-Za-km-z]{32,64}$/)
+      .optional(),
   }),
   z.object({ error: z.string() }),
 ]);
@@ -41,6 +47,7 @@ export interface ViewResult {
   readonly value: unknown;
   /** The final block the value was read at. RPC nodes can lag one another, so callers compare heights. */
   readonly blockHeight: number;
+  readonly blockHash?: string;
 }
 
 type QueryOutcome = { readonly kind: "ok"; readonly result: unknown } | { readonly kind: "unknown_account" };
@@ -59,7 +66,7 @@ async function query(
         jsonrpc: "2.0",
         id: "wrenai",
         method,
-        params: { ...params, finality: "final" },
+        params: method === "tx" || "block_id" in params ? params : { ...params, finality: "final" },
       }),
       signal: AbortSignal.any([AbortSignal.timeout(RPC_TIMEOUT_MS), ...(signal ? [signal] : [])]),
       cache: "no-store",
@@ -115,7 +122,10 @@ export async function viewNearBalance(accountId: string, signal?: AbortSignal): 
 }
 
 /** Conservative wallet headroom: storage stake and 0.05 NEAR for gas remain unallocated. */
-export async function viewNearBudgetBalance(accountId: string): Promise<{
+export async function viewNearBudgetBalance(
+  accountId: string,
+  reserveWalletGas = true,
+): Promise<{
   readonly balance: bigint;
   readonly spendable: bigint;
   readonly blockHeight: number;
@@ -146,7 +156,7 @@ export async function viewNearBudgetBalance(accountId: string): Promise<{
     .parse(config.result);
   const storage = BigInt(value.storage_usage) * BigInt(protocol.runtime_config.storage_amount_per_byte);
   const locked = BigInt(value.locked);
-  const reserve = (storage > locked ? storage - locked : 0n) + 5n * 10n ** 22n;
+  const reserve = (storage > locked ? storage - locked : 0n) + (reserveWalletGas ? 5n * 10n ** 22n : 0n);
   const balance = BigInt(value.amount);
   return { balance, spendable: balance > reserve ? balance - reserve : 0n, blockHeight: value.block_height };
 }
@@ -160,6 +170,7 @@ export async function callViewFunction(
   methodName: string,
   args: Readonly<Record<string, string | number | boolean | null | readonly string[]>>,
   signal?: AbortSignal,
+  blockHash?: string,
 ): Promise<ViewResult> {
   const outcome = await query(
     {
@@ -167,6 +178,14 @@ export async function callViewFunction(
       account_id: contractId,
       method_name: methodName,
       args_base64: base64.encode(new TextEncoder().encode(JSON.stringify(args))),
+      ...(blockHash
+        ? {
+            block_id: z
+              .string()
+              .regex(/^[1-9A-HJ-NP-Za-km-z]{32,64}$/)
+              .parse(blockHash),
+          }
+        : {}),
     },
     signal,
   );
@@ -181,5 +200,104 @@ export async function callViewFunction(
     throw new Error(`${contractId}.${methodName} failed: ${parsed.data.error}`);
   }
   const value: unknown = JSON.parse(new TextDecoder().decode(Uint8Array.from(parsed.data.result)));
-  return { value, blockHeight: parsed.data.block_height };
+  return {
+    value,
+    blockHeight: parsed.data.block_height,
+    ...(parsed.data.block_hash ? { blockHash: parsed.data.block_hash } : {}),
+  };
+}
+
+/** Read a known transaction only. FINAL waits for all execution receipts, including FT refunds. */
+export async function readFinalTransaction(
+  transactionHash: string,
+  senderAccountId: string,
+): Promise<unknown> {
+  z.string()
+    .regex(/^[1-9A-HJ-NP-Za-km-z]{32,64}$/)
+    .parse(transactionHash);
+  const outcome = await query(
+    { tx_hash: transactionHash, sender_account_id: senderAccountId, wait_until: "FINAL" },
+    undefined,
+    "tx",
+  );
+  if (outcome.kind !== "ok") {
+    throw new NearRpcError("The deposit transaction could not be verified.");
+  }
+  return outcome.result;
+}
+
+/** Code identity and account keys at one final block; a global account reference can be upgraded. */
+export async function readContractControl(
+  account: string,
+  blockHash?: string,
+): Promise<{
+  readonly codeHash: string;
+  readonly globalCodeHash: string | null;
+  readonly globalCodeAccount: string | null;
+  readonly blockHash: string;
+  readonly blockHeight: number;
+  readonly keys: readonly unknown[];
+}> {
+  const accountId = nearAccountSchema.parse(account);
+  const hash = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,64}$/);
+  const result = await query({
+    request_type: "view_account",
+    account_id: accountId,
+    ...(blockHash ? { block_id: hash.parse(blockHash) } : {}),
+  });
+  if (result.kind !== "ok") {
+    throw new NearRpcError("The contract account does not exist.");
+  }
+  const value = z
+    .object({
+      code_hash: hash,
+      global_contract_hash: hash.optional(),
+      global_contract_account_id: nearAccountSchema.optional(),
+      block_hash: hash,
+      block_height: z.number().int().positive().safe(),
+    })
+    .parse(result.result);
+  const keys = await query({
+    request_type: "view_access_key_list",
+    account_id: accountId,
+    block_id: value.block_hash,
+  });
+  if (keys.kind !== "ok" || (blockHash && value.block_hash !== blockHash)) {
+    throw new NearRpcError("The contract controls could not be read at the requested final block.");
+  }
+  const parsed = z.object({ keys: z.array(z.unknown()).max(1000), block_hash: hash }).parse(keys.result);
+  if (parsed.block_hash !== value.block_hash) {
+    throw new NearRpcError("The contract key observation changed blocks.");
+  }
+  return {
+    codeHash: value.code_hash,
+    globalCodeHash: value.global_contract_hash ?? null,
+    globalCodeAccount: value.global_contract_account_id ?? null,
+    blockHash: value.block_hash,
+    blockHeight: value.block_height,
+    keys: parsed.keys,
+  };
+}
+
+export async function finalBlockTime(blockHash: string): Promise<number> {
+  const outcome = await query(
+    {
+      block_id: z
+        .string()
+        .regex(/^[1-9A-HJ-NP-Za-km-z]{32,64}$/)
+        .parse(blockHash),
+    },
+    undefined,
+    "block",
+  );
+  if (outcome.kind !== "ok") {
+    throw new NearRpcError("The final block time is unavailable.");
+  }
+  const block = z
+    .object({ header: z.object({ hash: z.string(), timestamp_nanosec: z.string().regex(/^\d{1,20}$/) }) })
+    .parse(outcome.result);
+  if (block.header.hash !== blockHash) {
+    throw new NearRpcError("The block timestamp belongs to a different observation.");
+  }
+  return Number(BigInt(block.header.timestamp_nanosec) / 1000000n);
 }

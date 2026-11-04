@@ -9,6 +9,7 @@ import { database } from "@/server/db/client";
 import { startAgentRuntime } from "@/server/engine/start";
 import { ExecutionError } from "@/server/execution/contracts";
 import { consumeRateLimit } from "@/server/http/rate-limit";
+import { intentTokens } from "@/server/research/intents";
 import { isActiveAgentTool, REMOVED_AGENT_MESSAGE } from "@/shared/agent-scope";
 import {
   type AgentResult,
@@ -16,11 +17,15 @@ import {
   parseStrategyInputSchema,
   type StrategyDraft,
   saveAgentSchema,
+  saveAgentWithBudgetSchema,
 } from "@/shared/agents";
+import { parseTokenAmount } from "@/shared/token-units";
 import { prepareStrategyDraft } from "./drafts";
 import { AgentError, agentFailure } from "./errors";
 import { commandAgent, readAgent, saveAgent, setGlobalStop } from "./mutations";
 import { assertAgentReady } from "./readiness";
+import { recoverCreatedAgent, saveAgentWithBudget } from "./simple-setup";
+import { prepareAgentBudget } from "./token-budgets";
 
 async function agentUser(kind: "parse" | "manage" | "stop"): Promise<SessionUser> {
   const user = await currentUser();
@@ -67,6 +72,13 @@ export async function parseAgentStrategy(raw: unknown): Promise<AgentResult<Stra
     if (!isActiveAgentTool(input.pack)) {
       throw new AgentError("not_ready", REMOVED_AGENT_MESSAGE);
     }
+    if (input.budget) {
+      const prepared = await prepareAgentBudget(database(), user.id, input.budget),
+        holding = prepared.holding;
+      const units = parseTokenAmount(input.budget.amount, holding.decimals).toString();
+      const text = `${input.strategyText}\nSpending budget: ${input.budget.amount} ${holding.symbol}; exact wallet asset ${holding.assetId}; decimals ${holding.decimals}; smallest units ${units}. Native NEAR maps to nep141:wrap.near. This identifies the spending token only; do not invent the receiving token or other strategy conditions.`;
+      return prepareStrategyDraft(user.id, parseStrategyInputSchema.parse({ ...input, strategyText: text }));
+    }
     return prepareStrategyDraft(user.id, input);
   });
 }
@@ -80,10 +92,43 @@ export async function saveAgentStrategy(raw: unknown): Promise<AgentResult<{ rea
       .from(strategyDrafts)
       .where(and(eq(strategyDrafts.id, input.draftId), eq(strategyDrafts.userId, user.id)))
       .limit(1);
+    if (!draft) {
+      throw new AgentError("not_found", "The strategy review could not be found.");
+    }
     if (draft && !isActiveAgentTool(draft.pack)) {
       throw new AgentError("not_ready", REMOVED_AGENT_MESSAGE);
     }
-    const agentId = await saveAgent(database(), user.id, input);
+    const tokens = (await intentTokens()).tokens;
+    const agentId = await saveAgent(database(), user.id, input, undefined, tokens);
+    refresh();
+    return { agentId };
+  });
+}
+
+export async function createAgentWithBudget(
+  raw: unknown,
+): Promise<AgentResult<{ readonly agentId: string }>> {
+  return agentAction(async () => {
+    const user = await agentUser("manage"),
+      input = saveAgentWithBudgetSchema.parse(raw);
+    const recovered = await recoverCreatedAgent(database(), user.id, input);
+    if (recovered) {
+      refresh();
+      return { agentId: recovered };
+    }
+    const [draft] = await database()
+      .select({ pack: strategyDrafts.pack })
+      .from(strategyDrafts)
+      .where(and(eq(strategyDrafts.userId, user.id), eq(strategyDrafts.id, input.draftId)))
+      .limit(1);
+    if (!draft) {
+      throw new AgentError("not_found", "The strategy review could not be found.");
+    }
+    if (!isActiveAgentTool(draft.pack)) {
+      throw new AgentError("not_ready", REMOVED_AGENT_MESSAGE);
+    }
+    const tokens = (await intentTokens()).tokens;
+    const agentId = await saveAgentWithBudget(database(), user.id, input, tokens);
     refresh();
     return { agentId };
   });

@@ -175,6 +175,31 @@ describe("verified read-only research rounds", () => {
     });
     expect(cloud.stream).toHaveBeenCalledTimes(1);
   });
+  it("surfaces an ambiguous token contract without another inference or fabricated recommendation", async () => {
+    cloud.read.mockResolvedValueOnce({
+      ...report,
+      tool: "meme_hunter",
+      status: "unavailable",
+      items: [],
+      assessment: {
+        decision: "needs_input",
+        summary: "Several contracts use that ticker. Specify the exact token contract.",
+        reasons: [],
+        conditions: [],
+        sourceIds: [],
+      },
+    });
+    cloud.stream.mockResolvedValueOnce({
+      content: "",
+      calls: [{ ...call, function: { name: "research_meme_hunter", arguments: '{"symbols":["SAME"]}' } }],
+      receipt,
+    });
+    await expect(researchAnswer([], new AbortController().signal, () => {})).rejects.toMatchObject({
+      code: "invalid_input",
+      message: expect.stringContaining("exact token"),
+    });
+    expect(cloud.stream).toHaveBeenCalledTimes(1);
+  });
 
   it("rejects duplicate tool-call IDs before fetching anything", async () => {
     cloud.stream.mockResolvedValueOnce({ content: "", calls: [call, call], receipt });
@@ -224,7 +249,7 @@ describe("verified read-only research rounds", () => {
             symbols: ["dca", "spot_trader", "buy_the_dip", "sell_the_top"].includes(tool)
               ? ["NEAR", "USDC"]
               : ["NEAR"],
-            ...(tool === "whale_tracker" || tool === "private_payments" ? { accountId: "owner.near" } : {}),
+            ...(tool === "private_payments" ? { accountId: "owner.near" } : {}),
           }),
         },
       };

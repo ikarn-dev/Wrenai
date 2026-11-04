@@ -19,6 +19,7 @@ import { watchPerpsPosition } from "@/server/execution/hyperliquid/position-watc
 import { preparePerpsFunding } from "@/server/execution/perps-funding-order";
 import { synchronizePrivateInventory } from "@/server/execution/private-inventory";
 import { ownedLedgerAction } from "@/server/execution/records";
+import { readPortfolioPerformance } from "@/server/portfolio/performance";
 import { unreservedOwnedUnits } from "@/server/positions/lots";
 import { revokeTradingAccounts } from "@/server/trading-accounts/vault";
 
@@ -177,6 +178,7 @@ async function entry(): Promise<string> {
 describe("offline Perps funding, partial entries, native protection and recovery", () => {
   it("funds the derived address, repairs partial-entry protection and records the actual exposure", async () => {
     await funding();
+    expect((await readPortfolioPerformance(context.db, "owner")).count).toBe(0);
     const id = await entry();
     expect(venue.entryCalls).toBe(1);
     expect(venue.protectionCalls).toBe(1);
@@ -187,6 +189,7 @@ describe("offline Perps funding, partial entries, native protection and recovery
         ?.quantityUnits,
     ).toBe(200n);
     expect(venue.ownedQuantity()).toBe(200n);
+    expect((await readPortfolioPerformance(context.db, "owner")).totalMicroUsd).toBe(-4500n);
     const quoteRequest = z
       .object({
         quoteRequest: z.object({
@@ -224,7 +227,27 @@ describe("offline Perps funding, partial entries, native protection and recovery
     expect(provider.exchange).toHaveBeenCalledTimes(calls);
     expect(venue.cashText()).toBe("17.8919");
     expect(await context.db.select().from(executionReceipts)).toHaveLength(3);
+    expect((await readPortfolioPerformance(context.db, "owner")).totalMicroUsd).toBe(-2008100n);
   });
+  it.each(["cash", "collateral"] as const)(
+    "records confirmed %s funding after revocation without a new order",
+    async (location) => {
+      await funding();
+      const id = await entry();
+      await advanceLedgerAction(context.db, "owner", id);
+      await revokeTradingAccounts(context.db, "owner");
+      await context.db.delete(delegatedKeys).where(eq(delegatedKeys.userId, "owner"));
+      const calls = provider.exchange.mock.calls.length;
+      venue.recordFunding(-1000n, location);
+      const checkpoint = await watchPerpsPosition(context.db, "owner", context.agentId, false);
+      expect(checkpoint?.quantity).toBe("200");
+      expect(checkpoint?.collateral).toBe(location === "collateral" ? "2494500" : "2495500");
+      expect((await readPortfolioPerformance(context.db, "owner")).totalMicroUsd).toBe(-5500n);
+      expect(provider.exchange).toHaveBeenCalledTimes(calls);
+      await watchPerpsPosition(context.db, "owner", context.agentId, false);
+      expect(await context.db.select().from(executionReceipts)).toHaveLength(3);
+    },
+  );
   it("stops after three unconfirmed protection attempts and still records the already filled position", async () => {
     await funding();
     provider.exchange.mockImplementation(async (action: HlAction) => {

@@ -2,6 +2,7 @@ import { accountFixture, marketFixture } from "@tests/server/execution/hyperliqu
 import { z } from "zod";
 import type { HlAction, HlOrder } from "@/server/execution/hyperliquid/contracts";
 import { hlText, hlUnits } from "@/server/execution/hyperliquid/decimal";
+import type { HlFunding } from "@/server/execution/hyperliquid/funding-observation";
 import type { HlFill } from "@/server/execution/hyperliquid/observations";
 
 interface VenueOrder {
@@ -13,9 +14,11 @@ interface VenueOrder {
 export class OfflinePerpsVenue {
   cash = 0n;
   quantity = 0n;
+  collateral = 0n;
   time = Date.now() - 100;
   readonly orders = new Map<string, VenueOrder>();
   readonly fills: HlFill[] = [];
+  readonly funding: HlFunding[] = [];
   entryCalls = 0;
   protectionCalls = 0;
   loseEntryAck = false;
@@ -49,6 +52,7 @@ export class OfflinePerpsVenue {
       return {
         ...state,
         time: this.time,
+        marginSummary: { ...state.marginSummary, accountValue: hlText(this.cash + this.collateral, 6) },
         assetPositions:
           this.quantity === 0n
             ? []
@@ -59,7 +63,7 @@ export class OfflinePerpsVenue {
                     coin: "NEAR",
                     szi: hlText(this.quantity, 2),
                     entryPx: "5",
-                    marginUsed: "2.4955",
+                    marginUsed: hlText(this.collateral, 6),
                     positionValue: "10",
                     unrealizedPnl: "0",
                     leverage: { type: "isolated", value: this.#leverage, rawUsd: "-7.5045" },
@@ -95,6 +99,11 @@ export class OfflinePerpsVenue {
     }
     if (type === "userNonFundingLedgerUpdates") {
       return [];
+    }
+    if (type === "userFunding") {
+      const start = z.number().parse(input.startTime),
+        end = z.number().parse(input.endTime);
+      return this.funding.filter((row) => row.time >= start && row.time <= end);
     }
     if (type === "userFillsByTime") {
       const start = z.number().parse(input.startTime),
@@ -165,6 +174,7 @@ export class OfflinePerpsVenue {
       if (!this.noEntryFill) {
         this.quantity = 200n;
         this.cash -= 2_500_000n;
+        this.collateral = 2_495_500n;
         this.fills.push({
           coin: "NEAR",
           px: "5",
@@ -201,7 +211,8 @@ export class OfflinePerpsVenue {
     }
     this.#bump();
     this.quantity = 0n;
-    this.cash += 491_900n;
+    this.cash += this.collateral - 2_003_600n;
+    this.collateral = 0n;
     this.fills.push({
       coin: "NEAR",
       px: "4",
@@ -222,6 +233,19 @@ export class OfflinePerpsVenue {
   }
   advanceObservationTime(): void {
     this.#bump();
+  }
+  recordFunding(units: bigint, location: "cash" | "collateral"): void {
+    this.#bump();
+    if (location === "cash") {
+      this.cash += units;
+    } else {
+      this.collateral += units;
+    }
+    this.funding.push({
+      time: this.time,
+      hash: `0x${this.funding.length.toString(16).padStart(64, "0")}`,
+      delta: { type: "funding", coin: "NEAR", szi: hlText(this.quantity, 2), usdc: hlText(units, 6) },
+    });
   }
   fund(): void {
     this.cash = 19_900_000n;

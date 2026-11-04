@@ -1,7 +1,7 @@
 "use client";
 
 import { Fuel, KeyRound } from "lucide-react";
-import { useState } from "react";
+import { type ReactElement, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { StatusLine } from "@/components/ui/status-line";
 import { authorizeAgentKey } from "./agent-key-flows";
@@ -13,9 +13,15 @@ interface AuthorizeKeyPanelProps {
   readonly onLater: () => void;
   /** Told when the wallet step starts and stops, so the popup can stay open while it runs. */
   readonly onWorkingChange: (working: boolean) => void;
+  readonly onAuthorized?: () => Promise<void>;
 }
 
-export function AuthorizeKeyPanel({ accountId, onLater, onWorkingChange }: AuthorizeKeyPanelProps) {
+export function AuthorizeKeyPanel({
+  accountId,
+  onLater,
+  onWorkingChange,
+  onAuthorized,
+}: AuthorizeKeyPanelProps): ReactElement {
   const [phase, setPhase] = useState<FlowPhase>({ kind: "idle" });
 
   function show(next: FlowPhase): void {
@@ -26,9 +32,11 @@ export function AuthorizeKeyPanel({ accountId, onLater, onWorkingChange }: Autho
   async function authorize(): Promise<void> {
     show({ kind: "working", label: "Preparing…" });
     const notice = await authorizeAgentKey(accountId, (label) => show({ kind: "working", label }));
-    // On success the action has refreshed the page, which no longer renders the popup.
     if (notice !== null) {
       show({ kind: "stopped", notice });
+    } else {
+      show({ kind: "idle" });
+      await onAuthorized?.();
     }
   }
 

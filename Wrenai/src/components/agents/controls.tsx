@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, LoaderCircle, Pause, Play, Square, Trash2 } from "lucide-react";
+import { LoaderCircle, Pause, Play, Square, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertDialog } from "radix-ui";
@@ -22,7 +22,7 @@ export function AgentControls({
   const [, setError] = useToastState("error");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const request = useRef<{ command: string; id: string; revision: number } | null>(null);
-  function run(command: "resume" | "pause" | "stop" | "clone" | "delete"): void {
+  function run(command: "resume" | "pause" | "stop" | "delete"): void {
     setError(null);
     if (request.current?.command !== command || request.current.revision !== agent.revision) {
       request.current = { command, id: crypto.randomUUID(), revision: agent.revision };
@@ -42,9 +42,6 @@ export function AgentControls({
         }
         request.current = null;
         setConfirmOpen(false);
-        if (command === "clone") {
-          router.push(`/agents/${result.value.agentId}`);
-        }
         if (command === "delete") {
           router.push("/agents");
         }
@@ -90,10 +87,6 @@ export function AgentControls({
             Edit strategy
           </Link>
         ) : null}
-        <Button variant="ghost" disabled={busy} onClick={() => run("clone")}>
-          <Copy aria-hidden="true" size={16} />
-          Clone
-        </Button>
         <AlertDialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
           <AlertDialog.Trigger asChild>
             <Button

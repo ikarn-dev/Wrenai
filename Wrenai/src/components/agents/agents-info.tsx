@@ -4,10 +4,7 @@ import { Info } from "lucide-react";
 import { Tooltip } from "radix-ui";
 import type { ReactElement } from "react";
 
-/**
- * Which agent types can trade, in user terms. No runtime or backend details:
- * those stay in EXECUTION_UNAVAILABLE for the agent detail page.
- */
+/** Describe trading permissions without implying that every discovered token is supported. */
 export function AgentsInfo(): ReactElement {
   return (
     <Tooltip.Provider delayDuration={150}>
@@ -29,8 +26,8 @@ export function AgentsInfo(): ReactElement {
             collisionPadding={12}
             className="z-50 max-w-60 card-shine rounded-md px-3 py-2.5 text-caption text-fg-muted shadow-float"
           >
-            Funded agents need your authorization before trading. Meme Hunter stays blocked until its required
-            token checks can be verified. Whale Tracker sends alerts only.
+            Funded agents trade within your authorization. Meme Hunter skips tokens without complete checks
+            and a supported route.
           </Tooltip.Content>
         </Tooltip.Portal>
       </Tooltip.Root>

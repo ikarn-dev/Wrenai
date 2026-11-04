@@ -1,6 +1,10 @@
 import type { ReactElement } from "react";
 import { type AgentInstruction, instructionAssets } from "@/shared/agent-instructions";
 
+function percentage(basisPoints: number): string {
+  return `${Math.trunc(basisPoints / 100)}.${String(basisPoints % 100).padStart(2, "0")}%`;
+}
+
 function rows(instruction: AgentInstruction): readonly { readonly label: string; readonly value: string }[] {
   const unit =
     "priceUnit" in instruction && instruction.priceUnit === "quote_token" ? "quote token units" : "USD";
@@ -100,6 +104,8 @@ function rows(instruction: AgentInstruction): readonly { readonly label: string;
         { label: "Listing age", value: `At most ${instruction.maximumAgeSeconds} seconds` },
         { label: "Minimum liquidity", value: `$${instruction.minimumLiquidityUsd}` },
         { label: "Maximum positions", value: String(instruction.maximumPositions) },
+        { label: "Holder / linked-group limit", value: percentage(instruction.maximumHolderBps) },
+        { label: "Entry/exit quote loss limit", value: percentage(instruction.maximumPriceImpactBps) },
       );
       break;
     case "whale_tracker":

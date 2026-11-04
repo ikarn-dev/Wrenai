@@ -95,7 +95,10 @@ export async function currentDefiPolicy(
   action?: LedgerAction,
 ): Promise<{ policy: AgentPolicy; policyHash: string; publicKey: string; riskReducingExit: boolean }> {
   const agent = await ownedAgent(db, userId, plan.agentId);
-  if ((agent.status !== "running" && !plan.returnFunds) || (await killSwitchEngaged(db, userId))) {
+  if (
+    (agent.status !== "running" && !plan.returnFunds && !plan.walletFundingId) ||
+    (await killSwitchEngaged(db, userId))
+  ) {
     throw new ExecutionError("not_ready", "The agent must be running and the global stop must be off.");
   }
   if (agent.revision !== plan.agentRevision || agent.version !== plan.strategyVersion) {

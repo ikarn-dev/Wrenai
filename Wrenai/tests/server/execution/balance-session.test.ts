@@ -16,7 +16,10 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/server/env", () => ({
   serverEnv: () => ({ keyEncryptionKey: createSecretKey(Buffer.alloc(32, 7)) }),
 }));
-vi.mock("@/server/near/rpc", () => ({ hasFullAccessKey: async () => true }));
+vi.mock("@/server/near/rpc", () => ({
+  hasFullAccessKey: async () => true,
+  callViewFunction: async () => ({ value: "252812b3", blockHeight: 1 }),
+}));
 vi.mock("@/server/execution/oneclick-quote", () => ({ oneClickJson: vi.fn() }));
 const user = { id: "owner", accountId: "owner.near" };
 let context: Awaited<ReturnType<typeof testDatabase>>;

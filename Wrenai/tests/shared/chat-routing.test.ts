@@ -5,7 +5,6 @@ import { chatRoutingIssue, needsLiveResearch, requestedResearchTools } from "@/s
 const requests: Record<ActiveAgentTool, string> = {
   dca: "Check a DCA swap quote for NEAR to USDC",
   spot_trader: "Review a spot buy of NEAR with USDC",
-  whale_tracker: "Track whale movements for trader.near",
   buy_the_dip: "Buy the dip in NEAR spot",
   sell_the_top: "Sell at my profit target",
   meme_hunter: "Find current NEAR memecoins",
@@ -27,13 +26,15 @@ describe("research tool routing before inference", () => {
     expect(chatRoutingIssue(requests.perps, "dca")).toContain("Switch to Perps or Auto");
   });
   it("requires Auto for separate research goals, while keeping umbrella comparisons together", () => {
-    expect(chatRoutingIssue("Find whale movements and compare perps", "whale_tracker")).toContain(
+    expect(chatRoutingIssue("Compare NEAR memecoins and analyze NEAR perps", "meme_hunter")).toContain(
       "multiple tools",
     );
     expect(chatRoutingIssue("Analyze NEAR perps with take-profit and stop-loss", "perps")).toBeNull();
     expect(
       chatRoutingIssue("Review a spot buy of NEAR with take-profit and stop-loss", "spot_trader"),
     ).toBeNull();
+    expect(chatRoutingIssue("Track whale movements for trader.near", null)).toContain("removed");
+    expect(chatRoutingIssue("Watch this wallet", "whale_tracker")).toContain("removed");
     expect(chatRoutingIssue("Find arbitrage", null)).toContain("removed");
     expect(chatRoutingIssue("Create a rebalancer agent", null)).toContain("removed");
     expect(chatRoutingIssue("Research this", "copy_trading")).toContain("removed");

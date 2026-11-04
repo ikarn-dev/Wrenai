@@ -1,6 +1,6 @@
 import "server-only";
 import type { AppDatabase } from "@/server/db/client";
-import type { AgentPolicy } from "@/shared/agents";
+import { guardManualAction } from "@/server/manual-trading/guard";
 import { ExecutionError, executionPlanSchema } from "./contracts";
 import { defiPlanSchema } from "./defi-contracts";
 import { currentDefiPolicy } from "./defi-policy";
@@ -13,25 +13,29 @@ export async function recheckLedgerAction(
   action: LedgerAction,
   now: number,
   mode: "claim" | "submit",
-): Promise<AgentPolicy> {
+): Promise<void> {
+  if (action.origin === "manual") {
+    await guardManualAction(db, action, now, mode === "submit");
+    return;
+  }
   if (action.kind === "swap") {
     const swap = swapAction(action);
     const plan = executionPlanSchema.parse(JSON.parse(swap.planJson));
     const current = await recheckExecution(db, swap, plan, now);
     if (mode === "claim") {
-      return current.policy;
+      return;
     }
     await checkReservationLimits(db, action.userId, plan, current, now, action.id);
     await checkSubmissionRate(db, action, current.policy, now, current.riskReducingExit);
     if ((await availableInventory(db, action.userId, action.scope, swap.inputAssetId, now)) < 0n) {
       throw new ExecutionError("insufficient_funds", "Current inventory no longer covers its reservations.");
     }
-    return current.policy;
+    return;
   }
   const plan = defiPlanSchema.parse(JSON.parse(action.planJson));
   const current = await currentDefiPolicy(db, action.userId, plan, now, action);
   if (mode === "claim") {
-    return current.policy;
+    return;
   }
   await checkSubmissionRate(db, action, current.policy, now, current.riskReducingExit);
   for (const cash of plan.cash) {
@@ -42,5 +46,5 @@ export async function recheckLedgerAction(
       );
     }
   }
-  return current.policy;
+  return;
 }

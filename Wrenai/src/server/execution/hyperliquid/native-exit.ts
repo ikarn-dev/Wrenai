@@ -14,17 +14,23 @@ import type { HlAccountState } from "./account-state";
 import type { PerpsCheckpoint } from "./checkpoint";
 import { type HlOrder, perpsCashAssetId, perpsInstrumentId } from "./contracts";
 import type { PerpsFillAccounting } from "./fill-accounting";
+import type { HlFunding } from "./funding-observation";
 import type { HlFill } from "./observations";
 import type { HlOrderRecord } from "./order-record";
 import { settlePerpsFills } from "./settlement";
 
-function observationRequest(entryId: string, fills: readonly HlFill[]): string {
+function observationRequest(
+  entryId: string,
+  fills: readonly HlFill[],
+  funding: readonly HlFunding[],
+): string {
   const hex = createHash("sha256")
     .update(
       JSON.stringify([
         "hl-native-exit:v1",
         entryId,
         fills.map((fill) => [fill.time, fill.coin, fill.tid, fill.oid]),
+        funding.map((row) => [row.time, row.hash, row.delta.coin, row.delta.usdc]),
       ]),
     )
     .digest("hex");
@@ -41,16 +47,20 @@ export async function settleNativePerpsExit(
   fills: readonly HlFill[],
   openIds: ReadonlySet<number>,
   known: ReadonlyMap<number, HlOrder>,
+  funding: readonly HlFunding[] = [],
 ): Promise<void> {
+  const fundingOnly = fills.length === 0 && funding.length > 0;
   if (
-    fills.length === 0 ||
-    result.quantity >= BigInt(checkpoint.quantity) ||
+    (fills.length === 0 && !fundingOnly) ||
+    (fundingOnly
+      ? result.quantity !== BigInt(checkpoint.quantity)
+      : result.quantity >= BigInt(checkpoint.quantity)) ||
     result.risk <= 0n ||
     fills.some((fill) => !known.get(fill.oid)?.r)
   ) {
     throw new ExecutionError("conflict", "A native receipt must prove a strictly reducing owned order.");
   }
-  const requestId = observationRequest(entry.id, fills),
+  const requestId = observationRequest(entry.id, fills, funding),
     source = defiPlanSchema.parse(JSON.parse(entry.planJson));
   await userTransaction(db, entry.userId, async (tx) => {
     const [previous] = await tx
@@ -128,7 +138,7 @@ export async function settleNativePerpsExit(
           expectedVersion: exposure.version,
           beforeUnits: exposure.quantityUnits.toString(),
           minAfterUnits: "0",
-          maxAfterUnits: (exposure.quantityUnits - 1n).toString(),
+          maxAfterUnits: (fundingOnly ? exposure.quantityUnits : exposure.quantityUnits - 1n).toString(),
         },
         {
           positionId: collateral.id,
@@ -137,13 +147,13 @@ export async function settleNativePerpsExit(
           expectedVersion: collateral.version,
           beforeUnits: collateral.quantityUnits.toString(),
           minAfterUnits: "0",
-          maxAfterUnits: collateral.quantityUnits.toString(),
+          maxAfterUnits: (fundingOnly ? result.collateral : collateral.quantityUnits).toString(),
         },
       ],
       notionalMicroUsd: result.risk.toString(),
       quoteId: `hl-native:${requestId}`,
-      quoteHash: executionHash({ state, fills }),
-      payloadHash: executionHash(fills),
+      quoteHash: executionHash({ state, fills, funding }),
+      payloadHash: executionHash({ fills, funding }),
       expiresAt: now + 30_000,
     });
     const [action] = await tx
@@ -152,6 +162,7 @@ export async function settleNativePerpsExit(
         id: randomUUID(),
         userId: entry.userId,
         agentId: entry.agentId,
+        origin: entry.origin,
         requestId,
         planHash: executionHash(plan),
         planJson: JSON.stringify(plan),
@@ -201,8 +212,21 @@ export async function settleNativePerpsExit(
     await executionEvent(tx, action, "hl_native_observation", now, {
       entryActionId: entry.id,
       fills: fills.map((fill) => fill.tid),
+      funding: funding.map((row) => ({ hash: row.hash, time: row.time })),
       checkpointTime: checkpoint.time,
     });
-    await settlePerpsFills(tx, action, token, saved, result, state, fills, openIds, known, checkpoint);
+    await settlePerpsFills(
+      tx,
+      action,
+      token,
+      saved,
+      result,
+      state,
+      fills,
+      openIds,
+      known,
+      checkpoint,
+      funding,
+    );
   });
 }

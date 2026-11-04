@@ -14,7 +14,7 @@ function allowedVenue(permission: ExecutionPermission): boolean {
     case "confidential":
       return permission.venueId === "confidential-intents" && operations.every((o) => o === "transfer");
     case "intents":
-      return false;
+      return permission.venueId === "near-intents" && operations.every((o) => o === "transfer");
     case "hyperliquid":
       return (
         permission.venueId === "hyperliquid" &&

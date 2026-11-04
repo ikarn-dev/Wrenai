@@ -17,7 +17,8 @@ export const executionPlanSchema = z
     agentRevision: z.number().int().positive(),
     strategyVersion: z.number().int().positive(),
     riskPolicyRevision: z.number().int().nonnegative(),
-    budgetMode: z.literal("per_agent").optional(),
+    budgetMode: z.enum(["per_agent", "manual"]).optional(),
+    manualTradeId: z.uuid().optional(),
     reduceOnly: z.literal(true).optional(),
     scope: scopeSchema,
     inputAssetId: assetId,
@@ -32,9 +33,13 @@ export const executionPlanSchema = z
     quoteHash: hashSchema,
     expiresAt: timestamp,
   })
+  .refine(
+    (plan) => (plan.budgetMode === "manual") === (plan.manualTradeId !== undefined),
+    "Manual orders require an exact confirmation binding.",
+  )
   .refine((plan) => plan.inputAssetId !== plan.outputAssetId, "A swap requires different assets.")
   .refine(
-    (plan) => (plan.budgetMode === "per_agent" ? plan.riskPolicyRevision === 0 : plan.riskPolicyRevision > 0),
+    (plan) => (plan.budgetMode !== undefined ? plan.riskPolicyRevision === 0 : plan.riskPolicyRevision > 0),
     "An execution plan must explicitly bind its budget policy.",
   );
 export type ExecutionPlan = z.infer<typeof executionPlanSchema>;

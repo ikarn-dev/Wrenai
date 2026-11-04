@@ -14,7 +14,7 @@ export const inventoryAssignmentSchema = z.strictObject({
   scope: scopeSchema,
   assetId: z.string().trim().min(1).max(256),
   quantityUnits: positiveTokenUnitsSchema,
-  capitalMicroUsd: positiveTokenUnitsSchema,
+  capitalMicroUsd: tokenUnitsSchema,
   costBasisMicroUsd: tokenUnitsSchema.nullable(),
   sourceReference: z.string().trim().min(1).max(256),
   evidenceHash: hashSchema,

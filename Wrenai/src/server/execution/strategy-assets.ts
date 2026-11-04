@@ -1,11 +1,12 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { strategyVersions } from "@/server/db/agent-schema";
+import { agents, strategyVersions } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { instructionAssets } from "@/shared/agent-instructions";
 import { strategySchema, strategySymbols } from "@/shared/agents";
 import { ExecutionError, type ExecutionPlan, hashSchema } from "./contracts";
+import { assertMemePair, readMemeDecision } from "./meme-binding";
 import { executionHash } from "./records";
 
 const bindingsSchema = z.strictObject({
@@ -29,7 +30,7 @@ const bindingsSchema = z.strictObject({
 /** Canonical IDs must be resolved by the verified provider/strategy review path, never by a proposal. */
 export async function checkStrategyAssets(
   db: AppDatabase,
-  plan: Pick<ExecutionPlan, "agentId" | "strategyVersion" | "inputAssetId" | "outputAssetId">,
+  plan: Pick<ExecutionPlan, "agentId" | "strategyVersion" | "inputAssetId" | "outputAssetId" | "inputUnits">,
 ): Promise<void> {
   const [version] = await db
     .select()
@@ -55,6 +56,22 @@ export async function checkStrategyAssets(
       bindings.assets.some((asset) => !expected.includes(asset.assetId) || asset.symbol !== asset.assetId)
     ) {
       throw new ExecutionError("not_ready", "The resolved tokens do not match the reviewed instruction.");
+    }
+    if (strategy.kind === "meme_hunter") {
+      const [owner] = await db
+        .select({ userId: agents.userId })
+        .from(agents)
+        .where(eq(agents.id, plan.agentId))
+        .limit(1);
+      if (!owner) {
+        throw new ExecutionError("not_ready", "The hunter owner is unavailable.");
+      }
+      assertMemePair(
+        strategy,
+        await readMemeDecision(db, owner.userId, plan.agentId, plan.strategyVersion, strategy),
+        plan,
+      );
+      return;
     }
     if (!expected.includes(plan.inputAssetId) || !expected.includes(plan.outputAssetId)) {
       throw new ExecutionError("limit", "The trade includes a token outside the reviewed instruction.");

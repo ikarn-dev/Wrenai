@@ -6,6 +6,7 @@ import { chatAgentDrafts } from "@/server/db/chat-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { positionLots } from "@/server/db/position-schema";
 import { users } from "@/server/db/schema";
+import { nativeWalletHolds } from "@/server/funding/native-records";
 import { walletTokenHolding, walletTokenHoldings } from "@/server/portfolio/wallet-tokens";
 import {
   type AgentBudgetInput,
@@ -46,10 +47,10 @@ export async function prepareAgentBudget(
   return { accountId, input, holding: await walletTokenHolding(accountId, input.assetId) };
 }
 
-async function reservedWalletBudgets(
+export async function reservedWalletBudgets(
   db: AppDatabase,
   owner: string,
-  cipher: ChatCipher,
+  cipher: ChatCipher = chatCipher(),
   excludeId?: string,
 ): Promise<readonly AgentTokenBudget[]> {
   const rows = await db.select().from(chatAgentDrafts).where(eq(chatAgentDrafts.userId, owner)).limit(1001);
@@ -86,14 +87,16 @@ export async function reserveSetupBudget(
     throw new ChatError("conflict", "The wallet changed. Refresh before allocating funds.");
   }
   const budgets = await reservedWalletBudgets(db, owner, cipher, id);
-  const allocated = budgets.reduce(
-    (sum, budget) =>
-      sum +
-      (budget.accountId === prepared.accountId && budget.assetId === prepared.input.assetId
-        ? BigInt(budget.walletReservedUnits ?? budget.units)
-        : 0n),
-    0n,
-  );
+  const allocated =
+    (await nativeWalletHolds(db, owner, prepared.input.assetId)) +
+    budgets.reduce(
+      (sum, budget) =>
+        sum +
+        (budget.accountId === prepared.accountId && budget.assetId === prepared.input.assetId
+          ? BigInt(budget.walletReservedUnits ?? budget.units)
+          : 0n),
+      0n,
+    );
   try {
     const oldUnits =
       previous?.accountId === prepared.accountId &&
@@ -162,6 +165,13 @@ export async function readWalletBudgets(
       .groupBy(positionLots.scope, positionLots.assetId)
       .limit(500),
   ]);
+  const nativeHolds = new Map(
+    await Promise.all(
+      wallet.tokens.map(
+        async (holding) => [holding.assetId, await nativeWalletHolds(db, owner, holding.assetId)] as const,
+      ),
+    ),
+  );
   return {
     accountId,
     note: wallet.note,
@@ -169,14 +179,15 @@ export async function readWalletBudgets(
     tokens: wallet.tokens.map((holding) =>
       walletBudgetAvailability(
         holding,
-        budgets.reduce(
-          (sum, budget) =>
-            sum +
-            (budget.accountId === accountId && budget.assetId === holding.assetId
-              ? BigInt(budget.walletReservedUnits ?? budget.units)
-              : 0n),
-          0n,
-        ),
+        (nativeHolds.get(holding.assetId) ?? 0n) +
+          budgets.reduce(
+            (sum, budget) =>
+              sum +
+              (budget.accountId === accountId && budget.assetId === holding.assetId
+                ? BigInt(budget.walletReservedUnits ?? budget.units)
+                : 0n),
+            0n,
+          ),
       ),
     ),
   };

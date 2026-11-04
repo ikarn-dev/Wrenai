@@ -5,56 +5,20 @@ import type { AppDatabase } from "@/server/db/client";
 import { executionActions, executionEvents } from "@/server/db/execution-schema";
 import { users } from "@/server/db/schema";
 import { userTransaction } from "@/server/db/user-transaction";
-import { copyEvidenceSchema } from "@/server/research/explorer-contracts";
 import { parseUsd, policySchema } from "@/shared/agents";
-import { positiveTokenUnitsSchema } from "@/shared/token-units";
 import { currentAgentStrategy } from "./asset-review";
 import { privateBalanceToken } from "./balance-session";
 import { ExecutionError, executionPlanSchema } from "./contracts";
 import { swapGuardVerdict } from "./guard-swap";
 import { instructionSubmissionCheck } from "./instruction-reference";
-import { generatedIntentSchema } from "./intents-payload";
 import { prepareIntentsOrder } from "./intents-quote";
+import { preparedOrderSchema, swapSignalSchema } from "./intents-record";
 import { dryQuoteRequest, verifiedProviderQuote } from "./oneclick-quote";
 import { databaseTime, type ExecutionAction, executionEvent, executionHash, ownedExecution } from "./records";
 import { reserveExecution } from "./reservations";
 import { checkStrategyAssets } from "./strategy-assets";
 
-export const swapSignalSchema = z.strictObject({
-  requestId: z.uuid(),
-  agentId: z.uuid(),
-  expectedRevision: z.number().int().positive(),
-  inputAssetId: z
-    .string()
-    .max(180)
-    .regex(/^nep141:[^\s:*]+$/),
-  outputAssetId: z
-    .string()
-    .max(180)
-    .regex(/^nep141:[^\s:*]+$/),
-  inputUnits: positiveTokenUnitsSchema,
-  referenceInputMicroUsd: positiveTokenUnitsSchema.optional(),
-  purpose: z
-    .enum(["trigger_entry", "trigger_exit", "copy_trade", "instruction_entry", "instruction_exit"])
-    .optional(),
-  instructionSlot: z.string().min(1).max(200).optional(),
-  copyTrade: copyEvidenceSchema.optional(),
-  referenceOutputPriceMicroUsd: positiveTokenUnitsSchema.optional(),
-  outputDecimals: z.number().int().min(0).max(36).optional(),
-});
-export const preparedOrderSchema = z.strictObject({
-  format: z.literal(1),
-  signalHash: z.string().regex(/^[a-f0-9]{64}$/),
-  signal: swapSignalSchema.optional(),
-  quotedAt: z.number().int().nonnegative(),
-  maximumProviderFeeBps: z.number().int().min(0).max(2000),
-  requestDeadline: z.iso.datetime(),
-  providerDeadline: z.iso.datetime(),
-  providerQuote: z.unknown(),
-  generated: generatedIntentSchema,
-  payloadHash: z.string().regex(/^[a-f0-9]{64}$/),
-  depositAddress: z.string().regex(/^[a-f0-9]{64}$/),
-});
+export { preparedOrderSchema, swapSignalSchema } from "./intents-record";
 
 export async function readPreparedOrder(
   db: AppDatabase,
@@ -115,6 +79,7 @@ export async function prepareSwapExecution(
     strategyVersion: agent.version,
     inputAssetId: signal.inputAssetId,
     outputAssetId: signal.outputAssetId,
+    inputUnits: signal.inputUnits,
   });
   const [owner] = await db
     .select({ accountId: users.accountId })

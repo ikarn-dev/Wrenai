@@ -67,12 +67,24 @@ export const recoveryEnvelopeSchema = z.strictObject({
     .max(32_000)
     .regex(/^[A-Za-z0-9_-]+$/),
 });
-export const recoveryRequestSchema = z.strictObject({ agentId: z.uuid() });
-export const recoverySignatureSchema = recoveryRequestSchema.extend({
-  nonce: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
-  publicKey: z.string().max(128),
-  signature: z.string().max(256),
-});
+const recoveryContext = { agentId: z.uuid().optional(), manual: z.literal(true).optional() };
+export const recoveryRequestSchema = z
+  .strictObject(recoveryContext)
+  .refine(
+    (v) => (v.agentId !== undefined) !== (v.manual === true),
+    "Choose a saved agent or manual trading.",
+  );
+export const recoverySignatureSchema = z
+  .strictObject({
+    ...recoveryContext,
+    nonce: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+    publicKey: z.string().max(128),
+    signature: z.string().max(256),
+  })
+  .refine(
+    (v) => (v.agentId !== undefined) !== (v.manual === true),
+    "Choose a saved agent or manual trading.",
+  );
 export const recoveryConfirmationSchema = z.strictObject({
   accountId: z.uuid(),
   token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),

@@ -39,7 +39,7 @@ export function SetupCard({ setup }: { readonly setup: AgentSetupDraft }): React
   return (
     <div className="group relative min-w-0">
       <Link
-        href={`/agents/setup/${setup.id}`}
+        href={isActiveAgentTool(setup.tool) ? `/agents/new?setup=${setup.id}` : `/agents/setup/${setup.id}`}
         className="flex h-full min-w-0 flex-col gap-3 card-shine rounded-lg p-4 pr-12 transition-[scale] duration-200 ease-ios active:scale-99 motion-reduce:active:scale-100"
       >
         <span className="flex items-center gap-2.5">

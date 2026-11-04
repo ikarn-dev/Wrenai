@@ -8,7 +8,8 @@ import { type FormEvent, type ReactElement, useState, useTransition } from "reac
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToastState } from "@/components/ui/toast";
-import { parseAgentStrategy, saveAgentStrategy } from "@/server/agents/actions";
+import { createAgentWithBudget, parseAgentStrategy, saveAgentStrategy } from "@/server/agents/actions";
+import type { AgentBudgetInput } from "@/shared/agent-budget";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
 import { isActiveAgentTool } from "@/shared/agent-scope";
 import {
@@ -22,24 +23,35 @@ import {
 } from "@/shared/agents";
 import { Field, INPUT_CLASS, PolicyFields } from "./policy-fields";
 import { StrategySummary } from "./strategy-summary";
+import { TokenBudget } from "./token-budget";
 
 export function AgentEditor({
   agent,
   setup,
+  initialPack,
+  initialBrief,
 }: {
   readonly agent?: AgentSummary;
+  readonly initialPack?: AgentSummary["pack"];
+  readonly initialBrief?: string;
   readonly setup?: {
     readonly id: string;
     readonly hash: string;
     readonly pack: AgentSummary["pack"];
     readonly brief: string;
+    readonly budget: AgentBudgetInput | null;
   };
 }): ReactElement {
   const router = useRouter();
-  const [pack, setPack] = useState(agent?.pack ?? setup?.pack ?? "spot_trader");
-  const [text, setText] = useState(agent?.strategyText ?? setup?.brief ?? "");
+  const [pack, setPack] = useState(agent?.pack ?? setup?.pack ?? initialPack ?? "spot_trader");
+  const [budget, setBudget] = useState<AgentBudgetInput | null>(setup?.budget ?? null);
+  const [text, setText] = useState(agent?.strategyText ?? setup?.brief ?? initialBrief ?? "");
   const [policy, setPolicy] = useState<AgentPolicy>(
-    agent?.policy ?? { ...DEFAULT_POLICY, allowRiskReducingExits: true },
+    agent?.policy ?? {
+      ...DEFAULT_POLICY,
+      allowRiskReducingExits: true,
+      ...((setup?.pack ?? initialPack) === "perps" ? { maxProviderFeeBps: 10 } : {}),
+    },
   );
   const [draft, setDraft] = useState<StrategyDraft | null>(null);
   const [, setError] = useToastState("error");
@@ -61,7 +73,12 @@ export function AgentEditor({
     setRequestId(id);
     startTransition(async () => {
       try {
-        const result = await parseAgentStrategy({ requestId: id, pack, strategyText: text });
+        const result = await parseAgentStrategy({
+          requestId: id,
+          pack,
+          strategyText: text,
+          ...(!agent && budget ? { budget } : {}),
+        });
         if (!result.ok) {
           setError(result.message);
           if (result.code !== "in_progress" && result.code !== "unavailable") {
@@ -91,14 +108,17 @@ export function AgentEditor({
     setError(null);
     startTransition(async () => {
       try {
-        const result = await saveAgentStrategy({
+        const input = {
           requestId: id,
           draftId: draft.id,
           policy: parsed.data,
           agentId: agent?.id ?? null,
           expectedRevision: agent?.revision ?? null,
           ...(setup ? { setupId: setup.id, setupHash: setup.hash } : {}),
-        });
+        };
+        const result = !agent
+          ? await createAgentWithBudget({ ...input, budget })
+          : await saveAgentStrategy(input);
         if (!result.ok) {
           setError(result.message);
           return;
@@ -123,7 +143,7 @@ export function AgentEditor({
       <header className="flex flex-col gap-2">
         <h1 className="text-h1">{agent ? `Edit ${agent.name}` : "New agent"}</h1>
         <p className="max-w-2xl text-body text-fg-muted">
-          Describe the strategy. Review its rules and set your limits before saving.
+          Describe what to do, choose a budget and review the rules.
         </p>
       </header>
       <div className="grid items-start gap-stack xl:grid-cols-2">
@@ -137,6 +157,7 @@ export function AgentEditor({
             <Field label="Strategy pack">
               <select
                 className={INPUT_CLASS}
+                disabled={!!setup}
                 value={pack}
                 onChange={(event) => {
                   const parsed = packSchema.safeParse(event.target.value);
@@ -157,7 +178,7 @@ export function AgentEditor({
             </Field>
             <p className="text-small text-fg-muted">{PACKS[pack].description}</p>
             <p className="text-caption text-fg-subtle">
-              Use exact supported token contracts and the amount unit. Trading funds are allocated separately.
+              Use the exact tokens and amounts you want this agent to use.
             </p>
             <Field
               label="What should this agent do?"
@@ -188,10 +209,18 @@ export function AgentEditor({
               Use setup guide
             </button>
           </fieldset>
+          {!agent ? (
+            <TokenBudget
+              value={budget}
+              onChange={(value) => {
+                setBudget(value);
+                invalidate();
+              }}
+              disabled={busy}
+              {...(setup ? { excludeId: setup.id } : {})}
+            />
+          ) : null}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-caption text-fg-subtle">
-              NEAR AI verified inference · execution scope reviewed before activation
-            </span>
             <Button type="submit" disabled={busy} aria-busy={busy && draft === null}>
               {busy && draft === null ? (
                 <LoaderCircle aria-hidden="true" size={16} className="motion-safe:animate-spin" />
@@ -199,10 +228,6 @@ export function AgentEditor({
               {busy && draft === null ? "Verifying strategy…" : "Review strategy"}
             </Button>
           </div>
-          <p className="text-caption leading-relaxed text-fg-subtle">
-            Strategies and limits stay on this backend; inference is encrypted to an attested model. Saving
-            creates a paused agent and does not authorize a trade.
-          </p>
         </form>
         {draft === null ? (
           <aside className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-line p-card text-center">
@@ -227,33 +252,19 @@ export function AgentEditor({
               </Badge>
             </div>
             <StrategySummary strategy={draft.strategy} />
-            {draft.strategy.kind === "triggers" &&
-            draft.strategy.condition === "buy_above" &&
-            policy.approvalMode !== "autonomous" ? (
-              <p className="rounded-sm border border-warn/30 bg-warn-soft p-3 text-small text-warn">
-                Breakouts require your approval in this mode. They execute automatically only with “Autonomous
-                within limits”.
-              </p>
-            ) : null}
-            {pack !== "whale_tracker" ? (
-              <PolicyFields
-                policy={policy}
-                onChange={(next) => {
-                  setPolicy(next);
-                  setSaveId(null);
-                }}
-                disabled={busy}
-              />
-            ) : (
-              <p className="text-small text-fg-muted">
-                Watchlist alerts do not spend your funds or require a trading key.
-              </p>
-            )}
+            <PolicyFields
+              policy={policy}
+              onChange={(next) => {
+                setPolicy(next);
+                setSaveId(null);
+              }}
+              disabled={busy}
+            />
             <p className="text-caption text-fg-subtle">
-              Verified with {draft.model}. Review expires 30 minutes after parsing.
+              Saved paused. Funding and Start are on the next screen.
             </p>
             <Button type="submit" variant="primary" disabled={busy} aria-busy={busy && draft !== null}>
-              {busy ? "Saving…" : agent ? "Save new version · paused" : "Create agent · paused"}
+              {busy ? "Saving…" : agent ? "Save changes" : "Create agent"}
             </Button>
           </m.form>
         )}

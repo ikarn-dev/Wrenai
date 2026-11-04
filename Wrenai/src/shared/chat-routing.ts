@@ -116,7 +116,8 @@ export function chatRoutingIssue(message: string, selected: ResearchTool | null)
   const requested = requestedResearchTools(message);
   if (
     requested.some((tool) => !isActiveAgentTool(tool)) &&
-    (selected !== null || /\b(?:live|current|opportunities|find|scan|create|agent|trade)\b/i.test(message))
+    (selected !== null ||
+      /\b(?:live|current|opportunities|find|scan|create|agent|trade|track|watch|monitor)\b/i.test(message))
   ) {
     return REMOVED_AGENT_MESSAGE;
   }

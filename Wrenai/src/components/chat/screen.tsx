@@ -27,7 +27,7 @@ import { useChat } from "./use-chat";
 
 const INFO_LINES = [
   { icon: Eye, text: "Sees your wallet and agents" },
-  { icon: Ban, text: "Answers only, never trades" },
+  { icon: Ban, text: "Trade previews need your confirmation" },
   // "Stored", not just "encrypted": true as written (encrypted at rest, Spec §10) without implying no one can read it.
   { icon: Lock, text: "Chats stored encrypted" },
 ] as const;

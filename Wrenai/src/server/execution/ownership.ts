@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { AppDatabase } from "@/server/db/client";
 import { executionActions } from "@/server/db/execution-schema";
 import { userTransaction } from "@/server/db/user-transaction";
+import { guardManualAction } from "@/server/manual-trading/guard";
 import { recheckLedgerAction } from "./action-policy";
 import { ExecutionError, executionPlanSchema, hashSchema } from "./contracts";
 import { defiPlanSchema } from "./defi-contracts";
@@ -92,7 +93,10 @@ async function commitSubmission(
       );
     }
     await recheckLedgerAction(tx, action, now, "submit");
-    if (action.kind === "swap") {
+    if (action.origin === "manual") {
+      await guardManualAction(tx, action, now, false, submission.payloadHash);
+    }
+    if (action.kind === "swap" && action.origin === "agent") {
       await requireSwapGuard(
         tx,
         userId,

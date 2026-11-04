@@ -1,6 +1,6 @@
 import type { ResearchTool } from "./research";
 
-/** Eight active setup types plus display-only historical metadata. None authorizes live execution. */
+/** Seven active setup types plus display-only historical metadata. None authorizes live execution. */
 export const AGENT_CATALOG = {
   spot_trader: {
     name: "Spot Trader Agent",
@@ -25,15 +25,10 @@ export const AGENT_CATALOG = {
     ],
   },
   whale_tracker: {
-    name: "Whale / Smart Money Tracker",
-    description: "Watch confirmed public wallet movements and evidence-backed trading patterns.",
-    prompt:
-      "Research confirmed public movements for a watched account. Distinguish transfers from trades and show what can actually be established.",
-    fields: [
-      "Watched public accounts, chain and tokens",
-      "Transfer threshold with asset or USD unit",
-      "Alert conditions and duplicate/cooldown rules",
-    ],
+    name: "Whale Tracker (removed)",
+    description: "Retired agent type; monitoring and alerts are no longer available.",
+    prompt: "This tool has been removed. Choose an available agent type.",
+    fields: [],
   },
   buy_the_dip: {
     name: "Buy the Dip Agent",
@@ -87,12 +82,13 @@ export const AGENT_CATALOG = {
   },
   meme_hunter: {
     name: "Meme Hunter Agent",
-    description: "Research token launches, liquidity and reasons to avoid a market.",
+    description:
+      "Find new listings and trade supported candidates within your security, liquidity and exit limits.",
     prompt:
       "Research NEAR meme markets and explain which candidates deserve a closer look or should be avoided.",
     fields: [
       "Tokens or launch criteria",
-      "Minimum liquidity and maximum exposure",
+      "Maximum listing age, liquidity and holder limits",
       "Entry, exit and loss limits",
     ],
   },

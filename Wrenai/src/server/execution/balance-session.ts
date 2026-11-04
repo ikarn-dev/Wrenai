@@ -1,5 +1,4 @@
 import "server-only";
-import { randomBytes } from "node:crypto";
 import { base58 } from "@scure/base";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { z } from "zod";
@@ -8,6 +7,7 @@ import { chatCipher } from "@/server/chat/cipher";
 import type { AppDatabase } from "@/server/db/client";
 import { intentsSessions } from "@/server/db/preview-schema";
 import { signInChallenges } from "@/server/db/schema";
+import { intentsLoginNonce } from "@/server/intents/auth-nonce";
 import { decodeSignature, parseEd25519PublicKey, verifyNep413Signature } from "@/server/near/nep413";
 import { hasFullAccessKey } from "@/server/near/rpc";
 import { authenticateDelegatedBalance } from "./balance-authorization";
@@ -20,6 +20,7 @@ const tokensSchema = z.object({
   expiresIn: z.number().int().positive().max(31_536_000),
   refreshExpiresIn: z.number().int().positive().max(31_536_000),
 });
+const refreshSchema = tokensSchema.pick({ accessToken: true, expiresIn: true });
 const cipherNamespace = "provider-session:oneclick";
 function message(accountId: string, expiresAt: number): string {
   return JSON.stringify({ signer_id: accountId, deadline: new Date(expiresAt).toISOString(), intents: [] });
@@ -30,8 +31,9 @@ export interface BalanceChallenge {
   readonly recipient: "intents.near";
 }
 export async function issueBalanceChallenge(db: AppDatabase, user: SessionUser): Promise<BalanceChallenge> {
-  const nonce = randomBytes(32).toString("base64url");
+  // The nonce's deadline is the challenge's expiry, so the wallet signs one deadline in both places.
   const expiresAt = Date.now() + 300_000;
+  const nonce = (await intentsLoginNonce(expiresAt)).toString("base64url");
   await db.insert(signInChallenges).values({ nonce: `intents-auth:${user.id}:${nonce}`, expiresAt });
   return { nonce, message: message(user.accountId, expiresAt), recipient: "intents.near" };
 }
@@ -149,16 +151,18 @@ export async function privateBalanceToken(db: AppDatabase, userId: string): Prom
   if (session.accessExpiresAt > Date.now() + 10_000) {
     return tokens.accessToken;
   }
-  const refreshed = tokensSchema.parse(
+  // 1Click's refresh returns only a new access token and its lifetime (SDK RefreshResponseDto); the refresh
+  // token and its expiry carry over unchanged.
+  const access = refreshSchema.parse(
     await oneClickJson("/v0/auth/refresh", { refreshToken: tokens.refreshToken }),
   );
+  const refreshed = { ...tokens, accessToken: access.accessToken, expiresIn: access.expiresIn };
   const now = Date.now();
   const updated = await db
     .update(intentsSessions)
     .set({
       sealedTokens: chatCipher().seal(userId, cipherNamespace, "tokens", JSON.stringify(refreshed)),
-      accessExpiresAt: now + refreshed.expiresIn * 1000,
-      refreshExpiresAt: now + refreshed.refreshExpiresIn * 1000,
+      accessExpiresAt: now + access.expiresIn * 1000,
       updatedAt: now,
     })
     .where(and(eq(intentsSessions.userId, userId), eq(intentsSessions.sealedTokens, session.sealedTokens)))

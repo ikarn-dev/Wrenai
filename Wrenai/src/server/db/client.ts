@@ -7,15 +7,26 @@ import * as agentSchema from "./agent-schema";
 import * as chatSchema from "./chat-schema";
 import * as defiSchema from "./defi-schema";
 import * as executionSchema from "./execution-schema";
+import * as fundingSchema from "./funding-schema";
+import * as manualSchema from "./manual-schema";
+import * as nativeFundingSchema from "./native-funding-schema";
+import * as nativeSchema from "./native-schema";
+import * as portfolioSchema from "./portfolio-schema";
 import * as positionSchema from "./position-schema";
 import * as previewSchema from "./preview-schema";
 import * as riskSchema from "./risk-schema";
 import * as baseSchema from "./schema";
+import * as subjectSchema from "./subject-schema";
 import * as telegramSchema from "./telegram-schema";
 import * as tradingAccountSchema from "./trading-account-schema";
+import * as walletSwapSchema from "./wallet-swap-schema";
 
 export const schema = {
   ...baseSchema,
+  ...subjectSchema,
+  ...manualSchema,
+  ...nativeSchema,
+  ...nativeFundingSchema,
   ...agentSchema,
   ...chatSchema,
   ...defiSchema,
@@ -25,6 +36,9 @@ export const schema = {
   ...riskSchema,
   ...telegramSchema,
   ...tradingAccountSchema,
+  ...fundingSchema,
+  ...portfolioSchema,
+  ...walletSwapSchema,
 };
 export type AppDatabase = PgDatabase<PgQueryResultHKT, typeof schema>;
 
