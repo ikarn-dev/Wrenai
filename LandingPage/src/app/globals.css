@@ -86,9 +86,10 @@
   --spacing-hero-gap: clamp(2rem, 1.667rem + 1.481vw, 3rem);
   --spacing-hero-bottom: clamp(4.5rem, 3.667rem + 3.704vw, 7rem);
   --spacing-hero-floor: clamp(1.25rem, 1rem + 1.111vw, 2rem);
-  /* Between landing sections, and a section title block and its content (Docs/DESIGN.md → Layout). */
-  --spacing-section: clamp(4rem, 2.667rem + 5.926vw, 8rem);
-  --spacing-head: clamp(2rem, 1.667rem + 1.481vw, 3rem);
+  /* A framed section's inner padding (48 → 80 px; the strip dividers already separate sections), and a section
+     title block to its content (28 → 36 px). */
+  --spacing-section: clamp(3rem, 2.333rem + 2.963vw, 5rem);
+  --spacing-head: clamp(1.75rem, 1.583rem + 0.741vw, 2.25rem);
   --spacing-stack: clamp(0.75rem, 0.625rem + 0.556vw, 1.125rem);
   /* Inside the section frame: the content inset from the rails (16 → 40 px) and the striped divider's height
      (24 → 40 px). */
@@ -108,14 +109,6 @@
   --color-bg: var(--void-900);
   --color-sunken: var(--void-950);
   --color-line-card: var(--void-700);
-  /* Feature cards (card-shine) sit two steps above the page: void-800 on void-900. Measured on void-800:
-     fg-strong 14.67:1, fg-muted 8.37:1, fg-subtle 5.25:1. Wells inside them use sunken (void-950). */
-  --color-surface-card: var(--void-800);
-  --color-surface-raised: var(--void-700);
-  /* Status colors, only for their meanings: loss 6.90:1 on sunken, accent-text 13.33:1 on sunken. */
-  --color-loss: #f07a72;
-  --color-loss-soft: #2a1412;
-  --color-accent-soft: var(--mint-950);
   --color-fg-strong: var(--void-50);
   --color-fg: var(--void-200);
   --color-fg-muted: var(--void-300);
@@ -143,12 +136,17 @@
 }
 
 @layer base {
+  /* No visible scrollbar (user choice): the page still scrolls by wheel, touch, keys and anchors. */
   html {
+    scrollbar-width: none;
     background-color: var(--color-bg);
     color: var(--color-fg);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+  html::-webkit-scrollbar {
+    display: none;
   }
   body {
     min-height: 100dvh;

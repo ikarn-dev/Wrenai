@@ -16,3 +16,22 @@
   background-position: center top;
   mask-image: radial-gradient(ellipse 70% 100% at 50% 0%, #000 10%, transparent 75%);
 }
+
+/* Every horizontal frame line: solid across the content column, dashed and faint (4 px dashes, 4 px gaps, at
+   half strength) where it runs on past the rails to the page edges. The solid part has the column's width:
+   the full width on phones (the rails sit on the screen edges there), the gutter-inset landing width from sm. */
+@utility frame-rule {
+  --frame-column: 100%;
+  height: 1px;
+  background:
+    linear-gradient(var(--color-line-card), var(--color-line-card)) center / var(--frame-column) 100%
+    no-repeat,
+    repeating-linear-gradient(
+      to right,
+      color-mix(in oklab, var(--color-line-card) 50%, transparent) 0 4px,
+      transparent 4px 8px
+    );
+  @media (width >= 40rem) {
+    --frame-column: min(calc(100% - 2 * var(--spacing-gutter)), var(--container-landing));
+  }
+}

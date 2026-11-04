@@ -1,4 +1,5 @@
 import { Hero } from "@/components/hero/hero";
+import { ScrollReveals } from "@/components/motion/scroll-reveals";
 import { Features } from "@/components/sections/features";
 import { PoweredBy } from "@/components/sections/powered-by";
 import { SectionFrame, StripDivider } from "@/components/sections/section-frame";
@@ -13,6 +14,7 @@ export default function HomePage() {
         <StripDivider />
         <Features />
       </SectionFrame>
+      <ScrollReveals />
     </main>
   );
 }

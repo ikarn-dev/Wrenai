@@ -34,7 +34,7 @@ function NameList({ hidden = false }: { readonly hidden?: boolean }): ReactEleme
 export function PoweredBy(): ReactElement {
   return (
     <section aria-labelledby="powered-by-title" className="mx-auto w-full max-w-landing px-gutter py-band">
-      <div className="flex items-center justify-center gap-4">
+      <div data-reveal="fade" className="flex items-center justify-center gap-4">
         <span aria-hidden="true" className="fade-rule h-px w-16 sm:w-24" />
         {/* hero-lead (15 → 18 px), the hero subtext's size, under the names' marquee size (20 → 22 px): a 1.22×
             step, so neither reads as a mistake. */}
@@ -43,7 +43,7 @@ export function PoweredBy(): ReactElement {
         </h2>
         <span aria-hidden="true" className="fade-rule h-px w-16 -scale-x-100 sm:w-24" />
       </div>
-      <div className="marquee mt-8">
+      <div data-reveal="fade" data-reveal-delay="0.15" className="marquee mt-8">
         <div className="marquee-track">
           <NameList />
           {/* The second copy makes the loop seamless; screen readers get the list once. */}
