@@ -1,9 +1,11 @@
 import {
   ArrowLeftRight,
+  BookOpen,
   BrainCircuit,
   ChartCandlestick,
   ChartPie,
   Fingerprint,
+  Flame,
   History,
   type LucideIcon,
   MessagesSquare,
@@ -29,7 +31,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { kind: "link", href: "/proof", label: "Proof", icon: Fingerprint, group: "main" },
   { kind: "link", href: "/spot", label: "Spot", icon: ArrowLeftRight, group: "markets" },
   { kind: "link", href: "/perps", label: "Perps", icon: ChartCandlestick, group: "markets" },
+  { kind: "link", href: "/memecoins", label: "Memecoins", icon: Flame, group: "markets" },
   { kind: "link", href: "/settings", label: "Settings", icon: Settings, group: "settings" },
+  { kind: "unavailable", label: "Documentation", icon: BookOpen, group: "settings" },
 ];
 
 export function isNavItemActive(pathname: string, href: Route): boolean {

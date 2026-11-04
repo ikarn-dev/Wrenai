@@ -6,15 +6,11 @@ import Link from "next/link";
 import { type ReactElement, useState, useTransition } from "react";
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { Button } from "@/components/ui/button";
-import {
-  confirmManualOrder,
-  dismissManualOrder,
-  readManualOrder,
-  requestManualQuote,
-} from "@/server/manual-trading/actions";
-import type { ManualPreview } from "@/shared/manual-trading";
+import { confirmManualOrder, dismissManualOrder, requestManualQuote } from "@/server/manual-trading/actions";
+import { type ManualPreview, manualPreviewSchema } from "@/shared/manual-trading";
 import { formatUnits } from "@/shared/money";
 import { QuoteTimer, SwapSummary, tokenAmount } from "./swap-summary";
+import { readTrading } from "./trading-api";
 
 export function TradeCard({
   id,
@@ -32,13 +28,8 @@ export function TradeCard({
     [currentId, setCurrentId] = useState(id);
   const query = useQuery({
     queryKey: ["manual-order", currentId],
-    queryFn: async () => {
-      const r = await readManualOrder(currentId);
-      if (!r.ok) {
-        throw new Error(r.message);
-      }
-      return r.value;
-    },
+    queryFn: ({ signal }) =>
+      readTrading(`/api/trading/orders/${encodeURIComponent(currentId)}`, manualPreviewSchema, signal),
     ...(initial && currentId === initial.id ? { initialData: initial } : {}),
     staleTime: 1000,
     refetchInterval: (q) => {

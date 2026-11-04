@@ -13,55 +13,83 @@ import { hlMarketSchema } from "@/server/execution/hyperliquid/market";
 import { hlInfo } from "@/server/execution/hyperliquid/transport";
 import { synchronizePrivateInventory } from "@/server/execution/private-inventory";
 import { databaseTime } from "@/server/execution/records";
+import { decimal, plainDecimal, product, ratio, subtract } from "@/server/research/decimal";
 import { intentTokens } from "@/server/research/intents";
 import { readAgentTradingAccount } from "@/server/trading-accounts/agent-account";
 import { activeTradingAccount } from "@/server/trading-accounts/vault";
 import type { ManualBalance } from "@/shared/manual-trading";
-import type { ManualAccountView, PerpsMarketRow, SpotMarketToken } from "@/shared/market-pages";
+import type {
+  ManualAccountView,
+  PerpsMarketRow,
+  SpotMarketToken,
+  SpotMarketView,
+} from "@/shared/market-pages";
 import { manualAvailableUnits } from "./balances";
 import { readManualPreview } from "./service";
 import { manualSubject } from "./subject";
+import { tokenMetrics } from "./token-metrics";
 
-export async function spotMarketTokens(): Promise<readonly SpotMarketToken[]> {
+export async function spotMarketView(): Promise<SpotMarketView> {
   const tokens = (await intentTokens()).tokens.filter((t) => /^nep141:[a-z0-9._-]+$/.test(t.assetId));
+  const snapshot = await tokenMetrics(tokens.flatMap((t) => (t.coingeckoId ? [t.coingeckoId] : [])));
   const seen = new Set<string>();
-  return tokens
-    .flatMap((t) => {
-      if (seen.has(t.assetId)) {
-        return [];
-      }
-      seen.add(t.assetId);
-      const updated = t.priceUpdatedAt ? Date.parse(t.priceUpdatedAt) : Number.NaN;
-      return [
-        {
-          ...registryTradeAsset(t),
-          price: t.price ?? null,
-          priceUpdatedAt: Number.isFinite(updated) ? updated : null,
-        },
-      ];
-    })
-    .slice(0, 1000);
+  const rows = tokens.flatMap((t): SpotMarketToken[] => {
+    if (seen.has(t.assetId)) {
+      return [];
+    }
+    seen.add(t.assetId);
+    const updated = t.priceUpdatedAt ? Date.parse(t.priceUpdatedAt) : Number.NaN;
+    return [
+      {
+        ...registryTradeAsset(t),
+        price: t.price ?? null,
+        priceUpdatedAt: Number.isFinite(updated) ? updated : null,
+        metrics: (t.coingeckoId && snapshot.byId.get(t.coingeckoId)) || null,
+      },
+    ];
+  });
+  return { tokens: rows.slice(0, 1000), metricsNotice: snapshot.notice };
 }
 export async function perpsMarketRows(): Promise<readonly PerpsMarketRow[]> {
   const [meta, contexts] = z
     .tuple([
       z.object({ universe: z.array(hlMarketSchema).max(2000) }),
-      z.array(z.object({ markPx: hlDecimalSchema, funding: hlSignedDecimalSchema })).max(2000),
+      z
+        .array(
+          z.object({
+            markPx: hlDecimalSchema,
+            funding: hlSignedDecimalSchema,
+            prevDayPx: hlDecimalSchema,
+            dayNtlVlm: hlDecimalSchema,
+            openInterest: hlDecimalSchema,
+          }),
+        )
+        .max(2000),
     ])
     .parse(await hlInfo({ type: "metaAndAssetCtxs" }));
   return meta.universe.flatMap((m, index) => {
     const c = contexts[index];
-    return c && !m.isDelisted
-      ? [
-          {
-            name: m.name,
-            mark: c.markPx,
-            funding: c.funding,
-            maxLeverage: m.maxLeverage,
-            sizeDecimals: m.szDecimals,
-          },
-        ]
-      : [];
+    if (!c || m.isDelisted) {
+      return [];
+    }
+    const mark = decimal(c.markPx),
+      previous = decimal(c.prevDayPx);
+    return [
+      {
+        name: m.name,
+        mark: c.markPx,
+        funding: c.funding,
+        maxLeverage: m.maxLeverage,
+        sizeDecimals: m.szDecimals,
+        // Display figures (whole USD, percent to two places); orders never read them.
+        change24h:
+          previous.n === 0n
+            ? null
+            : plainDecimal(product(ratio(subtract(mark, previous), previous), { n: 100n, d: 1n }), 2),
+        volume24h: plainDecimal(decimal(c.dayNtlVlm), 0),
+        openInterest: plainDecimal(product(decimal(c.openInterest), mark), 0),
+      },
+    ];
   });
 }
 export async function manualAccountView(db: AppDatabase, userId: string): Promise<ManualAccountView> {

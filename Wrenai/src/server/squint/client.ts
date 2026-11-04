@@ -6,8 +6,10 @@ import { cachedSquint, cacheSquint, coolDownSquint, squintCooldown } from "./cac
 import {
   type SquintCoin,
   type SquintReport,
+  type SquintSort,
   SquintUnavailable,
   squintCoinsSchema,
+  squintIndexSchema,
   squintReportSchema,
   squintSearchSchema,
 } from "./contracts";
@@ -158,6 +160,13 @@ export async function squintCoins(signal?: AbortSignal): Promise<readonly Squint
   return result.coins.toSorted(
     (a, b) => (b.created_at ? Date.parse(b.created_at) : 0) - (a.created_at ? Date.parse(a.created_at) : 0),
   );
+}
+/** The 100 leading coins Squint indexes by one market sort, for the Memecoins page. */
+export async function squintCoinIndex(
+  sort: SquintSort,
+  signal?: AbortSignal,
+): Promise<z.infer<typeof squintIndexSchema>> {
+  return read(`/coins?sort=${sort}&dir=desc&limit=100&offset=0`, false, squintIndexSchema, signal);
 }
 export async function squintReport(token: string, signal?: AbortSignal): Promise<SquintReport> {
   const exact = nearAccountSchema.parse(token),

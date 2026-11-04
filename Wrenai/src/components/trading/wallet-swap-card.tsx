@@ -8,14 +8,14 @@ import { Button } from "@/components/ui/button";
 import { walletTransactionHash } from "@/components/wallet/transaction-hash";
 import {
   dismissWalletSwap,
-  readWalletSwapStatus,
   recordWalletSwap,
   requestWalletSwap,
   startWalletSwap,
 } from "@/server/manual-trading/actions";
 import type { TradingResult } from "@/shared/manual-trading";
-import { type WalletSwapView, walletSwapTransaction } from "@/shared/wallet-swap";
+import { type WalletSwapView, walletSwapTransaction, walletSwapViewSchema } from "@/shared/wallet-swap";
 import { QuoteTimer, SwapSummary, tokenAmount } from "./swap-summary";
+import { readTrading } from "./trading-api";
 
 const ICON = { "aria-hidden": true, size: 16, strokeWidth: 1.75, absoluteStrokeWidth: true } as const;
 
@@ -48,7 +48,8 @@ export function WalletSwapCard({ id }: { readonly id: string }): ReactElement {
     [busy, startTransition] = useTransition();
   const query = useQuery({
     queryKey: ["wallet-swap", currentId],
-    queryFn: async () => value(await readWalletSwapStatus({ id: currentId })),
+    queryFn: ({ signal }) =>
+      readTrading(`/api/trading/wallet-swaps/${encodeURIComponent(currentId)}`, walletSwapViewSchema, signal),
     staleTime: 1000,
     refetchInterval: (q) => (q.state.data?.state === "submitted" ? 3000 : false),
     retry: false,

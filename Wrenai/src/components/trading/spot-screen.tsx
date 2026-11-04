@@ -2,88 +2,132 @@
 import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { type ReactElement, useState } from "react";
-import { ActivityIndicator } from "@/components/ui/activity-indicator";
-import { getSpotMarkets, getSpotTokenIcons } from "@/server/manual-trading/actions";
-import type { SpotMarketToken } from "@/shared/market-pages";
-import { SpotMarketsTable } from "./spot-markets-table";
+import {
+  CHANGE_PERIODS,
+  type ChangePeriod,
+  type SpotMarketToken,
+  spotMarketViewSchema,
+} from "@/shared/market-pages";
+import { displaySymbol, SpotMarketsTable } from "./spot-markets-table";
 import { SpotTradeDialog } from "./spot-trade-dialog";
-import { TradingHistory } from "./trading-history";
+import { readTrading } from "./trading-api";
 
 type Network = "near" | "all";
 
-/** NEAR tokens first (they can be paid straight from the wallet), then by symbol. */
-function byNetworkThenSymbol(a: SpotMarketToken, b: SpotMarketToken): number {
-  const near = Number(b.blockchain === "near") - Number(a.blockchain === "near");
-  return near !== 0 ? near : a.tokenSymbol.localeCompare(b.tokenSymbol);
+const PILL =
+  "h-8 cursor-pointer rounded-full px-3 text-small transition-colors duration-200 ease-ios pointer-coarse:h-11";
+const PILL_ON = "bg-surface-3 font-medium text-fg-strong";
+const PILL_OFF = "text-fg-muted hover:text-fg-strong";
+/** "Major" means a CoinGecko market cap of at least $50M (whole dollars). */
+const MAJOR_MARKET_CAP_USD = 50_000_000n;
+
+function volume(token: SpotMarketToken): bigint {
+  return BigInt(token.metrics?.volume24h ?? "0");
+}
+
+/** Prefer a NEAR token (payable from the wallet or private balance), then one whose ticker matches the coin's. */
+function preference(token: SpotMarketToken): number {
+  return (
+    (token.blockchain === "near" ? 2 : 0) +
+    (token.tokenSymbol.toLowerCase() === token.metrics?.symbol ? 1 : 0)
+  );
 }
 
 /**
- * Spot: every token 1Click can swap, as one flat table with a Trade button per row. Trading opens a dialog that
- * pays from the wallet or the private balance.
+ * One row per major coin with trading volume. 1Click lists the same coin many times (bridges and chains); the
+ * preferred token stands for it, and ties keep 1Click's order, which lists each coin's main token first.
  */
-export function SpotScreen({ accountId }: { readonly accountId: string }): ReactElement {
+function majorTokens(tokens: readonly SpotMarketToken[]): readonly SpotMarketToken[] {
+  const picked = new Map<string, SpotMarketToken>();
+  for (const token of tokens) {
+    const coin = token.metrics?.coinId;
+    if (!coin || volume(token) === 0n || BigInt(token.metrics?.marketCap ?? "0") < MAJOR_MARKET_CAP_USD) {
+      continue;
+    }
+    const current = picked.get(coin);
+    if (!current || preference(token) > preference(current)) {
+      picked.set(coin, token);
+    }
+  }
+  return [...picked.values()];
+}
+
+/** Highest 24 h volume first; whole-dollar strings compare exactly as bigint. */
+function byVolume(a: SpotMarketToken, b: SpotMarketToken): number {
+  const delta = volume(b) - volume(a);
+  return delta > 0n ? 1 : delta < 0n ? -1 : a.tokenSymbol.localeCompare(b.tokenSymbol);
+}
+
+/**
+ * Spot: major coins 1Click can swap, one row each, as a flat table sorted by volume with a Trade button per row.
+ * Without CoinGecko's figures every listed token is shown instead.
+ */
+export function SpotScreen(): ReactElement {
   const [search, setSearch] = useState(""),
     [network, setNetwork] = useState<Network>("near"),
+    [period, setPeriod] = useState<ChangePeriod>("24h"),
     [target, setTarget] = useState<SpotMarketToken | null>(null);
   const markets = useQuery({
     queryKey: ["spot-markets"],
-    queryFn: async () => {
-      const r = await getSpotMarkets();
-      if (!r.ok) {
-        throw new Error(r.message);
-      }
-      return r.value;
-    },
+    queryFn: ({ signal }) => readTrading("/api/trading/spot-markets", spotMarketViewSchema, signal),
     staleTime: 15000,
     refetchInterval: 30000,
     retry: false,
   });
-  // Icons rarely change; one read per session keeps them out of the 30-second price refresh.
-  const icons = useQuery({
-    queryKey: ["spot-token-icons"],
-    queryFn: async () => {
-      const r = await getSpotTokenIcons();
-      return r.ok ? r.value : {};
-    },
-    staleTime: Number.POSITIVE_INFINITY,
-    retry: false,
-  });
-  const tokens = markets.data ?? [];
+  const view = markets.data;
+  const tokens = view?.tokens ?? [];
+  const traded = !view || view.metricsNotice !== null ? tokens : majorTokens(tokens);
   const needle = search.trim().toLowerCase();
-  const shown = tokens
+  const shown = traded
     .filter((t) => network === "all" || t.blockchain === "near")
-    .filter((t) => `${t.tokenSymbol} ${t.assetId} ${t.blockchain}`.toLowerCase().includes(needle))
-    .toSorted(byNetworkThenSymbol);
-  const nearCount = tokens.filter((t) => t.blockchain === "near").length;
+    .filter((t) =>
+      `${displaySymbol(t)} ${t.tokenSymbol} ${t.metrics?.name ?? ""} ${t.assetId} ${t.blockchain}`
+        .toLowerCase()
+        .includes(needle),
+    )
+    .toSorted(byVolume);
+  const nearCount = traded.filter((t) => t.blockchain === "near").length;
+  const tabs = [
+    { id: "near", label: view ? `NEAR ${nearCount}` : "NEAR" },
+    { id: "all", label: view ? `All networks ${traded.length}` : "All networks" },
+  ] as const;
 
   return (
     <div className="flex min-w-0 flex-col gap-8">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-page-title">Spot</h1>
-        <p className="text-small text-fg-muted">Swap any token NEAR Intents supports.</p>
-      </header>
+      <h1 className="font-display text-page-title">Spot</h1>
       <section aria-labelledby="spot-markets" className="flex min-w-0 flex-col gap-3">
+        <h2 id="spot-markets" className="sr-only">
+          Markets
+        </h2>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-1">
-            <h2 id="spot-markets" className="sr-only">
-              Markets
-            </h2>
-            {(
-              [
-                { id: "near", label: `NEAR ${nearCount ? nearCount : ""}` },
-                { id: "all", label: `All networks ${tokens.length ? tokens.length : ""}` },
-              ] as const
-            ).map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                aria-pressed={network === tab.id}
-                onClick={() => setNetwork(tab.id)}
-                className={`h-8 cursor-pointer rounded-full px-3 text-small transition-colors duration-200 ease-ios pointer-coarse:h-11 ${network === tab.id ? "bg-surface-3 font-medium text-fg-strong" : "text-fg-muted hover:text-fg-strong"}`}
-              >
-                {tab.label.trim()}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  aria-pressed={network === tab.id}
+                  onClick={() => setNetwork(tab.id)}
+                  className={`${PILL} ${network === tab.id ? PILL_ON : PILL_OFF}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <fieldset className="flex items-center gap-0.5 rounded-full bg-sunken p-0.5 ring-1 ring-line-card ring-inset">
+              <legend className="sr-only">Price change period</legend>
+              {CHANGE_PERIODS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  aria-pressed={period === p}
+                  onClick={() => setPeriod(p)}
+                  className={`h-7 cursor-pointer rounded-full px-2.5 font-mono text-caption transition-colors duration-200 ease-ios pointer-coarse:h-11 ${period === p ? PILL_ON : PILL_OFF}`}
+                >
+                  {p}
+                </button>
+              ))}
+            </fieldset>
           </div>
           <label className="flex h-9 w-full max-w-64 items-center gap-2 rounded-full bg-sunken px-3 ring-1 ring-line-strong ring-inset focus-within:ring-2 focus-within:ring-accent pointer-coarse:h-11">
             <Search
@@ -103,32 +147,24 @@ export function SpotScreen({ accountId }: { readonly accountId: string }): React
             />
           </label>
         </div>
-        {markets.isPending ? (
-          <div className="flex justify-center py-10">
-            <ActivityIndicator size={20} label="Loading markets" />
-          </div>
-        ) : markets.error ? (
+        {view?.metricsNotice ? (
+          <p role="status" className="text-small text-warn">
+            {view.metricsNotice}
+          </p>
+        ) : null}
+        {markets.error && !view ? (
           <p role="alert" className="py-6 text-small text-warn">
             {markets.error.message}
           </p>
-        ) : shown.length === 0 ? (
-          <p className="py-6 text-small text-fg-muted">No token matches “{search.trim()}”.</p>
+        ) : view && shown.length === 0 ? (
+          <p className="py-6 text-small text-fg-muted">
+            {needle ? `No token matches “${search.trim()}”.` : "No major tokens on this network."}
+          </p>
         ) : (
-          <SpotMarketsTable
-            tokens={shown}
-            icons={icons.data ?? {}}
-            observedAt={markets.dataUpdatedAt}
-            onTrade={setTarget}
-          />
+          <SpotMarketsTable tokens={view ? shown : null} period={period} onTrade={setTarget} />
         )}
       </section>
-      <TradingHistory accountId={accountId} kind="spot" />
-      <SpotTradeDialog
-        target={target}
-        tokens={tokens}
-        icons={icons.data ?? {}}
-        onClose={() => setTarget(null)}
-      />
+      <SpotTradeDialog target={target} tokens={tokens} onClose={() => setTarget(null)} />
     </div>
   );
 }

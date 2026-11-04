@@ -12,6 +12,8 @@ const tokenSchema = z.object({
   price: z.string().optional(),
   priceUpdatedAt: z.string().optional(),
   contractAddress: z.string().max(200).optional(),
+  /** CoinGecko's coin ID; 1Click prefixes its own unlisted entries with "custom:". */
+  coingeckoId: z.string().max(120).optional(),
 });
 export type IntentToken = z.infer<typeof tokenSchema>;
 

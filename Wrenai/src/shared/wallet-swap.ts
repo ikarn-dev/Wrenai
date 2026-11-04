@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { nearAccountSchema } from "./agent-budget";
 import { tradingDecimalSchema } from "./manual-trading";
-import { positiveTokenUnitsSchema } from "./token-units";
+import { positiveTokenUnitsSchema, tokenUnitsSchema } from "./token-units";
 import { tradeAssetSchema } from "./trade-preview";
 
 /** Wallet swaps spend native NEAR, wrapped to wNEAR in the same transaction (1Click's NEAR origin asset). */
@@ -42,15 +42,16 @@ export const walletSwapStateSchema = z.enum([
   "failed",
   "cancelled",
 ]);
-export interface WalletSwapView {
-  readonly id: string;
+export const walletSwapViewSchema = z.strictObject({
+  id: z.uuid(),
   /** "expired" is shown, never stored: an unsigned quote past its deadline. */
-  readonly state: z.infer<typeof walletSwapStateSchema> | "expired";
-  readonly quote: WalletSwapQuote;
-  readonly transactionHash: string | null;
-  readonly receivedUnits: string | null;
-  readonly expiresAt: number;
-}
+  state: z.union([walletSwapStateSchema, z.literal("expired")]),
+  quote: walletSwapQuoteSchema,
+  transactionHash: z.string().max(100).nullable(),
+  receivedUnits: tokenUnitsSchema.nullable(),
+  expiresAt: z.number().int(),
+});
+export type WalletSwapView = z.infer<typeof walletSwapViewSchema>;
 
 export const walletSwapIdSchema = z.strictObject({ id: z.uuid() });
 export const walletSwapProofSchema = walletSwapIdSchema.extend({

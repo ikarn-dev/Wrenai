@@ -34,6 +34,7 @@ describe("app navigation", () => {
       "/proof",
       "/spot",
       "/perps",
+      "/memecoins",
       "/settings",
     ]);
     expect(markup).toContain("overflow-x-auto");
@@ -67,10 +68,13 @@ describe("app navigation", () => {
         "/proof",
         "/spot",
         "/perps",
+        "/memecoins",
         "/settings",
       ]);
-      expect(markup).not.toContain('aria-disabled="true"');
       expect(markup).not.toContain('aria-label="Proof is not built yet"');
+      // Documentation has no destination yet, so it is the one unavailable item.
+      expect(markup.match(/aria-disabled="true"/g)).toHaveLength(1);
+      expect(markup).toContain('aria-label="Documentation is not built yet"');
     },
   );
 

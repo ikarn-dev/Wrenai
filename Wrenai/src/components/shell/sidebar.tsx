@@ -43,6 +43,40 @@ const TOGGLE_EXPANDED = "right-1 size-9 rounded-sm pointer-coarse:size-11";
 const TOGGLE_COLLAPSED =
   "-right-8.5 size-7 rounded-full bg-surface-card ring-1 ring-line-card ring-inset pointer-coarse:-right-12.5 pointer-coarse:size-11";
 
+const FADE = "transition-opacity duration-300 ease-ios motion-reduce:transition-none";
+
+/**
+ * A section's label. The row keeps one height in both widths: the label fades out as the sidebar narrows and a
+ * short rule fades in, so nothing below it moves. The first section shows no rule when collapsed.
+ */
+function SectionLabel({
+  label,
+  collapsed,
+  first = false,
+}: {
+  readonly label: string;
+  readonly collapsed: boolean;
+  readonly first?: boolean;
+}): ReactElement {
+  return (
+    <div
+      className={`relative flex h-7 items-center px-2.5 ${first ? "mb-1" : "mt-3 mb-1"}`}
+      aria-hidden={collapsed ? true : undefined}
+    >
+      <span
+        className={`text-caption font-medium whitespace-nowrap text-fg-subtle ${FADE} ${collapsed ? "opacity-0" : "opacity-100"}`}
+      >
+        {label}
+      </span>
+      {first ? null : (
+        <span
+          className={`absolute inset-x-3 top-1/2 h-px bg-line-card ${FADE} ${collapsed ? "opacity-100" : "opacity-0"}`}
+        />
+      )}
+    </div>
+  );
+}
+
 interface SidebarProps {
   readonly collapsed: boolean;
   readonly onCollapsedChange: (collapsed: boolean) => void;
@@ -95,29 +129,15 @@ function SidebarView({ collapsed, onCollapsedChange }: SidebarProps): ReactEleme
               </button>
             </NavigationTooltip>
           </div>
-          {/* Groups are separated by thin rules, not labels (Docs/DESIGN.md → App shell). */}
           <nav
             id={navigationId}
             aria-label="Primary"
             className="mt-2 flex min-h-0 flex-1 flex-col border-t border-line-card pt-2"
           >
             <div data-lenis-prevent className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+              <SectionLabel label="Platform" collapsed={collapsed} first />
               <NavigationItems items={MAIN_ITEMS} view={collapsed ? "collapsed" : "expanded"} />
-              {/* A labelled section. The row keeps one height in both widths: the label fades out as the sidebar
-                  narrows and a short rule fades in, so nothing below it moves. */}
-              <div
-                className="relative mt-3 mb-1 flex h-7 items-center px-2.5"
-                aria-hidden={collapsed ? true : undefined}
-              >
-                <span
-                  className={`text-caption font-medium whitespace-nowrap text-fg-subtle transition-opacity duration-300 ease-ios motion-reduce:transition-none ${collapsed ? "opacity-0" : "opacity-100"}`}
-                >
-                  Markets
-                </span>
-                <span
-                  className={`absolute inset-x-3 top-1/2 h-px bg-line-card transition-opacity duration-300 ease-ios motion-reduce:transition-none ${collapsed ? "opacity-100" : "opacity-0"}`}
-                />
-              </div>
+              <SectionLabel label="Markets" collapsed={collapsed} />
               <NavigationItems items={MARKET_ITEMS} view={collapsed ? "collapsed" : "expanded"} />
             </div>
             <div className="flex shrink-0 flex-col gap-0.5 border-t border-line-card pt-2">

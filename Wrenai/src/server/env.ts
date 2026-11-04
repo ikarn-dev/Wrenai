@@ -55,6 +55,19 @@ export function databaseUrl(): string {
   return parseDatabaseUrl(DATABASE_URL);
 }
 
+/** CoinGecko Demo key, required only for the Spot table's market figures. */
+export function coingeckoApiKey(): string | null {
+  const parsed = z
+    .object({
+      COINGECKO_API_KEY: z
+        .string()
+        .trim()
+        .regex(/^[\w-]{10,100}$/),
+    })
+    .safeParse(process.env);
+  return parsed.success ? parsed.data.COINGECKO_API_KEY : null;
+}
+
 /** Inference credentials are required only for requested strategy parsing or chat replies. */
 export function nearAiKeys(): readonly string[] {
   const parsed = z.object({ NEAR_AI_API_KEY: z.string().trim().min(1) }).safeParse(process.env);

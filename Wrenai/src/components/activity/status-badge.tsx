@@ -2,12 +2,12 @@ import { Ban, CircleCheck, CircleX, Clock3, FileCheck2, type LucideIcon, Undo2 }
 import type { ReactElement } from "react";
 import type { ActivityEntry } from "@/shared/activity";
 
-type Tone = "success" | "warn" | "loss" | "neutral";
+export type BadgeTone = "success" | "warn" | "loss" | "neutral";
 
 // Text and icon share the tone on its soft fill, with a faint ring of the same tone so the badge keeps its edge
 // on a hovered row (surface-2). Measured: accent-text on accent-soft 11.61:1, warn on warn-soft 8.17:1, loss on
 // loss-soft 6.40:1, fg-muted on surface-3 7.23:1.
-const TONES: Readonly<Record<Tone, string>> = {
+export const BADGE_TONES: Readonly<Record<BadgeTone, string>> = {
   success: "bg-accent-soft text-accent-text ring-accent-line/40",
   warn: "bg-warn-soft text-warn ring-warn/30",
   loss: "bg-loss-soft text-loss ring-loss/30",
@@ -15,7 +15,10 @@ const TONES: Readonly<Record<Tone, string>> = {
 };
 
 const STATUS: Readonly<
-  Record<ActivityEntry["status"], { readonly label: string; readonly tone: Tone; readonly icon: LucideIcon }>
+  Record<
+    ActivityEntry["status"],
+    { readonly label: string; readonly tone: BadgeTone; readonly icon: LucideIcon }
+  >
 > = {
   completed: { label: "Success", tone: "success", icon: CircleCheck },
   pending: { label: "Pending", tone: "warn", icon: Clock3 },
@@ -33,7 +36,7 @@ export function ActivityStatusBadge({ status }: { readonly status: ActivityEntry
   const { label, tone, icon: Icon } = STATUS[status];
   return (
     <span
-      className={`inline-flex h-6 min-w-26 items-center justify-center gap-1.5 rounded-xs px-2 text-small font-medium whitespace-nowrap ring-1 ring-inset ${TONES[tone]}`}
+      className={`inline-flex h-6 min-w-26 items-center justify-center gap-1.5 rounded-xs px-2 text-small font-medium whitespace-nowrap ring-1 ring-inset ${BADGE_TONES[tone]}`}
     >
       <Icon aria-hidden="true" size={14} strokeWidth={1.75} absoluteStrokeWidth className="shrink-0" />
       {label}

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { compare, decimal } from "@/server/research/decimal";
 import { nearAccountSchema } from "@/shared/agent-budget";
+import { MEMECOIN_SORTS, type MemecoinSort } from "@/shared/market-pages";
 
 const scalar = z
   .string()
@@ -71,6 +72,37 @@ export const squintCoinsSchema = z
       ctx.addIssue({ code: "custom", message: "Inconsistent listing pagination." });
     }
   });
+export type SquintSort = MemecoinSort;
+const signed = z
+  .string()
+  .min(1)
+  .max(160)
+  .refine((value) => {
+    try {
+      decimal(value);
+      return true;
+    } catch {
+      return false;
+    }
+  }, "Invalid market decimal.");
+// The coin index for the Memecoins page: the listing fields plus market figures. Fields Meme Hunter never reads
+// are optional, so a provider change there can't break its admission checks.
+export const squintIndexCoinSchema = squintCoinSchema.extend({
+  icon: z.string().max(600).nullable().optional(),
+  volume_24h_usd: scalar.nullable().optional(),
+  change_24h_pct: signed.nullable().optional(),
+});
+export const squintIndexSchema = z
+  .object({
+    total: count,
+    sort: z.enum(MEMECOIN_SORTS),
+    near_usd: scalar,
+    coins: z.array(squintIndexCoinSchema).max(100),
+  })
+  .refine((value) => new Set(value.coins.map((coin) => coin.token)).size === value.coins.length, {
+    message: "The coin index repeats a token.",
+  });
+export type SquintIndexCoin = z.infer<typeof squintIndexCoinSchema>;
 export const squintReportSchema = z
   .object({
     token: nearAccountSchema,

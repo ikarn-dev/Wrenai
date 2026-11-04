@@ -46,6 +46,18 @@ export function displayDecimal(value: Decimal, digits = 4): string {
   }
   return formatUnits(scaled, { decimals: digits, fractionDigits: digits });
 }
+export function product(a: Decimal, b: Decimal): Decimal {
+  return { n: a.n * b.n, d: a.d * b.d };
+}
+/** A plain "-12.34" string with `digits` fraction digits, truncated toward zero (display only, no grouping). */
+export function plainDecimal(value: Decimal, digits: number): string {
+  const scaled = (value.n * 10n ** BigInt(digits)) / value.d,
+    negative = scaled < 0n,
+    text = (negative ? -scaled : scaled).toString().padStart(digits + 1, "0");
+  const whole = text.slice(0, text.length - digits),
+    fraction = text.slice(text.length - digits);
+  return `${negative ? "-" : ""}${whole}${digits ? `.${fraction}` : ""}`;
+}
 export function percent(value: Decimal): string {
   return `${displayDecimal({ n: value.n * 100n, d: value.d }, 2)}%`;
 }

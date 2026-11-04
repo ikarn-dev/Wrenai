@@ -115,12 +115,13 @@ export const manualPreviewSchema = z.strictObject({
     .optional(),
 });
 export type ManualPreview = z.infer<typeof manualPreviewSchema>;
-export interface ManualBalance {
-  readonly assetId: string;
-  readonly units: string;
-  readonly availableUnits: string;
-  readonly scope: "confidential" | "native_near" | "hyperliquid";
-}
+export const manualBalanceSchema = z.strictObject({
+  assetId: z.string().max(256),
+  units: tokenUnitsSchema,
+  availableUnits: tokenUnitsSchema,
+  scope: z.enum(["confidential", "native_near", "hyperliquid"]),
+});
+export type ManualBalance = z.infer<typeof manualBalanceSchema>;
 export type TradingResult<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly code: string; readonly message: string };
