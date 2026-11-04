@@ -16,11 +16,12 @@ const LINK =
 /** The hero's top bar: brand on the left, sections in the center (from md), the app on the right. */
 export function SiteNav(): ReactElement {
   return (
-    <header className="relative z-10 mx-auto grid h-20 w-full max-w-landing grid-cols-[1fr_auto] items-center px-gutter md:grid-cols-[1fr_auto_1fr]">
+    <header className="relative z-10 mx-auto grid h-hero-nav w-full max-w-landing grid-cols-[1fr_auto] items-center px-gutter sm:grid-cols-[1fr_auto_1fr]">
       <a href="/" aria-label="Wrenai home" className="justify-self-start rounded-sm">
         <Brand />
       </a>
-      <nav aria-label="Sections" className="hidden md:block">
+      {/* From 640 px: below that the brand, four links and Launch app can't share one row at the 12 px floor. */}
+      <nav aria-label="Sections" className="hidden sm:block">
         <ul className="flex items-center gap-1">
           {SECTIONS.map((section) => (
             <li key={section.href}>
@@ -31,7 +32,10 @@ export function SiteNav(): ReactElement {
           ))}
         </ul>
       </nav>
-      <a href={appHref("/")} className={`${LINK} justify-self-end text-fg-strong`}>
+      <a
+        href={appHref("/")}
+        className="launch-shine inline-flex h-10 items-center justify-self-end rounded-full px-4 text-small font-medium text-fg-strong active:scale-97 motion-reduce:active:scale-100 pointer-coarse:h-11"
+      >
         Launch app
       </a>
     </header>

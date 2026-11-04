@@ -8,7 +8,7 @@ export function Brand(): ReactElement {
     <span className="inline-flex items-center gap-1.5 text-h2 text-fg-strong">
       {/* The name sits beside the mark, so the image adds nothing for screen readers. The file is cropped to the
           mark's edges, so the gap comes from CSS. */}
-      <Image src={logo} alt="" height={28} loading="eager" className="shrink-0" />
+      <Image src={logo} alt="" height={28} loading="eager" className="h-brand w-auto shrink-0" />
       <span aria-hidden="true" className="font-rounded font-bold">
         Wren<span className="text-accent-text">ai</span>
       </span>

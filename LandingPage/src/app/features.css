@@ -1,0 +1,27 @@
+/* Feature cards (components/sections/features.tsx). The app's card-shine: a neutral fill with the iOS lit edge,
+   brightest at the top-left, quiet along the sides, a soft glint at the bottom-right. Painted once, no filter. */
+@utility card-shine {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--color-surface-card), var(--color-surface-card)) padding-box,
+    linear-gradient(
+      150deg,
+      color-mix(in oklab, var(--void-50) 48%, var(--color-line-card)),
+      color-mix(in oklab, var(--void-50) 14%, var(--color-line-card)) 22%,
+      var(--color-line-card) 42%,
+      var(--color-line-card) 62%,
+      color-mix(in oklab, var(--void-50) 26%, var(--color-line-card))
+    )
+    border-box;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--void-50) 9%, transparent),
+    0 1px 2px rgb(0 0 0 / 0.35);
+}
+
+/* The illustration well at the top of a feature card. Concentric with the card: the card's 28 px radius minus
+   its padding (the card token), never under 6 px. */
+@utility feature-well {
+  border-radius: max(6px, calc(var(--radius-xl) - var(--spacing-card)));
+  background-color: var(--color-sunken);
+  box-shadow: inset 0 0 0 1px var(--color-line-card);
+}

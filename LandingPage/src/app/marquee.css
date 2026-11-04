@@ -1,0 +1,52 @@
+/* The "Powered by" marquee (components/sections/powered-by.tsx). One transform animation on a track holding the
+   list twice: moving it by half its width lands the second copy exactly where the first began, so the loop has
+   no seam. Linear and slow (about 30 px per second) so the names stay readable; transform only, on the
+   compositor, and no JavaScript. Under reduced motion the names stand still, centered and wrapped. */
+@utility marquee {
+  overflow: hidden;
+  /* Fades the names in and out at both edges. Decoration on a moving list, not a text color. */
+  mask-image: linear-gradient(to right, transparent, #000 18%, #000 82%, transparent);
+  @media (prefers-reduced-motion: reduce) {
+    mask-image: none;
+  }
+}
+
+@utility marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-scroll 42s linear infinite;
+  @media (prefers-reduced-motion: reduce) {
+    width: auto;
+    justify-content: center;
+    animation: none;
+    & > [aria-hidden] {
+      display: none;
+    }
+  }
+}
+
+/* The gap also follows the last name, so both copies are the same width and the half-way point is exact. */
+@utility marquee-list {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--spacing-marquee);
+  padding-inline-end: var(--spacing-marquee);
+  @media (prefers-reduced-motion: reduce) {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 1rem;
+    padding-inline-end: 0;
+  }
+}
+
+/* A hairline that fades out toward its far end; mirrored with -scale-x-100 on the right of the label. */
+@utility fade-rule {
+  background-image: linear-gradient(to left, var(--void-600), transparent);
+}
+
+@keyframes marquee-scroll {
+  to {
+    transform: translateX(-50%);
+  }
+}

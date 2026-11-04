@@ -99,6 +99,17 @@
 /* The Jarvis card: an opaque light surface with the lit edge and a soft drop shadow. Opaque on purpose: a
    translucent card would need backdrop-filter to stay readable, and that re-blurs on every scrolled frame. */
 @utility jarvis-card {
+  /* Sized from its @container wrapper, so the card scales with its width on every screen. --jarvis-control is
+     the height of every chip and of Ask. The corners are concentric with them: the card's radius is a control's
+     radius (half its height) plus the padding, so the bottom row sits in the curve. */
+  --jarvis-pad: clamp(0.625rem, 3.2cqi, 1.25rem);
+  --jarvis-control: clamp(2rem, 6.6cqi, 2.75rem);
+  --jarvis-gap: clamp(0.375rem, 1.4cqi, 0.625rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--jarvis-pad);
+  padding: var(--jarvis-pad);
+  border-radius: calc(var(--jarvis-control) / 2 + var(--jarvis-pad) + 1px);
   border: 1px solid transparent;
   background:
     linear-gradient(155deg, var(--color-paper) 0%, var(--color-paper) 42%, var(--color-paper-tint) 100%)
@@ -116,9 +127,15 @@
     inset 0 1px 0 var(--void-50),
     0 32px 80px -24px rgb(0 0 0 / 0.6),
     0 8px 24px -10px rgb(0 0 0 / 0.35);
+  /* Phone layout (card under 30rem): roomier padding and 40 px controls; the corner radius follows, 35 px. */
+  @container (max-width: 30rem) {
+    --jarvis-pad: 0.875rem;
+    --jarvis-control: 2.5rem;
+  }
 }
 
-/* A tool chip on the card: white fill with a lit edge that dims toward the bottom; selected fills mint-200. */
+/* A tool chip on the card: white fill with a lit edge that dims toward the bottom. chip-on is the selected look
+   (mint-200 fill, ink text 13.84:1), used by the sliding highlight layer. */
 @utility chip-shine {
   --shine-fill: var(--color-chip);
   border: 1px solid transparent;
@@ -129,9 +146,11 @@
   transition:
     --shine-fill 300ms var(--ease-ios),
     color 300ms var(--ease-ios);
-  &:has(:checked) {
-    --shine-fill: var(--color-chip-selected);
-  }
+}
+
+@utility chip-on {
+  --shine-fill: var(--color-chip-selected);
+  color: var(--color-ink);
 }
 
 /* The dark Ask button: the card-shine edge on void-950, lifting to void-800 on hover. */
@@ -164,6 +183,192 @@
 /* The logo mark on the light Jarvis card. The colored mark is pale mint and vanishes on paper, so its shape is
    used as a mask and filled with deep mint (ink-focus, 4.89:1 on paper, above the 3:1 for graphics). */
 @utility jarvis-mark {
+  width: 1.35em;
+  height: 1.35em;
+  flex-shrink: 0;
   background-color: var(--color-ink-focus);
   mask: url("/assets/nobg_logo.png") center / contain no-repeat;
+}
+
+/* Card contents, all scaled from the card's container (cqi) with a floor at the 12 px minimum. Two layouts:
+   from a 30rem card the chips and Ask share one row; on a phone-sized card the chips wrap left-aligned and Ask
+   becomes a full-width button below them, so nothing is cut off or crowded. */
+@utility jarvis-label {
+  gap: 0.5em;
+  font-size: clamp(0.8125rem, 2.4cqi, 0.9375rem);
+}
+
+@utility jarvis-input {
+  min-height: clamp(3rem, 12cqi, 6rem);
+  font-size: clamp(0.875rem, 2.9cqi, 1.125rem);
+  line-height: 1.5;
+  @container (max-width: 30rem) {
+    min-height: 4.5rem;
+    font-size: 0.9375rem;
+  }
+}
+
+@utility jarvis-row {
+  display: flex;
+  align-items: center;
+  gap: var(--jarvis-gap);
+  @container (max-width: 30rem) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--jarvis-pad);
+  }
+}
+
+/* The tool chips are display only: the selection follows the example being typed (jarvis-demo.tsx). Wide cards
+   keep them on one row (scrolling sideways with an end fade if they ever overflow); phone cards wrap them.
+   The padding (cancelled by the margin) keeps the chips' shadows inside the scroll box. */
+@utility jarvis-tools {
+  position: relative;
+  pointer-events: none;
+  user-select: none;
+  display: flex;
+  gap: var(--jarvis-gap);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding: 6px 4px;
+  margin: -6px -4px;
+  mask-image: linear-gradient(to right, #000 calc(100% - 1.25rem), transparent);
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  @container (max-width: 30rem) {
+    flex-wrap: wrap;
+    overflow: visible;
+    padding: 0;
+    margin: 0;
+    mask-image: none;
+  }
+}
+
+@utility jarvis-chip {
+  position: relative;
+  flex-shrink: 0;
+  height: var(--jarvis-control);
+  padding-inline: calc(var(--jarvis-control) * 0.4);
+  font-size: clamp(0.75rem, 2.5cqi, 0.9375rem);
+  white-space: nowrap;
+  @container (max-width: 30rem) {
+    padding-inline: calc(var(--jarvis-control) * 0.36);
+    font-size: 0.8125rem;
+  }
+}
+
+/* The selection: a copy of the chip row in the selected look, laid exactly over the base row and clipped to the
+   selected chip's box. Changing tools moves the clip, so the mint pill slides and stretches from one chip to
+   the next while each label stays put. The clip box comes from measuring the chip (--on-*); it doesn't
+   animate until the first measurement lands (data-ready), so the pill never sweeps in on load. */
+@utility jarvis-tools-on {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-wrap: inherit;
+  gap: var(--jarvis-gap);
+  padding: inherit;
+  clip-path: inset(var(--on-top, 0) var(--on-right, 100%) var(--on-bottom, 0) var(--on-left, 0) round 9999px);
+  opacity: 0;
+  &[data-ready] {
+    opacity: 1;
+    transition: clip-path 520ms var(--ease-ios);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    &[data-ready] {
+      transition: none;
+    }
+  }
+}
+
+@utility jarvis-ask {
+  flex-shrink: 0;
+  justify-content: center;
+  gap: 0.45em;
+  height: var(--jarvis-control);
+  padding-inline: calc(var(--jarvis-control) * 0.5) calc(var(--jarvis-control) * 0.4);
+  font-size: clamp(0.8125rem, 2.8cqi, 1.0625rem);
+  white-space: nowrap;
+  & svg {
+    width: 1.1em;
+    height: 1.1em;
+  }
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -6px 0;
+  }
+  @container (max-width: 30rem) {
+    width: 100%;
+    font-size: 0.9375rem;
+    &::before {
+      inset: -2px 0;
+    }
+  }
+}
+
+/* The typed example line (jarvis-typing.tsx): display only, so it never takes focus, selection or the pointer.
+   Light (300) and muted, so it reads as a suggestion rather than an answer: ink-muted on paper 8.3:1, on the
+   mint tint 8.6:1. The caret is the height of a capital letter, solid while typing and blinking while it rests.
+   Under reduced motion the component stays on its first line and the caret stops blinking. */
+@utility jarvis-typing {
+  cursor: default;
+  user-select: none;
+  pointer-events: none;
+  font-weight: 300;
+  color: var(--color-ink-muted);
+}
+
+@utility jarvis-caret {
+  display: inline-block;
+  width: 1.5px;
+  height: 0.78em;
+  margin-inline-start: 1px;
+  vertical-align: -0.04em;
+  border-radius: 1px;
+  background-color: var(--color-ink-muted);
+  [data-idle] > & {
+    animation: jarvis-caret-blink 1.05s steps(1, end) infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes jarvis-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Launch app in the nav: the app's card-shine lit edge on a raised grey fill. The fill (void-800) sits two steps
+   above the hero's void-950 ground and the edge is lit at the top-left, so the pill never melts into the dark.
+   fg-strong on void-800 14.67:1; the fill lifts to void-700 on hover (12.68:1). */
+@utility launch-shine {
+  --shine-fill: var(--void-800);
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--shine-fill), var(--shine-fill)) padding-box,
+    linear-gradient(
+      150deg,
+      color-mix(in oklab, var(--void-50) 62%, var(--void-700)),
+      color-mix(in oklab, var(--void-50) 22%, var(--void-700)) 26%,
+      var(--void-700) 50%,
+      var(--void-700) 68%,
+      color-mix(in oklab, var(--void-50) 34%, var(--void-700))
+    )
+    border-box;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--void-50) 10%, transparent),
+    0 6px 18px -8px rgb(0 0 0 / 0.6);
+  transition:
+    --shine-fill 300ms var(--ease-ios),
+    scale 300ms var(--ease-ios);
+  @media (hover: hover) {
+    &:hover {
+      --shine-fill: var(--void-700);
+    }
+  }
 }

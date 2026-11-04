@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "lenis/dist/lenis.css";
 @import "./hero.css";
+@import "./marquee.css";
+@import "./features.css";
+@import "./frame.css";
 
 /* Palette: Docs/DESIGN.md → Color, the same values as the app. Components use the semantic tokens below. */
 :root {
@@ -37,20 +40,31 @@
   --radius-*: initial;
   --shadow-*: initial;
 
-  /* Landing display size (Docs/DESIGN.md → Fluid scale), set at 400: the round face reads light and open there,
-     and heavy from 500. */
-  --text-display-xl: clamp(2.5rem, 1.75rem + 3.333vw, 4.75rem);
-  --text-display-xl--line-height: 1.06;
-  --text-display-xl--letter-spacing: -0.025em;
-  --text-display-xl--font-weight: 400;
-  --text-lead: clamp(1rem, 0.958rem + 0.185vw, 1.125rem);
-  --text-lead--line-height: 1.5;
-  --text-lead--letter-spacing: -0.011em;
+  /* The hero headline, set at 400: the round face reads light and open there, and heavy from 500. Phones get a
+     40 px headline on two balanced lines rather than a small single line; it reaches one line on tablets and caps
+     at display-xl's 76 px from about 1090 px. Mixed with rem, so zoom and font settings still scale it. */
+  --text-hero: clamp(2.5rem, 1rem + 5.5vw, 4.75rem);
+  --text-hero--line-height: 1.06;
+  --text-hero--letter-spacing: -0.025em;
+  --text-hero--font-weight: 400;
+  /* The hero subtext: 15 px on a phone, 18 px on desktop. */
+  --text-hero-lead: clamp(0.9375rem, 0.875rem + 0.278vw, 1.125rem);
+  --text-hero-lead--line-height: 1.5;
+  --text-hero-lead--letter-spacing: -0.011em;
   --text-body: clamp(0.875rem, 0.854rem + 0.093vw, 0.9375rem);
   --text-body--line-height: 1.5;
   --text-body--letter-spacing: -0.006em;
   --text-small: clamp(0.75rem, 0.729rem + 0.093vw, 0.8125rem);
   --text-small--line-height: 1.45;
+  /* Section titles: the design scale's display size (32 → 52 px), at 400 like the hero headline. */
+  --text-section: clamp(2rem, 1.583rem + 1.852vw, 3.25rem);
+  --text-section--line-height: 1.1;
+  --text-section--letter-spacing: -0.025em;
+  --text-section--font-weight: 400;
+  /* Names in the Powered by marquee: 20 → 22 px, a clear step above the 15 → 18 px label. */
+  --text-marquee: clamp(1.25rem, 1.208rem + 0.185vw, 1.375rem);
+  --text-marquee--line-height: 1.3;
+  --text-marquee--letter-spacing: -0.017em;
   --text-h2: clamp(1.125rem, 1.083rem + 0.185vw, 1.25rem);
   --text-h2--line-height: 1.3;
   --text-h2--letter-spacing: -0.017em;
@@ -65,6 +79,27 @@
 
   --spacing-gutter: clamp(1rem, 0.5rem + 2.222vw, 2.5rem);
   --spacing-card: clamp(1rem, 0.833rem + 0.741vw, 1.5rem);
+  /* Hero rhythm, 360 → 1440 px: every gap shrinks with the screen instead of stepping at breakpoints. */
+  --spacing-hero-nav: clamp(3.5rem, 3rem + 2.222vw, 5rem);
+  --spacing-hero-top: clamp(2.5rem, 1.5rem + 4.444vw, 6rem);
+  --spacing-hero-sub: clamp(0.75rem, 0.667rem + 0.37vw, 1rem);
+  --spacing-hero-gap: clamp(2rem, 1.667rem + 1.481vw, 3rem);
+  --spacing-hero-bottom: clamp(4.5rem, 3.667rem + 3.704vw, 7rem);
+  --spacing-hero-floor: clamp(1.25rem, 1rem + 1.111vw, 2rem);
+  /* Between landing sections, and a section title block and its content (Docs/DESIGN.md → Layout). */
+  --spacing-section: clamp(4rem, 2.667rem + 5.926vw, 8rem);
+  --spacing-head: clamp(2rem, 1.667rem + 1.481vw, 3rem);
+  --spacing-stack: clamp(0.75rem, 0.625rem + 0.556vw, 1.125rem);
+  /* Inside the section frame: the content inset from the rails (16 → 40 px) and the striped divider's height
+     (24 → 40 px). */
+  --spacing-frame: clamp(1rem, 0.5rem + 2.222vw, 2.5rem);
+  --spacing-strip: clamp(1.5rem, 1.167rem + 1.481vw, 2.5rem);
+  /* A short band such as Powered by: 48 → 80 px above and below. Full sections use the design's section token. */
+  --spacing-band: clamp(3rem, 2.333rem + 2.963vw, 5rem);
+  /* Space between names in the marquee: 32 → 56 px. */
+  --spacing-marquee: clamp(2rem, 1.5rem + 2.222vw, 3.5rem);
+  /* The logo mark's height in the nav: 22 → 28 px. */
+  --spacing-brand: clamp(1.375rem, 1.25rem + 0.556vw, 1.75rem);
   --container-reading: 42rem;
   --container-landing: 75rem;
 }
@@ -73,6 +108,14 @@
   --color-bg: var(--void-900);
   --color-sunken: var(--void-950);
   --color-line-card: var(--void-700);
+  /* Feature cards (card-shine) sit two steps above the page: void-800 on void-900. Measured on void-800:
+     fg-strong 14.67:1, fg-muted 8.37:1, fg-subtle 5.25:1. Wells inside them use sunken (void-950). */
+  --color-surface-card: var(--void-800);
+  --color-surface-raised: var(--void-700);
+  /* Status colors, only for their meanings: loss 6.90:1 on sunken, accent-text 13.33:1 on sunken. */
+  --color-loss: #f07a72;
+  --color-loss-soft: #2a1412;
+  --color-accent-soft: var(--mint-950);
   --color-fg-strong: var(--void-50);
   --color-fg: var(--void-200);
   --color-fg-muted: var(--void-300);
@@ -114,7 +157,8 @@
     letter-spacing: var(--text-body--letter-spacing);
   }
   h1,
-  h2 {
+  h2,
+  h3 {
     color: var(--color-fg-strong);
     text-wrap: balance;
   }

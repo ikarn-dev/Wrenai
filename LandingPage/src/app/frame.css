@@ -1,0 +1,18 @@
+/* The section frame (components/sections/section-frame.tsx): every section below Powered by sits in one column
+   drawn by hairline rails on its left and right, with hairlines across between sections. Two quiet textures
+   keep the long page structured without boxes: a striped strip that separates sections, and the design's dot
+   grid behind each section's top. All lines are line-card (void-700) on the void-900 page; all of it is painted
+   once and never moves, so it costs nothing while scrolling. */
+
+/* Diagonal hairlines every 10 px, a texture like the dot grid: decoration only, never under text. */
+@utility strip-pattern {
+  background-image: repeating-linear-gradient(-45deg, var(--color-line-card) 0 1px, transparent 1px 10px);
+}
+
+/* Docs/DESIGN.md → Dot grid: 1 px dots every 16 px in void-700, fading out from the top center. */
+@utility dot-grid {
+  background-image: radial-gradient(circle, var(--color-line-card) 1px, transparent 1.5px);
+  background-size: 16px 16px;
+  background-position: center top;
+  mask-image: radial-gradient(ellipse 70% 100% at 50% 0%, #000 10%, transparent 75%);
+}

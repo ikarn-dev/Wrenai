@@ -14,20 +14,22 @@ export function Hero(): ReactElement {
       <div className="hero-frame relative flex flex-col">
         <HeroBackdrop />
         <SiteNav />
-        {/* One rhythm, each gap a step up from the last: title → 16 px → subtext → 48 px → Jarvis. */}
-        <div className="flex flex-1 flex-col items-center px-gutter pt-20 pb-28 text-center md:pt-24">
-          <h1 id="hero-title" className="max-w-4xl text-display-xl">
+        {/* One layout at every width; the gaps and sizes are fluid tokens (globals.css → hero-*), so the hero
+            shrinks with the screen instead of reflowing. Title → subtext → Jarvis, each gap a step up. */}
+        {/* Below md the block centers in the screen's height, so a tall phone doesn't leave the lower half empty. */}
+        <div className="flex flex-1 flex-col items-center px-gutter pt-hero-top pb-hero-bottom text-center max-md:justify-center">
+          <h1 id="hero-title" className="max-w-4xl text-hero">
             Private AI for your De<span className="text-accent-text">Fi</span>
           </h1>
-          <p className="mt-4 max-w-xl text-lead text-fg-subtle">
+          <p className="mt-hero-sub max-w-xl text-hero-lead text-fg-subtle">
             Research NEAR markets with Jarvis, then turn a plan into an agent that stays inside your limits.
           </p>
-          <div className="mt-12 flex w-full justify-center">
+          <div className="mt-hero-gap flex w-full justify-center">
             <JarvisPrompt />
           </div>
         </div>
         {/* Sits on the solid core of the bright floor (mint-50 → mint-100): ink 16+:1 / 15.39:1. */}
-        <p className="absolute inset-x-0 bottom-8 px-gutter text-center text-small font-medium text-ink">
+        <p className="absolute inset-x-0 bottom-hero-floor px-gutter text-center text-small font-medium text-ink">
           Agentic trading, native to NEAR
         </p>
       </div>
