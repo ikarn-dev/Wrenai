@@ -1,12 +1,12 @@
 import { BrainCircuit, ChartNoAxesCombined, MessageCircle, ShieldCheck, Wallet } from "lucide-react";
-import type { ReactElement } from "react";
+import { type ReactElement, Suspense } from "react";
 import type { PortfolioPerformance } from "@/server/portfolio/performance";
 import type { WalletBalanceReading } from "@/server/portfolio/wallet-balance";
 import type { AgentSummary } from "@/shared/agents";
 import { formatCompactMicroUsd } from "@/shared/money";
 import type { TelegramLinkState } from "@/shared/telegram";
 import { StatTile } from "./panel";
-import { NearAmount, ReadTime } from "./wallet-cards";
+import { WalletValue, WalletValueSkeleton } from "./wallet-cards";
 
 interface PortfolioOverviewProps {
   readonly wallet: WalletBalanceReading;
@@ -58,35 +58,30 @@ export function PortfolioOverview({
   telegram,
   performance,
 }: PortfolioOverviewProps): ReactElement {
+  // Rows stretch to the trading-access pane's height beside it, so both columns end on the same line.
   return (
-    <div className="grid content-start gap-stack sm:grid-cols-2">
-      <div className="sm:col-span-2">
-        <StatTile icon={Wallet} label="NEAR wallet" meta={<ReadTime reading={wallet} />}>
-          {wallet.kind === "unavailable" ? (
-            <Quiet>Unavailable</Quiet>
-          ) : (
-            <NearAmount amount={wallet.kind === "balance" ? wallet.yocto : 0n} large />
-          )}
+    <div className="grid gap-stack sm:grid-cols-2">
+      <div className="grid sm:col-span-2">
+        <StatTile icon={Wallet} label="NEAR wallet">
+          <Suspense fallback={<WalletValueSkeleton wallet={wallet} />}>
+            <WalletValue wallet={wallet} />
+          </Suspense>
         </StatTile>
       </div>
-      <StatTile icon={BrainCircuit} label="Agents" meta="Each agent has its own budget">
+      <StatTile icon={BrainCircuit} label="Agents">
         {agentCount(agents)}
       </StatTile>
-      <StatTile
-        icon={ChartNoAxesCombined}
-        label="Realized PnL"
-        meta="From recorded fills; excludes unrealized changes"
-      >
+      <StatTile icon={ChartNoAxesCombined} label="Realized PnL">
         {performance.totalMicroUsd !== null ? (
           formatCompactMicroUsd(performance.totalMicroUsd)
         ) : (
           <Quiet>{performance.count ? "Incomplete cost data" : "No recorded fills"}</Quiet>
         )}
       </StatTile>
-      <StatTile icon={ShieldCheck} label="Budgets" meta="Exact tokens allocated during agent setup">
+      <StatTile icon={ShieldCheck} label="Budgets">
         Per agent
       </StatTile>
-      <StatTile icon={MessageCircle} label="Telegram" meta="Alerts and approvals">
+      <StatTile icon={MessageCircle} label="Telegram">
         {telegramValue(telegram)}
       </StatTile>
     </div>

@@ -3,9 +3,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import type { ReactElement } from "react";
+import { readTrading } from "@/components/trading/trading-api";
 import { Button } from "@/components/ui/button";
-import { readAgentRuntimeStatus, recoverAgentOrders } from "@/server/engine/status-actions";
-import type { AgentRuntimeStatus } from "@/shared/agent-runtime";
+import { recoverAgentOrders } from "@/server/engine/status-actions";
+import { type AgentRuntimeStatus, agentRuntimeStatusSchema } from "@/shared/agent-runtime";
 import type { AgentSummary } from "@/shared/agents";
 import { AgentStatus } from "./agent-card";
 import { AgentControls } from "./controls";
@@ -26,13 +27,12 @@ export function AgentRuntimePanel({
   const query = useQuery({
     queryKey: key,
     initialData: initial,
-    queryFn: async () => {
-      const result = await readAgentRuntimeStatus({ agentId: agent.id });
-      if (!result.ok) {
-        throw new Error(result.message);
-      }
-      return result.value;
-    },
+    queryFn: ({ signal }) =>
+      readTrading(
+        `/api/agents/${encodeURIComponent(agent.id)}?view=runtime`,
+        agentRuntimeStatusSchema,
+        signal,
+      ),
     refetchInterval: (query) => {
       const state = query.state.data;
       return state?.agent.status === "running" ||

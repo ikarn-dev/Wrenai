@@ -1,5 +1,6 @@
 import "server-only";
 import { and, asc, desc, eq, isNull, lt } from "drizzle-orm";
+import { after } from "next/server";
 import { z } from "zod";
 import { attestationReceiptSchema } from "@/server/ai/attestation-receipt";
 import { chatConversations, chatTurns } from "@/server/db/chat-schema";
@@ -125,7 +126,9 @@ export async function readConversationPage(
   });
   // Pending leases change with wall time even without a write; never cache their presentation.
   if (!page.turns.some((turn) => turn.state === "pending")) {
-    await writeChatCache(userId, conversationId, stamp, page, cipher);
+    after(async () => {
+      await writeChatCache(userId, conversationId, stamp, page, cipher);
+    });
   }
   return page;
 }

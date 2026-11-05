@@ -1,7 +1,8 @@
 import "server-only";
 import { and, asc, eq, isNull } from "drizzle-orm";
+import { AgentError } from "@/server/agents/errors";
 import { ownedAgent } from "@/server/agents/records";
-import { agentRuntimes } from "@/server/db/agent-schema";
+import { agentRuntimes, agents } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { executionActions } from "@/server/db/execution-schema";
 import { watchPerpsPosition } from "@/server/execution/hyperliquid/position-watch";
@@ -13,39 +14,46 @@ export async function agentRuntimeStatus(
   userId: string,
   agentId: string,
 ): Promise<AgentRuntimeStatus> {
-  const agent = await ownedAgent(db, userId, agentId);
-  const [runtime] = await db
-    .select({ state: agentRuntimes.state, nextCheckAt: agentRuntimes.nextCheckAt })
-    .from(agentRuntimes)
-    .where(and(eq(agentRuntimes.userId, userId), eq(agentRuntimes.agentId, agentId)))
-    .limit(1);
-  const pending = await db
-    .select({
-      id: executionActions.id,
-      status: executionActions.status,
-      startedAt: executionActions.startedAt,
-    })
-    .from(executionActions)
-    .where(
-      and(
-        eq(executionActions.userId, userId),
-        eq(executionActions.agentId, agentId),
-        isNull(executionActions.reservationReleasedAt),
-      ),
-    )
-    .orderBy(asc(executionActions.createdAt), asc(executionActions.id))
-    .limit(10);
-  return {
-    agent: {
-      id: agent.id,
-      status: agent.status,
-      reason: agent.reason,
-      revision: agent.revision,
-      updatedAt: agent.updatedAt,
-    },
-    runtime: runtime ?? null,
-    pending,
-  };
+  const [[row], pending] = await Promise.all([
+    db
+      .select({
+        agent: {
+          id: agents.id,
+          status: agents.status,
+          reason: agents.reason,
+          revision: agents.revision,
+          updatedAt: agents.updatedAt,
+        },
+        runtime: { state: agentRuntimes.state, nextCheckAt: agentRuntimes.nextCheckAt },
+      })
+      .from(agents)
+      .leftJoin(
+        agentRuntimes,
+        and(eq(agentRuntimes.userId, agents.userId), eq(agentRuntimes.agentId, agents.id)),
+      )
+      .where(and(eq(agents.userId, userId), eq(agents.id, agentId), isNull(agents.deletedAt)))
+      .limit(1),
+    db
+      .select({
+        id: executionActions.id,
+        status: executionActions.status,
+        startedAt: executionActions.startedAt,
+      })
+      .from(executionActions)
+      .where(
+        and(
+          eq(executionActions.userId, userId),
+          eq(executionActions.agentId, agentId),
+          isNull(executionActions.reservationReleasedAt),
+        ),
+      )
+      .orderBy(asc(executionActions.createdAt), asc(executionActions.id))
+      .limit(10),
+  ]);
+  if (!row) {
+    throw new AgentError("not_found", "Agent not found.");
+  }
+  return { ...row, pending };
 }
 
 /** User-triggered recovery cannot produce a new signature or resubmit an ambiguous order. */

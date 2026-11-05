@@ -100,7 +100,7 @@ export function AgentOfferPrompt({
           notify("warn", result.message);
           return;
         }
-        router.push(`/agents/new?setup=${result.value.id}`);
+        router.push(`/agents?setup=${result.value.id}`);
       } catch {
         if (current.current === source.key) {
           setError({ key: source.key, message: "Couldn’t save the setup. Try again." });

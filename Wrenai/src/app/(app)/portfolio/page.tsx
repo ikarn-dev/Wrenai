@@ -3,12 +3,11 @@ import { Suspense } from "react";
 import { AccountActivity } from "@/components/activity/account-activity";
 import { ActivitySkeleton } from "@/components/activity/skeleton";
 import { TradingAccessPane } from "@/components/portfolio/access-card";
-import { InsightCards } from "@/components/portfolio/insight-cards";
+import { MarketInsights } from "@/components/portfolio/market-insights";
 import { PortfolioOverview } from "@/components/portfolio/overview";
 import { PortfolioSection } from "@/components/portfolio/panel";
 import { AgentPerformanceCard, PnlCalendarCard } from "@/components/portfolio/pnl-cards";
 import { RefreshPortfolioButton } from "@/components/portfolio/refresh-button";
-import { PortfolioValueCard, PortfolioValueSkeleton } from "@/components/portfolio/value-card";
 import { listAgents } from "@/server/agents/records";
 import { requireUser } from "@/server/auth/session";
 import { database } from "@/server/db/client";
@@ -42,14 +41,7 @@ export default async function PortfolioPage() {
         <TradingAccessPane accountId={user.accountId} reading={agentKey} />
       </div>
       <PortfolioSection id="insights" title="Insights">
-        <InsightCards
-          performance={performance}
-          allocation={
-            <Suspense fallback={<PortfolioValueSkeleton />}>
-              <PortfolioValueCard />
-            </Suspense>
-          }
-        />
+        <MarketInsights />
       </PortfolioSection>
       <PortfolioSection id="agents-overview" title="Agents">
         <div className="grid min-w-0 gap-stack xl:grid-cols-3">

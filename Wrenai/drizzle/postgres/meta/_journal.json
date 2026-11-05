@@ -176,6 +176,13 @@
       "when": 1793811377954,
       "tag": "0024_wallet_swaps",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793866548479,
+      "tag": "0025_rhea_native_wallet_swaps",
+      "breakpoints": true
     }
   ]
 }

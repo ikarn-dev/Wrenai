@@ -24,6 +24,10 @@ import { prepareManualRhea } from "./rhea";
 import { prepareManualSpot } from "./spot";
 import { manualSubject } from "./subject";
 
+function needsPairReview(row: { source: string }, preview: ManualPreview): boolean {
+  return row.source === "jarvis" && preview.intent.kind === "spot" && !preview.pairVerified;
+}
+
 export async function readManualPreview(db: AppDatabase, userId: string, id: string): Promise<ManualPreview> {
   const row = await ownedManualTrade(db, userId, id),
     envelope = manualEnvelope(row);
@@ -79,7 +83,12 @@ export async function readManualPreview(db: AppDatabase, userId: string, id: str
   }
   return {
     ...envelope.preview,
-    status: row.status === "cancelled" ? "cancelled" : row.expiresAt <= Date.now() ? "expired" : "quoted",
+    status:
+      row.status === "cancelled"
+        ? "cancelled"
+        : row.expiresAt <= Date.now() || needsPairReview(row, envelope.preview)
+          ? "expired"
+          : "quoted",
   };
 }
 export async function quoteManualTrade(
@@ -117,9 +126,10 @@ export async function quoteManualTrade(
           ? await prepareManualPerpsDeposit(db, userId, input.requestId, subjectId, input.intent)
           : await prepareManualPerpsReturn(db, userId, input.requestId, subjectId, input.intent)
         : await prepareManualPerps(db, userId, input.requestId, subjectId, input.intent);
-  const { bindingHash: _binding, ...bound } = envelope.preview;
+  const { bindingHash: _binding, ...preview } = envelope.preview;
+  const bound = { ...preview, ...(input.intent.kind === "spot" ? { pairVerified: true } : {}) };
   const bindingHash = executionHash({ preview: bound, plan: envelope.plan, prepared: envelope.prepared });
-  const saved = manualEnvelopeSchema.parse({ ...envelope, preview: { ...envelope.preview, bindingHash } });
+  const saved = manualEnvelopeSchema.parse({ ...envelope, preview: { ...bound, bindingHash } });
   await userTransaction(db, userId, async (tx) => {
     const now = await databaseTime(tx);
     if (saved.plan.expiresAt <= now || saved.plan.expiresAt > now + 300_000) {
@@ -168,6 +178,9 @@ export async function confirmManualTrade(
     return readManualPreview(db, userId, initial.id);
   }
   const envelope = manualEnvelope(initial);
+  if (needsPairReview(initial, envelope.preview)) {
+    throw new ExecutionError("not_ready", "Request a new quote with the exact tokens.");
+  }
   if (initial.status !== "quoted" || initial.expiresAt <= Date.now()) {
     throw new ExecutionError("not_ready", "This quote expired or was dismissed. Review a fresh quote.");
   }

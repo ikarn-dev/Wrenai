@@ -4,6 +4,14 @@ import { parseAttestedStrategy } from "@/server/ai/strategy-parser";
 const cloud = vi.hoisted(() => ({ create: vi.fn(), verify: vi.fn(), options: vi.fn(), keys: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/server/env", () => ({ nearAiKeys: cloud.keys }));
+vi.mock("@/server/research/intents", () => ({
+  intentTokens: async () => ({
+    tokens: [
+      { assetId: "nep141:usdc.near", symbol: "USDC", blockchain: "near", decimals: 6 },
+      { assetId: "nep141:wrap.near", symbol: "wNEAR", blockchain: "near", decimals: 24 },
+    ],
+  }),
+}));
 vi.mock("@nearai/inference-sdk/node", async (original) => ({
   ...(await original<typeof import("@nearai/inference-sdk/node")>()),
   InferenceClient: class {
@@ -71,6 +79,34 @@ describe("attested strategy parsing", () => {
     ).rejects.toMatchObject({ code: "not_ready" });
     expect(cloud.create).not.toHaveBeenCalled();
     expect(cloud.verify).not.toHaveBeenCalled();
+  });
+
+  it("asks for a bounded agent budget when asked to sweep a wallet balance", async () => {
+    await expect(
+      parseAttestedStrategy("spot_trader", "Sell all USDC from my wallet for NEAR"),
+    ).rejects.toThrow("Set a fixed token budget");
+  });
+  it("rejects a wrapped NEAR strategy if the user requested native NEAR", async () => {
+    cloud.create.mockResolvedValue(
+      completion({
+        kind: "spot_trader",
+        format: 2,
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        payAssetId: "nep141:usdc.near",
+        buyAssetId: "nep141:wrap.near",
+        amountUnits: "1000000",
+        priceUnit: "usd",
+        side: "buy",
+        entry: { type: "market" },
+        exits: { takeProfitPrice: null, stopLossPrice: null, trailingStopBps: null },
+      }),
+    );
+    await expect(parseAttestedStrategy("spot_trader", "Spend 1 USDC to buy native NEAR")).rejects.toThrow(
+      "Name each token explicitly",
+    );
+    await expect(parseAttestedStrategy("spot_trader", "Spend 1 USDC to buy wNEAR")).resolves.toMatchObject({
+      strategy: { buyAssetId: "nep141:wrap.near" },
+    });
   });
 
   it("refuses gateway-only signatures even for otherwise valid strategy JSON", async () => {

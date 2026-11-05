@@ -79,7 +79,7 @@ export function verifiedWalletQuote(
       source.assetId,
       destination.assetId,
       source.maxDebitUnits,
-      Math.max(0, plan.slippageBps - 1),
+      plan.slippageBps,
       "intents",
       saved.order.quotedAt,
     ),

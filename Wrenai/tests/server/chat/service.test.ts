@@ -191,7 +191,11 @@ describe("read-only chat response lifecycle", () => {
     };
     cloud.context.mockResolvedValue(context);
     const result = await answerChat(store.db, user, { ...input, includeContext: true }, cipher);
-    expect(cloud.context).toHaveBeenCalledWith(store.db, user);
+    expect(cloud.context).toHaveBeenCalledWith(
+      store.db,
+      user,
+      expect.objectContaining({ message: input.message }),
+    );
     expect(result.reply?.context).toEqual(context);
     expect(JSON.stringify(cloud.complete.mock.calls[0]?.[0])).toContain("Fresh read-only account snapshot");
     expect(JSON.stringify(cloud.complete.mock.calls[0]?.[0])).toContain("unavailable");

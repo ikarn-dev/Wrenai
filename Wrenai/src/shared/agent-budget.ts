@@ -2,6 +2,9 @@ import { z } from "zod";
 import { formatUnits } from "./money";
 import { parseTokenAmount, positiveTokenUnitsSchema, tokenUnitsSchema } from "./token-units";
 
+export const MAX_WALLET_TOKEN_DECIMALS = 255;
+export const MAX_AGENT_BUDGET_DECIMALS = 36;
+
 export const nearAccountSchema = z
   .string()
   .min(2)
@@ -29,7 +32,7 @@ export type AgentBudgetInput = z.infer<typeof agentBudgetInputSchema>;
 export const walletHoldingSchema = z.strictObject({
   assetId: walletAssetSchema,
   symbol: z.string().trim().min(1).max(64),
-  decimals: z.number().int().min(0).max(36),
+  decimals: z.number().int().min(0).max(MAX_WALLET_TOKEN_DECIMALS),
   balanceUnits: tokenUnitsSchema,
   spendableUnits: tokenUnitsSchema,
   observedAt: z.number().int().positive(),
@@ -41,7 +44,7 @@ export const agentTokenBudgetSchema = z.strictObject({
   accountId: nearAccountSchema,
   assetId: walletAssetSchema,
   symbol: z.string().trim().min(1).max(64),
-  decimals: z.number().int().min(0).max(36),
+  decimals: z.number().int().min(0).max(MAX_AGENT_BUDGET_DECIMALS),
   units: positiveTokenUnitsSchema,
   observedAt: z.number().int().positive(),
   blockHeight: z.number().int().positive(),

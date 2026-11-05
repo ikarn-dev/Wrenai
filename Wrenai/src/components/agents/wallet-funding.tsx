@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, type ReactElement, useRef, useState } from "react";
 import { PortfolioPanel } from "@/components/portfolio/panel";
+import { readTrading } from "@/components/trading/trading-api";
 import { Button } from "@/components/ui/button";
 import { AgentKeyDialog } from "@/components/wallet/agent-key-dialog";
 import { walletTransactionHash } from "@/components/wallet/transaction-hash";
@@ -9,14 +10,17 @@ import {
   beginWalletFunding,
   cancelWalletFundingReview,
   continueWalletFunding,
-  loadAgentFunding,
   reviewWalletFunding,
   stopPrivateFunding,
   submitWalletFundingProof,
 } from "@/server/funding/actions";
 import { budgetTokenAmount } from "@/shared/agent-budget";
 import type { AgentResult, AgentSummary } from "@/shared/agents";
-import { type WalletFundingView, walletFundingTransaction } from "@/shared/wallet-funding";
+import {
+  agentFundingStateSchema,
+  type WalletFundingView,
+  walletFundingTransaction,
+} from "@/shared/wallet-funding";
 
 function value<T>(result: AgentResult<T>): T {
   if (!result.ok) {
@@ -39,7 +43,12 @@ export function AgentWalletFunding({
   const [transactionHash, setTransactionHash] = useState("");
   const query = useQuery({
     queryKey: key,
-    queryFn: async () => value(await loadAgentFunding({ agentId: agent.id })),
+    queryFn: ({ signal }) =>
+      readTrading(
+        `/api/agents/${encodeURIComponent(agent.id)}?view=funding`,
+        agentFundingStateSchema,
+        signal,
+      ),
     retry: false,
     staleTime: 5000,
     refetchOnWindowFocus: true,

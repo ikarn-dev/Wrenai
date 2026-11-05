@@ -245,7 +245,7 @@ export function verifiedStoredQuote(
       plan.inputAssetId,
       plan.outputAssetId,
       plan.inputUnits,
-      Math.max(0, plan.slippageBps - 1),
+      plan.slippageBps,
       "confidential",
       prepared.quotedAt,
     ),

@@ -131,7 +131,7 @@ export function AgentSetupReview({ draft }: { readonly draft: AgentSetupDraft })
         </Button>
         {supported && brief === draft.brief ? (
           <Link
-            href={`/agents/new?setup=${draft.id}`}
+            href={`/agents?setup=${draft.id}`}
             className="inline-flex min-h-11 items-center rounded-sm px-3 text-small text-accent-text"
           >
             Review paused agent

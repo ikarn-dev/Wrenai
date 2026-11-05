@@ -246,9 +246,9 @@ describe("verified read-only research rounds", () => {
         function: {
           name: `research_${tool}`,
           arguments: JSON.stringify({
-            symbols: ["dca", "spot_trader", "buy_the_dip", "sell_the_top"].includes(tool)
-              ? ["NEAR", "USDC"]
-              : ["NEAR"],
+            ...(["dca", "spot_trader", "buy_the_dip", "sell_the_top"].includes(tool)
+              ? { symbols: ["wNEAR", "USDC"], amount: "1", amountAsset: "wNEAR" }
+              : { symbols: ["NEAR"] }),
             ...(tool === "private_payments" ? { accountId: "owner.near" } : {}),
           }),
         },

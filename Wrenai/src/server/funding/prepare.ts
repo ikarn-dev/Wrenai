@@ -96,15 +96,7 @@ export async function prepareWalletFunding(
     );
   }
   const request = {
-    ...dryQuoteRequest(
-      user.accountId,
-      assetId,
-      assetId,
-      units,
-      Math.max(0, policy.maxSlippageBps - 1),
-      "intents",
-      Date.now(),
-    ),
+    ...dryQuoteRequest(user.accountId, assetId, assetId, units, policy.maxSlippageBps, "intents", Date.now()),
     recipientType: QuoteRequest.recipientType.CONFIDENTIAL_INTENTS,
   };
   const quote = verifiedDryQuote(

@@ -71,7 +71,7 @@ export function verifiedFundingQuote(
       source.assetId,
       HYPERLIQUID_BRIDGE_USDC,
       source.maxDebitUnits,
-      Math.max(0, plan.slippageBps - 1),
+      plan.slippageBps,
       "confidential",
       saved.order.quotedAt,
     ),

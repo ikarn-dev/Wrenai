@@ -3,7 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { type ReactElement, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { loadWalletBudgets } from "@/server/chat/draft-actions";
-import { type AgentBudgetInput, budgetTokenAmount, nearAccountSchema } from "@/shared/agent-budget";
+import {
+  type AgentBudgetInput,
+  budgetTokenAmount,
+  MAX_AGENT_BUDGET_DECIMALS,
+  nearAccountSchema,
+} from "@/shared/agent-budget";
 
 interface TokenBudgetProps {
   readonly value: AgentBudgetInput | null;
@@ -130,6 +135,11 @@ export function TokenBudget({ value, onChange, excludeId, disabled }: TokenBudge
             </div>
           ))}
         </dl>
+      ) : null}
+      {selected && selected.decimals > MAX_AGENT_BUDGET_DECIMALS ? (
+        <p role="alert" className="text-small text-warn">
+          This token has more decimal places than agent budgets support.
+        </p>
       ) : null}
       {selected?.deficitUnits !== undefined && selected.deficitUnits !== "0" ? (
         <p role="alert" className="text-small text-warn">

@@ -1,16 +1,52 @@
 import { chatResult, chatUser } from "@/server/chat/access";
 import { chatCipher } from "@/server/chat/cipher";
 import { ChatError } from "@/server/chat/errors";
+import { listConversations, readConversationPage } from "@/server/chat/queries";
 import { chatResponseStream } from "@/server/chat/response-stream";
 import { answerChat } from "@/server/chat/service";
 import { database } from "@/server/db/client";
 import { serverEnv } from "@/server/env";
-import { chatInputSchema } from "@/shared/chat";
+import { type ChatFailureCode, chatInputSchema, chatPageInputSchema } from "@/shared/chat";
 import { chatRoutingIssue } from "@/shared/chat-routing";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 const MAX_BODY_BYTES = 40_000;
+const PRIVATE = { "Cache-Control": "private, no-store" };
+
+function failureStatus(code: ChatFailureCode): number {
+  switch (code) {
+    case "signed_out":
+      return 401;
+    case "invalid_input":
+      return 400;
+    case "not_found":
+      return 404;
+    case "conflict":
+      return 409;
+    case "rate_limited":
+      return 429;
+    default:
+      return 503;
+  }
+}
+
+export async function GET(request: Request): Promise<Response> {
+  const result = await chatResult(async () => {
+    const user = await chatUser("manage");
+    const query = new URL(request.url).searchParams;
+    if (!query.size) {
+      return listConversations(database(), user.id);
+    }
+    const before = query.get("beforeSequence");
+    const input = chatPageInputSchema.parse({
+      conversationId: query.get("conversationId"),
+      beforeSequence: before === null ? null : Number(before),
+    });
+    return readConversationPage(database(), user.id, input.conversationId, input.beforeSequence);
+  });
+  return Response.json(result, { status: result.ok ? 200 : failureStatus(result.code), headers: PRIVATE });
+}
 
 async function readInput(request: Request): Promise<unknown> {
   if (!request.body) {
@@ -72,17 +108,5 @@ export async function POST(request: Request): Promise<Response> {
   if (result.ok) {
     return result.value;
   }
-  const status =
-    result.code === "signed_out"
-      ? 401
-      : result.code === "invalid_input"
-        ? 400
-        : result.code === "not_found"
-          ? 404
-          : result.code === "conflict"
-            ? 409
-            : result.code === "rate_limited"
-              ? 429
-              : 503;
-  return Response.json(result, { status, headers: { "Cache-Control": "no-store" } });
+  return Response.json(result, { status: failureStatus(result.code), headers: PRIVATE });
 }

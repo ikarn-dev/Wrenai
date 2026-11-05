@@ -99,7 +99,7 @@ export function verifiedPaymentQuote(
       cash.assetId,
       cash.assetId,
       saved.amountUnits,
-      Math.max(0, plan.slippageBps - 1),
+      plan.slippageBps,
       "confidential",
       saved.order.quotedAt,
     ),

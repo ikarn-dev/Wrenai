@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { nearAccountSchema, walletAssetSchema } from "./agent-budget";
-import { positiveTokenUnitsSchema } from "./token-units";
+import { agentTokenBudgetSchema, nearAccountSchema, walletAssetSchema } from "./agent-budget";
+import { positiveTokenUnitsSchema, tokenUnitsSchema } from "./token-units";
 
 export const walletFundingSnapshotSchema = z.strictObject({
   fundingId: z.uuid(),
@@ -27,14 +27,24 @@ export const walletFundingStateSchema = z.enum([
   "converting",
   "complete",
 ]);
-export interface WalletFundingView {
-  readonly id: string;
-  readonly state: z.infer<typeof walletFundingStateSchema>;
-  readonly snapshot: WalletFundingSnapshot;
-  readonly transactionHash: string | null;
-  readonly actionId: string | null;
-  readonly expiresAt: number;
-}
+const walletFundingViewSchema = z.strictObject({
+  id: z.string(),
+  state: walletFundingStateSchema,
+  snapshot: walletFundingSnapshotSchema,
+  transactionHash: z.string().nullable(),
+  actionId: z.string().nullable(),
+  expiresAt: z.number().int(),
+});
+export type WalletFundingView = z.infer<typeof walletFundingViewSchema>;
+
+export const agentFundingStateSchema = z.strictObject({
+  authorized: z.boolean(),
+  budget: agentTokenBudgetSchema.nullable(),
+  funding: walletFundingViewSchema.nullable(),
+  allocatedPrivateUnits: tokenUnitsSchema,
+  allocatedPublicUnits: tokenUnitsSchema,
+});
+export type AgentFundingState = z.infer<typeof agentFundingStateSchema>;
 
 /** One wallet transaction: wrap native NEAR if necessary, then deposit the exact FT into the owner's Verifier balance. */
 export function walletFundingTransaction(snapshot: WalletFundingSnapshot): {

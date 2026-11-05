@@ -128,18 +128,6 @@
   /* iOS-style deceleration: fast start, long soft settle. */
   --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
 
-  /* Opacity only, so the glow stays centered and even while it breathes. */
-  --animate-glow-breathe: glow-breathe 8s ease-in-out infinite alternate;
-
-  @keyframes glow-breathe {
-    0% {
-      opacity: 0.78;
-    }
-    100% {
-      opacity: 1;
-    }
-  }
-
   --spacing-gutter: clamp(1rem, 0.5rem + 2.222vw, 2.5rem);
   --spacing-section: clamp(4rem, 2.667rem + 5.926vw, 8rem);
   --spacing-card: clamp(1rem, 0.833rem + 0.741vw, 1.5rem);
@@ -195,23 +183,6 @@
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   /* The wordmark and popup titles only (Docs/DESIGN.md → Typography → Roles). */
   --font-rounded: var(--font-quicksand), ui-rounded, ui-sans-serif, system-ui, sans-serif;
-}
-
-/* Visual pane (Docs/DESIGN.md → Visual pane). Lives inside its own sunken pane, never under text.
-   Two concentric ellipses share one center, so the light falls off evenly in every direction. */
-@utility glow-pane {
-  background-image:
-    radial-gradient(
-      36% 32% at 72% 64%,
-      color-mix(in oklab, var(--mint-300) 26%, transparent),
-      transparent 72%
-    ),
-    radial-gradient(
-      78% 68% at 72% 64%,
-      color-mix(in oklab, var(--mint-500) 30%, transparent),
-      color-mix(in oklab, var(--mint-800) 14%, transparent) 55%,
-      transparent 80%
-    );
 }
 
 /* Raised button face (Docs/DESIGN.md → Components → Buttons): the fill, its edge (inner top highlight and a faint
@@ -378,28 +349,6 @@
   }
 }
 
-/* Sign-in page backdrop: a faint mint light along the bottom edge (the top band mirrors it). Three low-strength
-   ellipses anchored at the edge, deeper mint to the left and lighter to the right, each fading out inside its thin
-   band. No wash across the page, so the page stays black and the light reads only at the very edges. */
-@utility glow-page {
-  background-image:
-    radial-gradient(
-      50% 70% at 50% 100%,
-      color-mix(in oklab, var(--mint-300) 14%, transparent),
-      transparent 70%
-    ),
-    radial-gradient(
-      45% 80% at 14% 100%,
-      color-mix(in oklab, var(--mint-500) 16%, transparent),
-      transparent 70%
-    ),
-    radial-gradient(
-      45% 80% at 86% 100%,
-      color-mix(in oklab, var(--mint-400) 12%, transparent),
-      transparent 70%
-    );
-}
-
 /* Light badge (the network badge): a light mint label on a faint mint tint with a soft inset ring. No glow.
    Measured: mint-200 on the 14% tint 9.54:1 over a card (surface-card), 10.5:1 over surface-1. */
 @utility badge-light {
@@ -490,9 +439,4 @@
   background-size: 16px 16px;
   background-position: center;
   mask-image: radial-gradient(70% 70% at 50% 50%, black 40%, transparent 100%);
-}
-
-/* Halftone fades toward every edge, strongest where the glow is. */
-@utility fade-radial-end {
-  mask-image: radial-gradient(85% 80% at 72% 64%, black 30%, transparent 78%);
 }

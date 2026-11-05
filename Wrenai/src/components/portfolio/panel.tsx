@@ -6,15 +6,26 @@ const ICON = { "aria-hidden": true, strokeWidth: 1.75, absoluteStrokeWidth: true
 interface PortfolioPanelProps {
   readonly id: string;
   readonly title: string;
+  /**
+   * Docs/DESIGN.md → Typography → Roles → Card title: a mono uppercase eyebrow for data cards, or Inter 600 `h3`
+   * in sentence case for a card that names its subject.
+   */
+  readonly heading?: "eyebrow" | "title";
   readonly aside?: ReactNode;
   readonly className?: string;
   readonly children: ReactNode;
 }
 
-/** A neutral card with a mono eyebrow title; every Portfolio card shares its padding and header height. */
+const HEADING = {
+  eyebrow: "font-mono text-eyebrow uppercase text-fg-muted",
+  title: "min-w-0 truncate text-h3 text-fg-strong",
+} as const;
+
+/** A neutral card with its title row; every Portfolio card shares its padding and header height. */
 export function PortfolioPanel({
   id,
   title,
+  heading = "eyebrow",
   aside,
   className = "",
   children,
@@ -25,7 +36,7 @@ export function PortfolioPanel({
       className={`@container flex min-w-0 flex-col gap-4 card-shine rounded-lg p-card ${className}`}
     >
       <header className="flex min-h-6 items-center justify-between gap-3">
-        <h3 id={`${id}-heading`} className="font-mono text-eyebrow uppercase text-fg-muted">
+        <h3 id={`${id}-heading`} className={HEADING[heading]}>
           {title}
         </h3>
         {aside}
@@ -70,11 +81,9 @@ interface StatTileProps {
  */
 export function StatTile({ icon: Icon, label, children, meta }: StatTileProps): ReactElement {
   return (
-    // The label row sits at the top; the value and its caption stay together at the bottom, so a stretched card
-    // never leaves a hole between a figure and the line that explains it.
-    // Sized to its content: label row, the value right under it, its caption right under that. No stretching,
-    // so no empty band anywhere in the card.
-    <dl className="flex min-w-0 flex-col gap-3 card-shine rounded-lg p-4">
+    // The label row sits at the top and the value with its caption at the bottom, so a card stretched to its row
+    // keeps the figure on the row's bottom edge instead of leaving an empty band under it.
+    <dl className="flex min-w-0 flex-col justify-between gap-3 card-shine rounded-lg p-4">
       <div className="flex items-center justify-between gap-3">
         <dt className="font-mono text-eyebrow uppercase text-fg-muted">{label}</dt>
         <Icon {...ICON} size={16} className="shrink-0 text-accent-text" />

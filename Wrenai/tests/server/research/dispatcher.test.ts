@@ -37,7 +37,7 @@ describe("research validation failures", () => {
     });
     const result = await runResearchTool(
       "research_dca",
-      '{"symbols":["NEAR","USDC"]}',
+      '{"symbols":["wNEAR","USDC"],"amount":"1","amountAsset":"wNEAR"}',
       new AbortController().signal,
     );
     expect(result.status).toBe("unavailable");

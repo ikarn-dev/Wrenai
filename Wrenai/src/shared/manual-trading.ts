@@ -106,6 +106,7 @@ export const manualPreviewSchema = z.strictObject({
     "refunded",
     "no_fill",
   ]),
+  pairVerified: z.literal(true).optional(),
   execution: z
     .strictObject({
       spentUnits: tokenUnitsSchema,

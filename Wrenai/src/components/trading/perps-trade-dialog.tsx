@@ -1,11 +1,10 @@
 "use client";
 import type { ReactElement } from "react";
-import type { PerpsMarketRow } from "@/shared/market-pages";
+import { type PerpsMarketRow, perpsIcon } from "@/shared/market-pages";
 import { decimalDisplay } from "@/shared/trading-display";
 import { Change } from "./market-cells";
 import { fundingDisplay } from "./perps-markets-table";
 import { PerpsTicket } from "./perps-ticket";
-import { perpsIcon } from "./token-icon";
 import { TradeDialog, TradeDialogHeader } from "./trade-dialog";
 
 /** Trading one Perps market: the same popup as Spot and Memecoins, holding the order ticket. */

@@ -34,11 +34,11 @@ export function networkName(id: string): string {
 
 /** wNEAR is 1:1 with NEAR and unwraps freely, so the Spot page calls it NEAR; the contract column still says wrap.near. */
 export function displaySymbol(token: SpotMarketToken): string {
-  return token.assetId === WALLET_SWAP_INPUT ? "NEAR" : token.tokenSymbol;
+  return token.assetId === WALLET_SWAP_INPUT ? "wNEAR" : token.tokenSymbol;
 }
 
 function displayName(token: SpotMarketToken): string | undefined {
-  return token.assetId === WALLET_SWAP_INPUT ? "NEAR Protocol" : token.metrics?.name;
+  return token.assetId === WALLET_SWAP_INPUT ? "Wrapped NEAR" : token.metrics?.name;
 }
 
 function Row({

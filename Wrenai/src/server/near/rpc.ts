@@ -66,7 +66,10 @@ async function query(
         jsonrpc: "2.0",
         id: "wrenai",
         method,
-        params: method === "tx" || "block_id" in params ? params : { ...params, finality: "final" },
+        params:
+          method === "tx" || method === "EXPERIMENTAL_tx_status" || "block_id" in params
+            ? params
+            : { ...params, finality: "final" },
       }),
       signal: AbortSignal.any([AbortSignal.timeout(RPC_TIMEOUT_MS), ...(signal ? [signal] : [])]),
       cache: "no-store",
@@ -125,14 +128,15 @@ export async function viewNearBalance(accountId: string, signal?: AbortSignal): 
 export async function viewNearBudgetBalance(
   accountId: string,
   reserveWalletGas = true,
+  signal?: AbortSignal,
 ): Promise<{
   readonly balance: bigint;
   readonly spendable: bigint;
   readonly blockHeight: number;
 }> {
   const [outcome, config] = await Promise.all([
-    query({ request_type: "view_account", account_id: accountId }),
-    query({}, undefined, "EXPERIMENTAL_protocol_config"),
+    query({ request_type: "view_account", account_id: accountId }, signal),
+    query({}, signal, "EXPERIMENTAL_protocol_config"),
   ]);
   if (outcome.kind !== "ok" || config.kind !== "ok") {
     throw new NearRpcError("The wallet account does not exist on mainnet.");
@@ -211,6 +215,7 @@ export async function callViewFunction(
 export async function readFinalTransaction(
   transactionHash: string,
   senderAccountId: string,
+  includeReceipts = false,
 ): Promise<unknown> {
   z.string()
     .regex(/^[1-9A-HJ-NP-Za-km-z]{32,64}$/)
@@ -218,10 +223,14 @@ export async function readFinalTransaction(
   const outcome = await query(
     { tx_hash: transactionHash, sender_account_id: senderAccountId, wait_until: "FINAL" },
     undefined,
-    "tx",
+    includeReceipts ? "EXPERIMENTAL_tx_status" : "tx",
   );
-  if (outcome.kind !== "ok") {
-    throw new NearRpcError("The deposit transaction could not be verified.");
+  if (
+    outcome.kind !== "ok" ||
+    (includeReceipts &&
+      !z.object({ final_execution_status: z.literal("FINAL") }).safeParse(outcome.result).success)
+  ) {
+    throw new NearRpcError("The transaction could not be verified yet.");
   }
   return outcome.result;
 }
@@ -276,6 +285,45 @@ export async function readContractControl(
     blockHash: value.block_hash,
     blockHeight: value.block_height,
     keys: parsed.keys,
+  };
+}
+
+/** Read a contract implementation at one finalized block without fetching its access-key list. */
+export async function readContractCodeHash(
+  account: string,
+  blockHash?: string,
+): Promise<{
+  readonly codeHash: string;
+  readonly globalCodeHash: string | null;
+  readonly globalCodeAccount: string | null;
+  readonly blockHash: string;
+}> {
+  const accountId = nearAccountSchema.parse(account);
+  const hash = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,64}$/);
+  const outcome = await query({
+    request_type: "view_account",
+    account_id: accountId,
+    ...(blockHash ? { block_id: hash.parse(blockHash) } : {}),
+  });
+  if (outcome.kind !== "ok") {
+    throw new NearRpcError("The contract account does not exist.");
+  }
+  const value = z
+    .object({
+      code_hash: hash,
+      global_contract_hash: hash.optional(),
+      global_contract_account_id: nearAccountSchema.optional(),
+      block_hash: hash,
+    })
+    .parse(outcome.result);
+  if (blockHash && value.block_hash !== blockHash) {
+    throw new NearRpcError("The contract code observation changed blocks.");
+  }
+  return {
+    codeHash: value.code_hash,
+    globalCodeHash: value.global_contract_hash ?? null,
+    globalCodeAccount: value.global_contract_account_id ?? null,
+    blockHash: value.block_hash,
   };
 }
 

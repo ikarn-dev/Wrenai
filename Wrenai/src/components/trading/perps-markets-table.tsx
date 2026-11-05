@@ -1,9 +1,9 @@
 "use client";
 import type { ReactElement } from "react";
-import type { PerpsMarketRow } from "@/shared/market-pages";
+import { type PerpsMarketRow, perpsIcon } from "@/shared/market-pages";
 import { decimalDisplay } from "@/shared/trading-display";
 import { BLOCK, CELL, Change, compactUsd, HEAD, NUM, SKELETON_ROWS, TRADE_BUTTON } from "./market-cells";
-import { perpsIcon, TokenIcon } from "./token-icon";
+import { TokenIcon } from "./token-icon";
 
 const HEADERS = ["Mark", "24h", "Vol 24h", "Open interest", "Funding 1h", "Max leverage"] as const;
 

@@ -8,14 +8,12 @@ import { type FormEvent, type ReactElement, useState, useTransition } from "reac
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToastState } from "@/components/ui/toast";
-import { createAgentWithBudget, parseAgentStrategy, saveAgentStrategy } from "@/server/agents/actions";
-import type { AgentBudgetInput } from "@/shared/agent-budget";
+import { parseAgentStrategy, saveAgentStrategy } from "@/server/agents/actions";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
 import { isActiveAgentTool } from "@/shared/agent-scope";
 import {
   type AgentPolicy,
   type AgentSummary,
-  DEFAULT_POLICY,
   PACKS,
   packSchema,
   policySchema,
@@ -23,36 +21,13 @@ import {
 } from "@/shared/agents";
 import { Field, INPUT_CLASS, PolicyFields } from "./policy-fields";
 import { StrategySummary } from "./strategy-summary";
-import { TokenBudget } from "./token-budget";
 
-export function AgentEditor({
-  agent,
-  setup,
-  initialPack,
-  initialBrief,
-}: {
-  readonly agent?: AgentSummary;
-  readonly initialPack?: AgentSummary["pack"];
-  readonly initialBrief?: string;
-  readonly setup?: {
-    readonly id: string;
-    readonly hash: string;
-    readonly pack: AgentSummary["pack"];
-    readonly brief: string;
-    readonly budget: AgentBudgetInput | null;
-  };
-}): ReactElement {
+/** Edits a saved agent's strategy. New agents are created in the Agents page's dialog (CreateAgentDialog). */
+export function AgentEditor({ agent }: { readonly agent: AgentSummary }): ReactElement {
   const router = useRouter();
-  const [pack, setPack] = useState(agent?.pack ?? setup?.pack ?? initialPack ?? "spot_trader");
-  const [budget, setBudget] = useState<AgentBudgetInput | null>(setup?.budget ?? null);
-  const [text, setText] = useState(agent?.strategyText ?? setup?.brief ?? initialBrief ?? "");
-  const [policy, setPolicy] = useState<AgentPolicy>(
-    agent?.policy ?? {
-      ...DEFAULT_POLICY,
-      allowRiskReducingExits: true,
-      ...((setup?.pack ?? initialPack) === "perps" ? { maxProviderFeeBps: 10 } : {}),
-    },
-  );
+  const [pack, setPack] = useState(agent.pack);
+  const [text, setText] = useState(agent.strategyText);
+  const [policy, setPolicy] = useState<AgentPolicy>(agent.policy);
   const [draft, setDraft] = useState<StrategyDraft | null>(null);
   const [, setError] = useToastState("error");
   const [busy, startTransition] = useTransition();
@@ -73,12 +48,7 @@ export function AgentEditor({
     setRequestId(id);
     startTransition(async () => {
       try {
-        const result = await parseAgentStrategy({
-          requestId: id,
-          pack,
-          strategyText: text,
-          ...(!agent && budget ? { budget } : {}),
-        });
+        const result = await parseAgentStrategy({ requestId: id, pack, strategyText: text });
         if (!result.ok) {
           setError(result.message);
           if (result.code !== "in_progress" && result.code !== "unavailable") {
@@ -108,17 +78,13 @@ export function AgentEditor({
     setError(null);
     startTransition(async () => {
       try {
-        const input = {
+        const result = await saveAgentStrategy({
           requestId: id,
           draftId: draft.id,
           policy: parsed.data,
-          agentId: agent?.id ?? null,
-          expectedRevision: agent?.revision ?? null,
-          ...(setup ? { setupId: setup.id, setupHash: setup.hash } : {}),
-        };
-        const result = !agent
-          ? await createAgentWithBudget({ ...input, budget })
-          : await saveAgentStrategy(input);
+          agentId: agent.id,
+          expectedRevision: agent.revision,
+        });
         if (!result.ok) {
           setError(result.message);
           return;
@@ -134,17 +100,15 @@ export function AgentEditor({
   return (
     <div className="flex flex-col gap-6">
       <Link
-        href={agent ? `/agents/${agent.id}` : "/agents"}
+        href={`/agents/${agent.id}`}
         className="inline-flex w-fit items-center gap-2 rounded-sm text-small text-fg-muted hover:text-fg-strong"
       >
         <ArrowLeft aria-hidden="true" size={16} />
-        Back to {agent ? "agent" : "agents"}
+        Back to agent
       </Link>
       <header className="flex flex-col gap-2">
-        <h1 className="text-h1">{agent ? `Edit ${agent.name}` : "New agent"}</h1>
-        <p className="max-w-2xl text-body text-fg-muted">
-          Describe what to do, choose a budget and review the rules.
-        </p>
+        <h1 className="text-h1">Edit {agent.name}</h1>
+        <p className="max-w-2xl text-body text-fg-muted">Describe what to do and review the rules.</p>
       </header>
       <div className="grid items-start gap-stack xl:grid-cols-2">
         <form
@@ -157,7 +121,6 @@ export function AgentEditor({
             <Field label="Strategy pack">
               <select
                 className={INPUT_CLASS}
-                disabled={!!setup}
                 value={pack}
                 onChange={(event) => {
                   const parsed = packSchema.safeParse(event.target.value);
@@ -168,7 +131,7 @@ export function AgentEditor({
                 }}
               >
                 {Object.entries(PACKS)
-                  .filter(([value]) => isActiveAgentTool(value) || value === agent?.pack)
+                  .filter(([value]) => isActiveAgentTool(value) || value === agent.pack)
                   .map(([value, item]) => (
                     <option key={value} value={value}>
                       {item.label}
@@ -209,17 +172,6 @@ export function AgentEditor({
               Use setup guide
             </button>
           </fieldset>
-          {!agent ? (
-            <TokenBudget
-              value={budget}
-              onChange={(value) => {
-                setBudget(value);
-                invalidate();
-              }}
-              disabled={busy}
-              {...(setup ? { excludeId: setup.id } : {})}
-            />
-          ) : null}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Button type="submit" disabled={busy} aria-busy={busy && draft === null}>
               {busy && draft === null ? (
@@ -261,10 +213,10 @@ export function AgentEditor({
               disabled={busy}
             />
             <p className="text-caption text-fg-subtle">
-              Saved paused. Funding and Start are on the next screen.
+              Saved paused. Funding and Start are on the agent page.
             </p>
             <Button type="submit" variant="primary" disabled={busy} aria-busy={busy && draft !== null}>
-              {busy ? "Saving…" : agent ? "Save changes" : "Create agent"}
+              {busy ? "Saving…" : "Save changes"}
             </Button>
           </m.form>
         )}

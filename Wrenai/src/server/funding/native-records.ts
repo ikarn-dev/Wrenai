@@ -55,8 +55,7 @@ export async function activeNativeFunding(
     .limit(1);
   return row ? nativeFundingView(row) : null;
 }
-export async function nativeWalletHolds(db: AppDatabase, userId: string, assetId: string): Promise<bigint> {
-  const pending = await activeNativeFunding(db, userId);
+export function nativeFundingHeldUnits(pending: NativeFundingView | null, assetId: string): bigint {
   if (!pending) {
     return 0n;
   }

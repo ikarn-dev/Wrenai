@@ -21,6 +21,16 @@ export interface PortfolioLocationValue {
   readonly complete: boolean;
   readonly note: string;
   readonly balances: number;
+  /** The tokens behind the value. Venue equity (Perps) has none: it is valued as one USD figure. */
+  readonly holdings: readonly PortfolioHolding[];
+}
+/** One token at one location, as read; value is null when no fresh exact price exists. */
+export interface PortfolioHolding {
+  readonly assetId: string;
+  readonly symbol: string;
+  readonly quantity: bigint;
+  readonly decimals: number | null;
+  readonly valueMicroUsd: bigint | null;
 }
 export interface PortfolioValuation {
   readonly locations: readonly PortfolioLocationValue[];
@@ -33,6 +43,24 @@ interface Balance {
   readonly assetId: string;
   readonly quantity: bigint;
   readonly decimals?: number;
+  readonly symbol?: string;
+}
+
+function holdingFor(
+  balance: Balance,
+  tokens: readonly IntentToken[],
+  value: bigint | null,
+): PortfolioHolding {
+  const registryId = balance.assetId === "native:near" ? "nep141:wrap.near" : balance.assetId;
+  const matches = tokens.filter((token) => token.assetId === registryId);
+  const token = matches.length === 1 ? matches[0] : undefined;
+  return {
+    assetId: balance.assetId,
+    symbol: balance.assetId === "native:near" ? "NEAR" : (balance.symbol ?? token?.symbol ?? balance.assetId),
+    quantity: balance.quantity,
+    decimals: balance.decimals ?? token?.decimals ?? null,
+    valueMicroUsd: value,
+  };
 }
 
 /** Registry prices are display estimates only. Exact identity, matching precision and a dated price are mandatory. */
@@ -83,12 +111,16 @@ function valuedLocation(
 ): PortfolioLocationValue {
   let knownMicroUsd = 0n,
     priced = true;
+  const holdings: PortfolioHolding[] = [];
   for (const balance of balances) {
     const value = balanceReferenceValue(balance, tokens, Date.now());
     if (value === null) {
       priced = false;
     } else {
       knownMicroUsd += value;
+    }
+    if (balance.quantity > 0n) {
+      holdings.push(holdingFor(balance, tokens, value));
     }
   }
   return {
@@ -98,10 +130,11 @@ function valuedLocation(
     complete: complete && priced,
     balances: balances.length,
     note: !priced ? "Some token prices are unavailable or stale" : note,
+    holdings,
   };
 }
 function unavailable(id: string, label: string, note: string): PortfolioLocationValue {
-  return { id, label, knownMicroUsd: 0n, complete: false, note, balances: 0 };
+  return { id, label, knownMicroUsd: 0n, complete: false, note, balances: 0, holdings: [] };
 }
 async function walletValue(
   account: string,
@@ -117,6 +150,7 @@ async function walletValue(
       assetId: token.assetId,
       quantity: BigInt(token.balanceUnits),
       decimals: token.decimals,
+      symbol: token.symbol,
     })),
     tokens,
     holdings.complete,
@@ -188,6 +222,7 @@ async function perpsValue(db: AppDatabase, userId: string): Promise<PortfolioLoc
     complete,
     balances: accounts.length,
     note: complete ? "Venue equity includes unrealized PnL" : "Some venue accounts could not be valued",
+    holdings: [],
   };
 }
 async function nativeTradingValue(
@@ -214,6 +249,7 @@ async function nativeTradingValue(
       accounts.length <= 8 && values.every((value) => value.status === "fulfilled" && value.value.complete),
     balances: accounts.length,
     note: "Dedicated wallets only; allocated funds are not added twice",
+    holdings: values.flatMap((value) => (value.status === "fulfilled" ? value.value.holdings : [])),
   };
 }
 

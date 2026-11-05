@@ -12,10 +12,13 @@ export function researchInputIssue(tool: ResearchTool, input: ResearchInput): st
   }
   if (["triggers", "dca", "spot_trader", "buy_the_dip", "sell_the_top"].includes(tool)) {
     if (input.symbols.length !== 2) {
-      return "Specify both assets for the swap, such as NEAR to USDC.";
+      return "Specify both assets for the swap, such as wNEAR to USDC.";
     }
     if (input.symbols[0]?.toUpperCase() === input.symbols[1]?.toUpperCase()) {
       return "Choose two different assets for the swap.";
+    }
+    if (tool !== "triggers" && !input.amount) {
+      return "Specify how much of the pay token to quote.";
     }
     if (
       input.amountAsset &&

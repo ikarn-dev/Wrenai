@@ -1,0 +1,136 @@
+import "server-only";
+import { perpsMarketRows, spotMarketView } from "@/server/manual-trading/markets";
+import { memecoinView } from "@/server/manual-trading/memecoins";
+import { perpsIcon } from "@/shared/market-pages";
+import {
+  INSIGHT_ROWS,
+  type InsightCard,
+  type InsightRow,
+  type ListInsight,
+  type SpotInsight,
+} from "@/shared/portfolio-insights";
+import { WALLET_SWAP_INPUT } from "@/shared/wallet-swap";
+
+// Movers below this daily volume are mostly thin markets, so they are left out.
+const MIN_MOVER_VOLUME_USD = 1_000_000;
+
+/**
+ * Public market summaries, shared by every signed-in user in this warm instance for a short time. Concurrent
+ * requests share one in-flight read, and a failed read is dropped so the next request retries. Display data only;
+ * nothing here authorizes or prices a trade.
+ */
+function shared<T>(ttlMs: number, load: () => Promise<T>): () => Promise<T> {
+  let entry: { readonly value: Promise<T>; readonly expiresAt: number } | null = null;
+  return () => {
+    const now = Date.now();
+    if (entry && entry.expiresAt > now) {
+      return entry.value;
+    }
+    const value = load();
+    const current = { value, expiresAt: now + ttlMs };
+    entry = current;
+    void value.catch(() => {
+      if (entry === current) {
+        entry = null;
+      }
+    });
+    return value;
+  };
+}
+
+/** Display-only ordering of decimal strings. */
+function numeric(value: string | null): number {
+  return value === null ? 0 : Number(value);
+}
+
+const spotInsight = shared(60_000, async (): Promise<SpotInsight> => {
+  const view = await spotMarketView();
+  const seen = new Set<string>();
+  const movers = view.tokens.flatMap((token): InsightRow[] => {
+    const metrics = token.metrics;
+    const change = metrics?.change["24h"] ?? null;
+    // Tokens with one CoinGecko ID are the same asset on different chains or bridges: list it once.
+    if (
+      !metrics ||
+      change === null ||
+      !token.price ||
+      numeric(metrics.volume24h) < MIN_MOVER_VOLUME_USD ||
+      seen.has(metrics.coinId)
+    ) {
+      return [];
+    }
+    seen.add(metrics.coinId);
+    return [
+      {
+        key: token.assetId,
+        symbol: token.assetId === WALLET_SWAP_INPUT ? "wNEAR" : token.tokenSymbol,
+        icon: metrics.icon,
+        price: token.price,
+        volume24h: metrics.volume24h,
+        marketCap: metrics.marketCap,
+        verdict: null,
+        change24h: change,
+      },
+    ];
+  });
+  return {
+    gainers: movers
+      .filter((row) => numeric(row.change24h) > 0)
+      .sort((a, b) => numeric(b.change24h) - numeric(a.change24h))
+      .slice(0, INSIGHT_ROWS),
+    losers: movers
+      .filter((row) => numeric(row.change24h) < 0)
+      .sort((a, b) => numeric(a.change24h) - numeric(b.change24h))
+      .slice(0, INSIGHT_ROWS),
+  };
+});
+
+const perpsInsight = shared(15_000, async (): Promise<ListInsight> => {
+  const markets = await perpsMarketRows();
+  return {
+    rows: [...markets]
+      .sort((a, b) => numeric(b.volume24h) - numeric(a.volume24h))
+      .slice(0, INSIGHT_ROWS)
+      .map((market) => ({
+        key: market.name,
+        symbol: market.name,
+        icon: perpsIcon(market.name),
+        price: market.mark,
+        volume24h: market.volume24h,
+        marketCap: null,
+        verdict: null,
+        change24h: market.change24h,
+      })),
+  };
+});
+
+const memecoinInsight = shared(60_000, async (): Promise<ListInsight> => {
+  const view = await memecoinView("volume");
+  return {
+    rows: view.coins.slice(0, INSIGHT_ROWS).map((coin) => ({
+      key: coin.token,
+      symbol: coin.symbol,
+      icon: coin.icon,
+      price: null,
+      volume24h: coin.volume24h,
+      marketCap: coin.marketCap,
+      verdict: coin.verdict,
+      change24h: coin.change24h,
+    })),
+  };
+});
+
+export async function marketInsight(card: InsightCard): Promise<SpotInsight | ListInsight> {
+  switch (card) {
+    case "spot":
+      return spotInsight();
+    case "perps":
+      return perpsInsight();
+    case "memecoins":
+      return memecoinInsight();
+    default: {
+      const unhandled: never = card;
+      throw new Error(`Unhandled insight card: ${String(unhandled)}`);
+    }
+  }
+}

@@ -1,14 +1,16 @@
 "use client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type SetStateAction, useCallback, useEffect, useRef, useState } from "react";
-import { useToastState } from "@/components/ui/toast";
-import { loadChatPage, stopChatReply } from "@/server/chat/actions";
+import { notifyQuoteFailure } from "@/components/trading/quote-feedback";
+import { notify, useToastState } from "@/components/ui/toast";
+import { stopChatReply } from "@/server/chat/actions";
 import { isActiveAgentTool } from "@/shared/agent-scope";
 import type { ChatEvent, ChatInput, ChatTurn, Conversation, ConversationSummary } from "@/shared/chat";
 import { chatRoutingIssue } from "@/shared/chat-routing";
 import { chatStatus } from "@/shared/chat-status";
 import { shortChatTitle } from "@/shared/chat-title";
 import type { ResearchTool } from "@/shared/research";
+import { loadChatPage } from "./chat-api";
 import type { ChatController } from "./chat-controller";
 import { rejectOptimisticTurn } from "./reply-recovery";
 import { ChatRequestRejected, consumeChatStream } from "./stream";
@@ -51,17 +53,14 @@ export function useChat(
   const known = history.some((item) => item.id === conversationId);
   const query = useQuery<Conversation>({
     queryKey: key(conversationId),
-    queryFn: async () => {
-      const result = await loadChatPage({ conversationId });
-      if (!result.ok) {
-        throw new Error(result.message);
-      }
+    queryFn: async ({ signal }) => {
+      const page = await loadChatPage(conversationId, null, signal);
       const previous = cache.getQueryData<Conversation>(key(conversationId));
-      const first = result.value.turns[0]?.sequence ?? 1;
+      const first = page.turns[0]?.sequence ?? 1;
       return {
-        ...result.value,
-        turns: [...(previous?.turns.filter((turn) => turn.sequence < first) ?? []), ...result.value.turns],
-        hasEarlier: previous?.hasEarlier === false ? false : result.value.hasEarlier,
+        ...page,
+        turns: [...(previous?.turns.filter((turn) => turn.sequence < first) ?? []), ...page.turns],
+        hasEarlier: previous?.hasEarlier === false ? false : page.hasEarlier,
       };
     },
     enabled: known && !sending,
@@ -144,18 +143,19 @@ export function useChat(
         },
         ...items.filter((item) => item.id !== input.conversationId),
       ]);
-      window.history.replaceState(null, "", `/chat?conversation=${input.conversationId}`);
+      if (currentId.current === input.conversationId) {
+        window.history.replaceState(null, "", `/chat?conversation=${input.conversationId}`);
+      }
     },
     [replaceTurn],
   );
   const refresh = useCallback(
     async (id: string): Promise<Conversation> => {
-      const result = await loadChatPage({ conversationId: id });
-      if (!result.ok) {
-        throw new Error(result.message);
+      const page = await loadChatPage(id);
+      if (currentId.current === id) {
+        cache.setQueryData(key(id), page);
       }
-      cache.setQueryData(key(id), result.value);
-      return result.value;
+      return page;
     },
     [cache],
   );
@@ -195,6 +195,7 @@ export function useChat(
         reply: null,
         createdAt: Date.now(),
       };
+      void cache.cancelQueries({ queryKey: key(input.conversationId), exact: true });
       replaceTurn(input, optimistic);
       const receive = (event: ChatEvent): void => {
         if (
@@ -215,13 +216,22 @@ export function useChat(
             setStatus(event.message);
             break;
           case "turn":
-            replaceTurn(input, event.turn);
+            saved(input, event.turn);
             setStatus(chatStatus("preparing"));
             break;
           case "verified":
             setStatus("Verified · saving…");
             break;
           case "done":
+            if (event.walletSwap) {
+              cache.setQueryData(["wallet-swap", event.walletSwap.id], event.walletSwap);
+              if (event.walletSwap.state === "quoted") {
+                notify("success", "Quote ready.");
+              }
+            }
+            if (event.quoteError) {
+              notifyQuoteFailure(event.quoteError);
+            }
             saved(input, event.turn);
             attempt.completed = true;
             attempt.preview.dispose();
@@ -324,6 +334,9 @@ export function useChat(
     setStopping(true);
     try {
       const result = await stopChatReply(input);
+      if (currentId.current !== input.conversationId) {
+        return;
+      }
       if (!result.ok) {
         setError(result.message);
         return;
@@ -357,18 +370,15 @@ export function useChat(
     }
     setChecking(true);
     try {
-      const result = await loadChatPage({ conversationId, beforeSequence: turns[0].sequence });
-      if (!result.ok) {
-        throw new Error(result.message);
-      }
+      const page = await loadChatPage(conversationId, turns[0].sequence);
       cache.setQueryData<Conversation>(key(conversationId), (current) =>
         current
           ? {
               ...current,
-              hasEarlier: result.value.hasEarlier,
-              turns: [...result.value.turns, ...current.turns],
+              hasEarlier: page.hasEarlier,
+              turns: [...page.turns, ...current.turns],
             }
-          : result.value,
+          : undefined,
       );
     } catch (error) {
       setError(error instanceof Error ? error.message : "Earlier messages could not be loaded.");

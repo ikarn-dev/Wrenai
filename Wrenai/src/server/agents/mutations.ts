@@ -20,6 +20,7 @@ import { hasOpenTriggerPosition } from "@/server/engine/strategy-state";
 import { registryTradeAsset } from "@/server/execution/asset-review";
 import { executionHash } from "@/server/execution/records";
 import { assertNoWalletFunding } from "@/server/funding/records";
+import { explicitTokenIds } from "@/server/manual-trading/token-identity";
 import { assignedCapitalLimit } from "@/server/positions/capital-records";
 import type { IntentToken } from "@/server/research/intents";
 import { instructionAssets } from "@/shared/agent-instructions";
@@ -35,11 +36,11 @@ import { AgentError } from "./errors";
 import { generateAgentName } from "./names";
 import { canReplacePerpsVersion } from "./perps-version";
 import {
-  agentSummary,
   auditAgent,
   globalStopRevision,
   killSwitchEngaged,
   ownedAgent,
+  ownedAgentSummary,
   stopUserAgents,
 } from "./records";
 import { bindAgentSetup, releaseSetupWalletReservation } from "./setup-binding";
@@ -230,7 +231,7 @@ export async function saveAgent(
       configJson: draft.configJson,
       attestationJson: draft.attestationJson,
       ...("format" in config && tokens
-        ? { resolvedAssetsJson: reviewedInstructionAssets(config, tokens) }
+        ? { resolvedAssetsJson: reviewedInstructionAssets(config, tokens, draft.strategyText) }
         : {}),
       createdAt: Date.now(),
     });
@@ -254,6 +255,7 @@ export async function saveAgent(
 function reviewedInstructionAssets(
   instruction: Extract<AgentSummary["strategy"], { format: 2 }>,
   tokens: readonly IntentToken[],
+  text: string,
 ): string | null {
   const ids = instructionAssets(instruction);
   if (ids.length === 0) {
@@ -269,6 +271,10 @@ function reviewedInstructionAssets(
     }
     return registryTradeAsset(token);
   });
+  const explicit = explicitTokenIds(tokens, text);
+  if (instruction.kind !== "perps" && ids.some((id) => !explicit.has(id))) {
+    throw new AgentError("invalid_input", "Name each token explicitly and review the strategy again.");
+  }
   return JSON.stringify({
     strategyHash: executionHash(instruction),
     metadataHash: executionHash(assets),
@@ -437,5 +443,5 @@ export async function setGlobalStop(
 }
 
 export async function readAgent(db: AppDatabase, userId: string, agentId: string): Promise<AgentSummary> {
-  return agentSummary(db, await ownedAgent(db, userId, agentId));
+  return ownedAgentSummary(db, userId, agentId);
 }

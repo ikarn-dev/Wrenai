@@ -7,9 +7,12 @@ export type WalletBalanceReading =
   | { readonly kind: "unavailable" };
 
 /** Reads native NEAR only. A failed read is never presented as a zero balance. */
-export async function readWalletBalance(accountId: string): Promise<WalletBalanceReading> {
+export async function readWalletBalance(
+  accountId: string,
+  signal?: AbortSignal,
+): Promise<WalletBalanceReading> {
   try {
-    const yocto = await viewNearBalance(accountId);
+    const yocto = await viewNearBalance(accountId, signal);
     const readAt = Date.now();
     return yocto === null ? { kind: "no_account", readAt } : { kind: "balance", yocto, readAt };
   } catch (error) {

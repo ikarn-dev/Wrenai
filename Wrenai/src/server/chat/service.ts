@@ -12,12 +12,19 @@ import {
   chatReplySchema,
   chatTurnSchema,
 } from "@/shared/chat";
+import { parseWalletBalanceQuote } from "@/shared/chat-quote";
 import { chatRoutingIssue } from "@/shared/chat-routing";
 import { chatStatus } from "@/shared/chat-status";
+import type { WalletSwapView } from "@/shared/wallet-swap";
 import { type ChatCipher, chatCipher } from "./cipher";
 import { readChatContext } from "./context";
 import { ChatError } from "./errors";
-import { manualChatAnswer } from "./manual-answer";
+import {
+  directWalletChatAnswer,
+  manualChatAnswer,
+  pendingTradeFundingRequest,
+  tradeFundingChoice,
+} from "./manual-answer";
 import { chatPrompt } from "./prompt";
 import { conversationHistory } from "./queries";
 import { readChatCache, writeChatCache } from "./redis-cache";
@@ -73,9 +80,10 @@ export async function answerChat(
   const deadline = AbortSignal.any([AbortSignal.timeout(90_000), ...(signal ? [signal] : [])]);
   let saved: ChatTurn;
   let history: readonly ChatTurn[] = [];
+  let walletSwap: WalletSwapView | undefined;
+  let quoteError: string | undefined;
+  let direct = parseWalletBalanceQuote(input.message);
   try {
-    // Every reply, trade previews included, comes from the verified model: quote requests go through the
-    // verified extraction in manualChatAnswer, so the saved turn always carries a signature receipt.
     const historyRead = async (): Promise<readonly ChatTurn[]> => {
       if (claim.turn.sequence === 1) {
         return [];
@@ -91,23 +99,56 @@ export async function answerChat(
         : null;
       return cached ?? conversationHistory(db, user.id, input.conversationId, claim.turn.sequence, cipher);
     };
-    const [context, previous] = await Promise.all([
-      input.includeContext ? readChatContext(db, user) : Promise.resolve(null),
-      historyRead(),
-      prepareChatInference(deadline),
-    ]);
+    const funding = direct ? null : tradeFundingChoice(input.message);
+    const earlier = funding ? await historyRead() : undefined;
+    const continuation = pendingTradeFundingRequest(input.previousTurnId, earlier?.at(-1));
+    if (continuation && funding === "wallet") {
+      direct = parseWalletBalanceQuote(continuation, true);
+    }
+    const quoteInput = continuation
+      ? {
+          ...input,
+          message: direct
+            ? continuation
+            : `${continuation}\nUse ${funding === "wallet" ? "the connected NEAR wallet" : "the private balance"}.`,
+        }
+      : input;
+    const [context, previous] = direct
+      ? ([null, []] as const)
+      : await Promise.all([
+          input.includeContext && !continuation
+            ? readChatContext(db, user, { message: input.message, signal: deadline })
+            : Promise.resolve(null),
+          earlier ?? historyRead(),
+          prepareChatInference(deadline),
+        ]);
     history = previous;
     const prompt = chatPrompt(history, input.message, context, Date.now(), input.tool ?? null);
-    const completion =
-      (await manualChatAnswer(db, user, input, history, deadline, emit)) ??
-      (await researchAnswer(prompt.messages, deadline, emit, input.tool ?? null));
+    if (direct) {
+      emit({ type: "status", message: "Getting a live quote…" });
+    }
+    const completion = direct
+      ? await directWalletChatAnswer(db, user, quoteInput, direct, deadline)
+      : ((await manualChatAnswer(db, user, quoteInput, history, deadline, emit)) ??
+        (await researchAnswer(prompt.messages, deadline, emit, input.tool ?? null)));
     deadline.throwIfAborted();
-    emit({ type: "verified" });
-    const { model, completionId, signatureKind, verifiedAt, evidenceHash } = completion.receipt;
+    if (completion.receipt) {
+      emit({ type: "verified" });
+    }
+    walletSwap = "walletSwap" in completion ? completion.walletSwap : undefined;
+    quoteError = "quoteError" in completion ? completion.quoteError : undefined;
     const reply = chatReplySchema.parse({
       content: completion.content,
       ...("manual" in completion ? { manual: completion.manual } : {}),
-      receipt: { model, completionId, signatureKind, verifiedAt, evidenceHash },
+      receipt: completion.receipt
+        ? {
+            model: completion.receipt.model,
+            completionId: completion.receipt.completionId,
+            signatureKind: completion.receipt.signatureKind,
+            verifiedAt: completion.receipt.verifiedAt,
+            evidenceHash: completion.receipt.evidenceHash,
+          }
+        : null,
       context,
       historyTrimmed: prompt.historyTrimmed,
       research: completion.reports,
@@ -134,7 +175,16 @@ export async function answerChat(
     throw new ChatError("unavailable", "The reply could not be completed. Your message is saved; try again.");
   }
   // Saving is the terminal answer boundary. Optional metadata must never downgrade an already saved reply.
-  emit({ type: "done", turn: saved });
+  emit({
+    type: "done",
+    turn: saved,
+    ...(walletSwap ? { walletSwap } : {}),
+    ...(quoteError ? { quoteError } : {}),
+  });
+  if (direct) {
+    // Direct quotes skip optional chat metadata. Later turns can reload the full saved history.
+    return saved;
+  }
   const extras = await Promise.allSettled([
     claim.turn.sequence === 1 && !signal?.aborted && saved.reply
       ? titleConversation(db, user.id, input, saved.reply.content, cipher, signal, emit)

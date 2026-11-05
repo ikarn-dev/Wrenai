@@ -92,7 +92,7 @@ export async function prepareIntentsOrder(
       input.inputAssetId,
       input.outputAssetId,
       input.inputUnits,
-      Math.max(0, input.slippageBps - 1),
+      input.slippageBps,
       input.walletShield ? "intents" : "confidential",
       Date.now(),
     ),

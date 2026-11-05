@@ -1,11 +1,12 @@
 import type { ReactElement } from "react";
 import { ActivitySkeleton } from "@/components/activity/skeleton";
+import { MarketInsightsSkeleton } from "@/components/portfolio/market-insights";
+import { PortfolioSection } from "@/components/portfolio/panel";
 
 // Same grid as page.tsx, so nothing shifts when the data arrives.
 const PANEL = "min-w-0 card-shine rounded-lg p-card";
 const BLOCK = "rounded-xs bg-surface-2 motion-safe:animate-pulse";
 const TILES = ["agents", "pnl", "limit", "telegram"] as const;
-const INSIGHTS = ["performance", "allocation", "activity"] as const;
 
 function TileSkeleton(): ReactElement {
   return (
@@ -37,8 +38,8 @@ export default function PortfolioLoading(): ReactElement {
         <div aria-hidden="true" className={`${BLOCK} h-10 w-32 pointer-coarse:h-11`} />
       </header>
       <div aria-hidden="true" className="flex min-w-0 flex-col gap-12">
-        <div className="grid gap-8 lg:grid-cols-2">
-          <div className="grid auto-rows-fr gap-stack sm:grid-cols-2">
+        <div className="grid gap-stack lg:grid-cols-2">
+          <div className="grid gap-stack sm:grid-cols-2">
             <div className="sm:col-span-2">
               <TileSkeleton />
             </div>
@@ -48,17 +49,10 @@ export default function PortfolioLoading(): ReactElement {
           </div>
           <div className={`${PANEL} min-h-72`} />
         </div>
-        <SectionSkeleton>
-          <div className="grid gap-stack md:grid-cols-3">
-            {INSIGHTS.map((id) => (
-              <div key={id} className={`${PANEL} flex flex-col gap-4`}>
-                <div className={`${BLOCK} h-4 w-24`} />
-                <div className={`${BLOCK} h-6 w-16`} />
-                <div className={`${BLOCK} h-32 w-full`} />
-              </div>
-            ))}
-          </div>
-        </SectionSkeleton>
+        {/* The real section title and card shells: they need no data. */}
+        <PortfolioSection id="insights-loading" title="Insights">
+          <MarketInsightsSkeleton />
+        </PortfolioSection>
         <SectionSkeleton>
           <div className="grid gap-stack xl:grid-cols-3">
             <div className={`${PANEL} min-h-72 xl:col-span-2`} />

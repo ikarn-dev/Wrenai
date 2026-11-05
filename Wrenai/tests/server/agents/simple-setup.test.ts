@@ -55,7 +55,7 @@ async function input() {
     userId: "owner",
     requestId: crypto.randomUUID(),
     pack: "spot_trader",
-    strategyText: "Buy one NEAR with this exact USDC budget.",
+    strategyText: "Buy one wNEAR with this exact USDC budget.",
     configJson: JSON.stringify(fundingInstruction()),
     attestationJson: JSON.stringify(strategyReceipt()),
     createdAt: now,

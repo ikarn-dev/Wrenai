@@ -28,8 +28,10 @@ export function AgentCatalog(): ReactElement {
               <p className="flex-1 text-small text-fg-muted">{item.description}</p>
               <div className="flex items-center justify-between gap-2">
                 {/* The card's main action sits on a subtle raised fill; Research stays a quiet text link. */}
+                {/* Opens the create dialog over this page, without scrolling it. */}
                 <Link
-                  href={`/agents/new?tool=${tool}`}
+                  href={`/agents?create=${tool}`}
+                  scroll={false}
                   className="inline-flex h-8 items-center gap-1.5 rounded-sm bg-surface-3 px-3 text-small font-medium text-accent-text ring-1 ring-line-strong/40 ring-inset transition-[background-color,scale] duration-200 ease-ios hover:bg-surface-4 active:scale-97 motion-reduce:active:scale-100 pointer-coarse:h-11"
                 >
                   Create agent

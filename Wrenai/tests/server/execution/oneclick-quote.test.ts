@@ -29,6 +29,17 @@ describe("real signed 1Click quote boundary", () => {
     expect(quote.inputMicroUsd).toBe("9994980");
     expect(quote.outputMicroUsd).toBe("9990708");
   });
+  it("rejects a valid signature when rounding puts the output below the reviewed limit", () => {
+    expect(() =>
+      verifiedDryQuote(
+        fixture.response,
+        request(),
+        "confidential",
+        Date.parse(fixture.response.timestamp) + 500,
+        50,
+      ),
+    ).toThrow("minimum output exceeds the selected limits");
+  });
   it("rejects altered output, recipient, expiry and slippage instead of trusting unsigned input", () => {
     const now = Date.parse(fixture.response.timestamp) + 500;
     expect(() =>

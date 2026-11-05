@@ -11,16 +11,20 @@ const callSchema = z.object({
     gas: z.union([z.number().int().safe().nonnegative(), z.string().regex(/^\d+$/)]),
   }),
 });
+const transferSchema = z.object({ Transfer: z.object({ deposit: z.string().regex(/^\d+$/) }) });
+const statusSchema = z.union([
+  z.object({ SuccessValue: z.string().max(1024) }),
+  z.object({ SuccessReceiptId: z.string().max(100) }),
+  z.object({ Failure: z.unknown() }),
+]);
 
-/**
- * Checks a final NEAR transaction is exactly the reviewed wallet swap: signed by the owner, sent to wrap.near,
- * the same three calls with the same arguments and deposits, and successful. Anything else isn't recorded.
- */
+/** A finalized deposit must match the original signer, receiver, amount and action shape. */
 export function verifyWalletSwapTransaction(
   raw: unknown,
   quote: WalletSwapQuote,
   transactionHash: string,
-): void {
+  allowFailure = false,
+): boolean {
   const expected = walletSwapTransaction(quote);
   const value = z
     .object({
@@ -29,9 +33,9 @@ export function verifyWalletSwapTransaction(
         hash: z.literal(transactionHash),
         signer_id: z.literal(expected.signerId),
         receiver_id: z.literal(expected.receiverId),
-        actions: z.array(callSchema).length(expected.actions.length),
+        actions: z.array(z.union([callSchema, transferSchema])).length(expected.actions.length),
       }),
-      status: z.object({ SuccessValue: z.string().max(1024) }),
+      status: statusSchema,
     })
     .safeParse(raw);
   if (!value.success) {
@@ -40,23 +44,46 @@ export function verifyWalletSwapTransaction(
       "The wallet transaction isn't the reviewed swap, or it didn't succeed. Check it in your wallet.",
     );
   }
+  const succeeded = "SuccessValue" in value.data.status;
+  if (!succeeded && !allowFailure) {
+    throw new ExecutionError(
+      "conflict",
+      "The wallet transaction isn't the reviewed swap, or it didn't succeed. Check it in your wallet.",
+    );
+  }
   for (const [index, action] of value.data.transaction.actions.entries()) {
-    const wanted = expected.actions[index]?.params;
-    const call = action.FunctionCall;
-    const args: unknown = JSON.parse(new TextDecoder().decode(base64.decode(call.args)));
-    if (
-      !wanted ||
-      call.method_name !== wanted.methodName ||
-      call.deposit !== wanted.deposit ||
-      BigInt(call.gas) > BigInt(wanted.gas) ||
-      JSON.stringify(sorted(args)) !== JSON.stringify(sorted(wanted.args))
-    ) {
+    const wanted = expected.actions[index];
+    if (!wanted || !matchesAction(action, wanted)) {
       throw new ExecutionError(
         "conflict",
         "The wallet transaction doesn't match the reviewed amount or address.",
       );
     }
   }
+  if ("SuccessReceiptId" in value.data.status) {
+    throw new ExecutionError("not_ready", "The final swap amount could not be verified yet.");
+  }
+  return succeeded;
+}
+
+function matchesAction(
+  action: z.infer<typeof callSchema> | z.infer<typeof transferSchema>,
+  wanted: ReturnType<typeof walletSwapTransaction>["actions"][number],
+): boolean {
+  if (wanted.type === "Transfer") {
+    return "Transfer" in action && action.Transfer.deposit === wanted.params.deposit;
+  }
+  if (!("FunctionCall" in action)) {
+    return false;
+  }
+  const call = action.FunctionCall;
+  const args: unknown = JSON.parse(new TextDecoder().decode(base64.decode(call.args)));
+  return (
+    call.method_name === wanted.params.methodName &&
+    call.deposit === wanted.params.deposit &&
+    BigInt(call.gas) <= BigInt(wanted.params.gas) &&
+    JSON.stringify(sorted(args)) === JSON.stringify(sorted(wanted.params.args))
+  );
 }
 
 function sorted(value: unknown): unknown {

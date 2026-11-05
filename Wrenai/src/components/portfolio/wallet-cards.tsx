@@ -1,14 +1,10 @@
 import type { ReactElement } from "react";
+import { currentPortfolioValuation } from "@/server/portfolio/current-valuation";
 import type { WalletBalanceReading } from "@/server/portfolio/wallet-balance";
-import { formatUnits } from "@/shared/money";
+import { formatCompactMicroUsd, formatUnits } from "@/shared/money";
 
 const NEAR_DECIMALS = 24;
 const MIN_DISPLAY_AMOUNT = 10n ** 20n;
-const READ_TIME = new Intl.DateTimeFormat("en-GB", {
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZone: "UTC",
-});
 const COMPACT_UNITS = [
   { exponent: 12, suffix: "T" },
   { exponent: 9, suffix: "B" },
@@ -62,15 +58,67 @@ export function NearAmount({ amount, compact = false, large = false }: NearAmoun
   );
 }
 
-/** Where and when the wallet balance was read, or a warning when it couldn't be. */
-export function ReadTime({ reading }: { readonly reading: WalletBalanceReading }): ReactElement {
-  if (reading.kind === "unavailable") {
-    return <span className="text-warn">Couldn't read balance. Refresh to retry.</span>;
+const ROW = "flex flex-wrap items-baseline gap-x-5 gap-y-1";
+
+function NearHoldings({
+  wallet,
+  others,
+  large = false,
+}: {
+  readonly wallet: WalletBalanceReading;
+  readonly others: number;
+  readonly large?: boolean;
+}): ReactElement {
+  return (
+    <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+      {wallet.kind === "unavailable" ? (
+        <span className="text-fg-muted">NEAR balance unavailable</span>
+      ) : (
+        <NearAmount amount={wallet.kind === "balance" ? wallet.yocto : 0n} large={large} />
+      )}
+      {others > 0 ? <span className="text-small text-fg-muted">+ {others} more</span> : null}
+    </span>
+  );
+}
+
+/** While the wallet's tokens and prices load: the NEAR balance, with the USD figure's space held. */
+export function WalletValueSkeleton({ wallet }: { readonly wallet: WalletBalanceReading }): ReactElement {
+  return (
+    <span className={ROW}>
+      <span
+        role="status"
+        aria-label="Loading wallet value"
+        className="block h-lh w-28 rounded-xs bg-surface-2 text-num-xl motion-safe:animate-pulse"
+      />
+      <NearHoldings wallet={wallet} others={0} />
+    </span>
+  );
+}
+
+/**
+ * The wallet's value in USD across every token it holds, then its NEAR balance and how many other tokens it
+ * holds. When no token could be priced, the NEAR balance is the figure instead of a misleading $0.00.
+ */
+export async function WalletValue({
+  wallet,
+}: {
+  readonly wallet: WalletBalanceReading;
+}): Promise<ReactElement> {
+  const location = (await currentPortfolioValuation()).locations.find((item) => item.id === "wallet");
+  const others = location?.holdings.filter((holding) => holding.assetId !== "native:near").length ?? 0;
+  if (!location || (location.knownMicroUsd === 0n && !location.complete)) {
+    return (
+      <span className={ROW}>
+        <NearHoldings wallet={wallet} others={others} large />
+      </span>
+    );
   }
   return (
-    <span>
-      NEAR RPC ·{" "}
-      <time dateTime={new Date(reading.readAt).toISOString()}>{READ_TIME.format(reading.readAt)} UTC</time>
+    <span className={ROW}>
+      <span className="font-mono text-num-xl tabular-nums text-fg-strong">
+        {formatCompactMicroUsd(location.knownMicroUsd)}
+      </span>
+      <NearHoldings wallet={wallet} others={others} />
     </span>
   );
 }

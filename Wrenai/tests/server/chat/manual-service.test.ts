@@ -102,6 +102,19 @@ afterEach(async () => {
   await store.postgres.close();
 });
 describe("verified Jarvis manual quote persistence", () => {
+  it.each(["Quote 10 USDC", "Quote 10 USDC to NEAR with 0.5% slippage", "Quote 10 USDC on Solana for wNEAR"])(
+    "rejects an extracted pair that the user did not request: %s",
+    async (message) => {
+      const turn = await answerChat(
+        store.db,
+        { id: "owner", accountId: "owner.near" },
+        { ...input, message },
+        cipher,
+      );
+      expect(turn.reply?.manual?.tradeIds).toEqual([]);
+      expect(await store.db.select().from(manualTrades)).toHaveLength(0);
+    },
+  );
   it("saves and reopens an exact quote and full receipt, follows up without executing or duplicating requests", async () => {
     const first = await answerChat(store.db, { id: "owner", accountId: "owner.near" }, input, cipher);
     const reopened = await readConversation(store.db, "owner", input.conversationId, cipher);

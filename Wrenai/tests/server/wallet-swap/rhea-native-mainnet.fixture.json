@@ -1,0 +1,447 @@
+{
+  "final_execution_status": "FINAL",
+  "status": {
+    "SuccessValue": "IjE4NzM0Nzc1OSI="
+  },
+  "transaction": {
+    "hash": "Hb2Wsh7ZHDjppqk4Xi2cRypyKTwUUtJ1ssywohYvfJ4C",
+    "signer_id": "safenode8556.near",
+    "receiver_id": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+    "actions": [
+      {
+        "FunctionCall": {
+          "args": "eyJyZWNlaXZlcl9pZCI6ICJkY2x2Mi5yZWYtbGFicy5uZWFyIiwgImFtb3VudCI6ICIxODczNDc3NTkiLCAibXNnIjogIntcIlN3YXBcIjoge1wicG9vbF9pZHNcIjogW1wiMTcyMDg2MjhmODRmNWQ2YWQzM2YwZGEzYmJiZWIyN2ZmY2IzOThlYWM1MDFhMzFiZDZhZDIwMTFlMzYxMzNhMXx3cmFwLm5lYXJ8MTAwXCJdLCBcIm91dHB1dF90b2tlblwiOiBcIndyYXAubmVhclwiLCBcIm1pbl9vdXRwdXRfYW1vdW50XCI6IFwiNDc3NDI4OTE0NjEwMzY5MzYwOTM3NjE1MzZcIn19In0=",
+          "deposit": "1",
+          "gas": 180000000000000,
+          "method_name": "ft_transfer_call"
+        }
+      }
+    ]
+  },
+  "transaction_outcome": {
+    "id": "Hb2Wsh7ZHDjppqk4Xi2cRypyKTwUUtJ1ssywohYvfJ4C",
+    "outcome": {
+      "executor_id": "safenode8556.near",
+      "receipt_ids": ["9HSY4MB3kHktdZdqKYoTBdgWoH2HpbLjyvJjTdNnbUwu"],
+      "logs": [],
+      "status": {
+        "SuccessReceiptId": "9HSY4MB3kHktdZdqKYoTBdgWoH2HpbLjyvJjTdNnbUwu"
+      }
+    }
+  },
+  "receipts_outcome": [
+    {
+      "id": "9HSY4MB3kHktdZdqKYoTBdgWoH2HpbLjyvJjTdNnbUwu",
+      "outcome": {
+        "executor_id": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+        "receipt_ids": [
+          "H4Xt5WGV79dLbTFe3kQDZ7CCowHVbjQaeU8jWtRJ1tei",
+          "F82N5sNd6N12p2cACiJMCRBRaAAktGsDYz8Sfou3q8PH",
+          "4Yi2aKEidehmbM9oXqHsRcWAGAL7uySsgcQeckW1Wdz5"
+        ],
+        "logs": [
+          "EVENT_JSON:{\"standard\":\"nep141\",\"version\":\"1.0.0\",\"event\":\"ft_transfer\",\"data\":[{\"old_owner_id\":\"safenode8556.near\",\"new_owner_id\":\"dclv2.ref-labs.near\",\"amount\":\"187347759\"}]}"
+        ],
+        "status": {
+          "SuccessReceiptId": "F82N5sNd6N12p2cACiJMCRBRaAAktGsDYz8Sfou3q8PH"
+        }
+      }
+    },
+    {
+      "id": "H4Xt5WGV79dLbTFe3kQDZ7CCowHVbjQaeU8jWtRJ1tei",
+      "outcome": {
+        "executor_id": "dclv2.ref-labs.near",
+        "receipt_ids": [
+          "8VHwoDfoQHZvJ1bSov5QKM7Fq55zq4SVxzJnaaPKGXfK",
+          "NZk5ZMnQP3M9EcunSYM36L8Mm6EE8D1zJDUgujePJ2T",
+          "Es88pQVV621s7UeEoqXrKMzofiPTiuqaYjzwAAq56Bqj"
+        ],
+        "logs": [
+          "EVENT_JSON:{\"data\":[{\"amount_in\":\"187347759\",\"amount_out\":\"47758282110774464399825181\",\"pool_id\":\"17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1|wrap.near|100\",\"protocol_fee\":\"3747\",\"referral_fee\":\"0\",\"referral_id\":null,\"swapper\":\"safenode8556.near\",\"token_in\":\"17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1\",\"token_out\":\"wrap.near\",\"total_fee\":\"18735\"}],\"event\":\"swap\",\"standard\":\"dcl.ref\",\"version\":\"1.0.0\"}"
+        ],
+        "status": {
+          "SuccessValue": "IjAi"
+        }
+      }
+    },
+    {
+      "id": "8VHwoDfoQHZvJ1bSov5QKM7Fq55zq4SVxzJnaaPKGXfK",
+      "outcome": {
+        "executor_id": "wrap.near",
+        "receipt_ids": [
+          "EFghpf3mpmUD7dsnrZQsPQUBFgs1oJhY1wqvXevYMvVs",
+          "CDcdqK9nSncT7fGe4qSTz1uAGh2E8GyVvGzKjtHmuUT8"
+        ],
+        "logs": ["Withdraw 47758282110774464399825181 NEAR from dclv2.ref-labs.near"],
+        "status": {
+          "SuccessReceiptId": "EFghpf3mpmUD7dsnrZQsPQUBFgs1oJhY1wqvXevYMvVs"
+        }
+      }
+    },
+    {
+      "id": "EFghpf3mpmUD7dsnrZQsPQUBFgs1oJhY1wqvXevYMvVs",
+      "outcome": {
+        "executor_id": "dclv2.ref-labs.near",
+        "receipt_ids": ["DaY4ngwh3Hd88ezP9zyRnisNY34ZCeXyaybs8dFtd5xs"],
+        "logs": [],
+        "status": {
+          "SuccessValue": ""
+        }
+      }
+    },
+    {
+      "id": "DaY4ngwh3Hd88ezP9zyRnisNY34ZCeXyaybs8dFtd5xs",
+      "outcome": {
+        "executor_id": "safenode8556.near",
+        "receipt_ids": [],
+        "logs": [],
+        "status": {
+          "SuccessValue": ""
+        }
+      }
+    },
+    {
+      "id": "CDcdqK9nSncT7fGe4qSTz1uAGh2E8GyVvGzKjtHmuUT8",
+      "outcome": {
+        "executor_id": "safenode8556.near",
+        "receipt_ids": [],
+        "logs": [],
+        "status": {
+          "SuccessValue": ""
+        }
+      }
+    },
+    {
+      "id": "NZk5ZMnQP3M9EcunSYM36L8Mm6EE8D1zJDUgujePJ2T",
+      "outcome": {
+        "executor_id": "dclv2.ref-labs.near",
+        "receipt_ids": [
+          "DQvrCXW1PgoFJFQHpb9gvWG64Cur8PuLzSg4u3hoArfe",
+          "4V5xuHaxUz9prtNmicru8KfJm62CbRemYUu9SuYmE9fn"
+        ],
+        "logs": [],
+        "status": {
+          "SuccessValue": "dHJ1ZQ=="
+        }
+      }
+    },
+    {
+      "id": "DQvrCXW1PgoFJFQHpb9gvWG64Cur8PuLzSg4u3hoArfe",
+      "outcome": {
+        "executor_id": "safenode8556.near",
+        "receipt_ids": ["6hWd5sR5L2MdeokPPJx8Eq4qGTAqDmk7MAw84RwQYFKK"],
+        "logs": [],
+        "status": {
+          "SuccessValue": ""
+        }
+      }
+    },
+    {
+      "id": "6hWd5sR5L2MdeokPPJx8Eq4qGTAqDmk7MAw84RwQYFKK",
+      "outcome": {
+        "executor_id": "safenode8556.near",
+        "receipt_ids": [],
+        "logs": [],
+        "status": {
+          "SuccessValue": ""
+        }
+      }
+    },
+    {
+      "id": "4V5xuHaxUz9prtNmicru8KfJm62CbRemYUu9SuYmE9fn",
+      "outcome": {
+        "executor_id": "safenode8556.near",
+        "receipt_ids": [],
+        "logs": [],
+        "status": {
+          "SuccessValue": ""
+        }
+      }
+    },
+    {
+      "id": "Es88pQVV621s7UeEoqXrKMzofiPTiuqaYjzwAAq56Bqj",
+      "outcome": {
+        "executor_id": "safenode8556.near",
+        "receipt_ids": [],
+        "logs": [],
+        "status": {
+          "SuccessValue": ""
+        }
+      }
+    },
+    {
+      "id": "F82N5sNd6N12p2cACiJMCRBRaAAktGsDYz8Sfou3q8PH",
+      "outcome": {
+        "executor_id": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+        "receipt_ids": ["DzVK5i18KwsysTuKK89eETrrbbDhJzbeMSgeTYqDDvL6"],
+        "logs": [],
+        "status": {
+          "SuccessValue": "IjE4NzM0Nzc1OSI="
+        }
+      }
+    },
+    {
+      "id": "DzVK5i18KwsysTuKK89eETrrbbDhJzbeMSgeTYqDDvL6",
+      "outcome": {
+        "executor_id": "safenode8556.near",
+        "receipt_ids": [],
+        "logs": [],
+        "status": {
+          "SuccessValue": ""
+        }
+      }
+    },
+    {
+      "id": "4Yi2aKEidehmbM9oXqHsRcWAGAL7uySsgcQeckW1Wdz5",
+      "outcome": {
+        "executor_id": "safenode8556.near",
+        "receipt_ids": [],
+        "logs": [],
+        "status": {
+          "SuccessValue": ""
+        }
+      }
+    }
+  ],
+  "receipts": [
+    {
+      "receipt_id": "9HSY4MB3kHktdZdqKYoTBdgWoH2HpbLjyvJjTdNnbUwu",
+      "predecessor_id": "safenode8556.near",
+      "receiver_id": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+      "receipt": {
+        "Action": {
+          "actions": [
+            {
+              "FunctionCall": {
+                "args": "eyJyZWNlaXZlcl9pZCI6ICJkY2x2Mi5yZWYtbGFicy5uZWFyIiwgImFtb3VudCI6ICIxODczNDc3NTkiLCAibXNnIjogIntcIlN3YXBcIjoge1wicG9vbF9pZHNcIjogW1wiMTcyMDg2MjhmODRmNWQ2YWQzM2YwZGEzYmJiZWIyN2ZmY2IzOThlYWM1MDFhMzFiZDZhZDIwMTFlMzYxMzNhMXx3cmFwLm5lYXJ8MTAwXCJdLCBcIm91dHB1dF90b2tlblwiOiBcIndyYXAubmVhclwiLCBcIm1pbl9vdXRwdXRfYW1vdW50XCI6IFwiNDc3NDI4OTE0NjEwMzY5MzYwOTM3NjE1MzZcIn19In0=",
+                "deposit": "1",
+                "gas": 180000000000000,
+                "method_name": "ft_transfer_call"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "receipt_id": "H4Xt5WGV79dLbTFe3kQDZ7CCowHVbjQaeU8jWtRJ1tei",
+      "predecessor_id": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+      "receiver_id": "dclv2.ref-labs.near",
+      "receipt": {
+        "Action": {
+          "actions": [
+            {
+              "FunctionCall": {
+                "args": "eyJzZW5kZXJfaWQiOiJzYWZlbm9kZTg1NTYubmVhciIsImFtb3VudCI6IjE4NzM0Nzc1OSIsIm1zZyI6IntcIlN3YXBcIjoge1wicG9vbF9pZHNcIjogW1wiMTcyMDg2MjhmODRmNWQ2YWQzM2YwZGEzYmJiZWIyN2ZmY2IzOThlYWM1MDFhMzFiZDZhZDIwMTFlMzYxMzNhMXx3cmFwLm5lYXJ8MTAwXCJdLCBcIm91dHB1dF90b2tlblwiOiBcIndyYXAubmVhclwiLCBcIm1pbl9vdXRwdXRfYW1vdW50XCI6IFwiNDc3NDI4OTE0NjEwMzY5MzYwOTM3NjE1MzZcIn19In0=",
+                "deposit": "0",
+                "gas": 160477942000187,
+                "method_name": "ft_on_transfer"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "receipt_id": "8VHwoDfoQHZvJ1bSov5QKM7Fq55zq4SVxzJnaaPKGXfK",
+      "predecessor_id": "dclv2.ref-labs.near",
+      "receiver_id": "wrap.near",
+      "receipt": {
+        "Action": {
+          "actions": [
+            {
+              "FunctionCall": {
+                "args": "eyJhbW91bnQiOiI0Nzc1ODI4MjExMDc3NDQ2NDM5OTgyNTE4MSJ9",
+                "deposit": "1",
+                "gas": 136709927286607,
+                "method_name": "near_withdraw"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "receipt_id": "EFghpf3mpmUD7dsnrZQsPQUBFgs1oJhY1wqvXevYMvVs",
+      "predecessor_id": "wrap.near",
+      "receiver_id": "dclv2.ref-labs.near",
+      "receipt": {
+        "Action": {
+          "actions": [
+            {
+              "Transfer": {
+                "deposit": "47758282110774464399825182"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "receipt_id": "DaY4ngwh3Hd88ezP9zyRnisNY34ZCeXyaybs8dFtd5xs",
+      "predecessor_id": "system",
+      "receiver_id": "safenode8556.near",
+      "receipt": {
+        "Action": {
+          "actions": [
+            {
+              "Transfer": {
+                "deposit": "200864306250000000000"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "receipt_id": "CDcdqK9nSncT7fGe4qSTz1uAGh2E8GyVvGzKjtHmuUT8",
+      "predecessor_id": "system",
+      "receiver_id": "safenode8556.near",
+      "receipt": {
+        "Action": {
+          "actions": [
+            {
+              "Transfer": {
+                "deposit": "137195897527226800000000"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "receipt_id": "NZk5ZMnQP3M9EcunSYM36L8Mm6EE8D1zJDUgujePJ2T",
+      "predecessor_id": "dclv2.ref-labs.near",
+      "receiver_id": "dclv2.ref-labs.near",
+      "receipt": {
+        "Action": {
+          "actions": [
+            {
+              "FunctionCall": {
+                "args": "eyJ1c2VyX2lkIjoic2FmZW5vZGU4NTU2Lm5lYXIiLCJhbW91bnQiOiI0Nzc1ODI4MjExMDc3NDQ2NDM5OTgyNTE4MSJ9",
+                "deposit": "0",
+                "gas": 10000000000000,
+                "method_name": "callback_post_withdraw_near"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "receipt_id": "DQvrCXW1PgoFJFQHpb9gvWG64Cur8PuLzSg4u3hoArfe",
+      "predecessor_id": "dclv2.ref-labs.near",
+      "receiver_id": "safenode8556.near",
+      "receipt": {
+        "Action": {
+          "actions": [
+            {
+              "Transfer": {
+                "deposit": "47758282110774464399825181"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "receipt_id": "6hWd5sR5L2MdeokPPJx8Eq4qGTAqDmk7MAw84RwQYFKK",
+      "predecessor_id": "system",
+      "receiver_id": "safenode8556.near",
+      "receipt": {
+        "Action": {
+          "actions": [
+            {
+              "Transfer": {
+                "deposit": "200864306250000000000"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "receipt_id": "4V5xuHaxUz9prtNmicru8KfJm62CbRemYUu9SuYmE9fn",
+      "predecessor_id": "system",
+      "receiver_id": "safenode8556.near",
+      "receipt": {
+        "Action": {
+          "actions": [
+            {
+              "Transfer": {
+                "deposit": "10394387327008200000000"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "receipt_id": "Es88pQVV621s7UeEoqXrKMzofiPTiuqaYjzwAAq56Bqj",
+      "predecessor_id": "system",
+      "receiver_id": "safenode8556.near",
+      "receipt": {
+        "Action": {
+          "actions": [
+            {
+              "Transfer": {
+                "deposit": "11592219284159400000000"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "receipt_id": "F82N5sNd6N12p2cACiJMCRBRaAAktGsDYz8Sfou3q8PH",
+      "predecessor_id": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+      "receiver_id": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+      "receipt": {
+        "Action": {
+          "actions": [
+            {
+              "FunctionCall": {
+                "args": "eyJzZW5kZXJfaWQiOiJzYWZlbm9kZTg1NTYubmVhciIsInJlY2VpdmVyX2lkIjoiZGNsdjIucmVmLWxhYnMubmVhciIsImFtb3VudCI6IjE4NzM0Nzc1OSJ9",
+                "deposit": "0",
+                "gas": 15477942000187,
+                "method_name": "ft_resolve_transfer"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "receipt_id": "DzVK5i18KwsysTuKK89eETrrbbDhJzbeMSgeTYqDDvL6",
+      "predecessor_id": "system",
+      "receiver_id": "safenode8556.near",
+      "receipt": {
+        "Action": {
+          "actions": [
+            {
+              "Transfer": {
+                "deposit": "16186275157996900000000"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "receipt_id": "4Yi2aKEidehmbM9oXqHsRcWAGAL7uySsgcQeckW1Wdz5",
+      "predecessor_id": "system",
+      "receiver_id": "safenode8556.near",
+      "receipt": {
+        "Action": {
+          "actions": [
+            {
+              "Transfer": {
+                "deposit": "2840253640284600000000"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

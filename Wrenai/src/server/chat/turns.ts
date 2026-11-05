@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, exists, getTableColumns, gt, isNull, or, sql } from "drizzle-orm";
 import type { AttestationReceipt } from "@/server/ai/attestation-receipt";
 import { chatConversations, chatTurns } from "@/server/db/chat-schema";
 import type { AppDatabase } from "@/server/db/client";
@@ -150,7 +150,13 @@ export async function claimChatTurn(
       .orderBy(desc(chatTurns.sequence))
       .limit(1);
     const related = await tx
-      .select()
+      .select({
+        ...getTableColumns(chatTurns),
+        // Only a replay needs to return the potentially large encrypted attestation.
+        sealedReply: sql<
+          string | null
+        >`case when ${chatTurns.id} = ${input.requestId} then ${chatTurns.sealedReply} end`,
+      })
       .from(chatTurns)
       .where(
         and(eq(chatTurns.userId, userId), or(eq(chatTurns.id, input.requestId), eq(chatTurns.id, latestId))),
@@ -218,35 +224,48 @@ export async function finishChatTurn(
   cipher: ChatCipher = chatCipher(),
   now = Date.now(),
 ): Promise<ChatTurn> {
+  const stored =
+    outcome.state === "complete"
+      ? storedReplySchema.parse({ reply: outcome.reply, attestation: outcome.receipt })
+      : null;
+  const sealedReply = stored
+    ? cipher.seal(userId, input.conversationId, `${input.requestId}:assistant`, JSON.stringify(stored))
+    : null;
   return userTransaction(db, userId, async (tx) => {
-    const sealedReply =
-      outcome.state === "complete"
-        ? cipher.seal(
-            userId,
-            input.conversationId,
-            `${input.requestId}:assistant`,
-            JSON.stringify(storedReplySchema.parse({ reply: outcome.reply, attestation: outcome.receipt })),
-          )
-        : null;
-    const [row] = await tx
-      .update(chatTurns)
-      .set({ state: outcome.state, sealedReply })
-      .where(
-        and(
-          eq(chatTurns.userId, userId),
-          eq(chatTurns.conversationId, input.conversationId),
-          eq(chatTurns.id, input.requestId),
-          eq(chatTurns.leaseToken, token),
-          eq(chatTurns.state, "pending"),
-          gt(chatTurns.leaseExpiresAt, now),
-        ),
-      )
-      .returning();
+    const saved = tx.$with("saved_turn").as(
+      tx
+        .update(chatTurns)
+        .set({ state: outcome.state, sealedReply })
+        .where(
+          and(
+            eq(chatTurns.userId, userId),
+            eq(chatTurns.conversationId, input.conversationId),
+            eq(chatTurns.id, input.requestId),
+            eq(chatTurns.leaseToken, token),
+            eq(chatTurns.state, "pending"),
+            gt(chatTurns.leaseExpiresAt, now),
+          ),
+        )
+        .returning({ ...getTableColumns(chatTurns), sealedReply: sql<null>`null`.as("sealed_reply") }),
+    );
+    const touched = tx.$with("touched_chat").as(
+      tx
+        .update(chatConversations)
+        .set({ updatedAt: now, revision: sql`${chatConversations.revision} + 1` })
+        .where(
+          and(
+            eq(chatConversations.userId, userId),
+            eq(chatConversations.id, input.conversationId),
+            exists(tx.select({ id: saved.id }).from(saved)),
+          ),
+        )
+        .returning({ id: chatConversations.id }),
+    );
+    const [row] = await tx.with(saved, touched).select().from(saved);
     if (!row) {
       throw new ChatError("conflict", "The reply was stopped or superseded. Reload the conversation.");
     }
-    await touchConversation(tx, userId, input.conversationId, now);
-    return displayTurn(row, cipher, now);
+    return { ...displayTurn(row, cipher, now), reply: stored?.reply ?? null };
   });
 }
 
@@ -256,24 +275,36 @@ export async function deleteConversation(
   conversationId: string,
 ): Promise<void> {
   await userTransaction(db, userId, async (tx) => {
-    const [deleted] = await tx
-      .update(chatConversations)
-      .set({ deletedAt: Date.now(), sealedTitle: null, revision: sql`${chatConversations.revision} + 1` })
-      .where(
-        and(
-          eq(chatConversations.userId, userId),
-          eq(chatConversations.id, conversationId),
-          isNull(chatConversations.deletedAt),
-        ),
-      )
-      .returning({ id: chatConversations.id });
-    if (!deleted) {
+    const deleted = tx.$with("deleted_chat").as(
+      tx
+        .update(chatConversations)
+        .set({ deletedAt: Date.now(), sealedTitle: null, revision: sql`${chatConversations.revision} + 1` })
+        .where(
+          and(
+            eq(chatConversations.userId, userId),
+            eq(chatConversations.id, conversationId),
+            isNull(chatConversations.deletedAt),
+          ),
+        )
+        .returning({ id: chatConversations.id }),
+    );
+    // Retain only the conversation ID tombstone: a delayed first send must not recreate deleted text.
+    const removed = tx.$with("removed_turns").as(
+      tx
+        .delete(chatTurns)
+        .where(
+          and(
+            eq(chatTurns.userId, userId),
+            eq(chatTurns.conversationId, conversationId),
+            exists(tx.select({ id: deleted.id }).from(deleted)),
+          ),
+        )
+        .returning({ id: chatTurns.id }),
+    );
+    const [row] = await tx.with(deleted, removed).select().from(deleted);
+    if (!row) {
       throw new ChatError("not_found", "Conversation not found.");
     }
-    // Retain only the conversation ID tombstone: a delayed first send must not recreate deleted text.
-    await tx
-      .delete(chatTurns)
-      .where(and(eq(chatTurns.userId, userId), eq(chatTurns.conversationId, conversationId)));
   });
 }
 
@@ -285,19 +316,17 @@ export async function renameConversation(
   title: string,
   cipher: ChatCipher = chatCipher(),
 ): Promise<void> {
-  await userTransaction(db, userId, async (tx) => {
-    await tx
-      .update(chatConversations)
-      .set({
-        sealedTitle: cipher.seal(userId, conversationId, "title", title),
-        revision: sql`${chatConversations.revision} + 1`,
-      })
-      .where(
-        and(
-          eq(chatConversations.userId, userId),
-          eq(chatConversations.id, conversationId),
-          isNull(chatConversations.deletedAt),
-        ),
-      );
-  });
+  await db
+    .update(chatConversations)
+    .set({
+      sealedTitle: cipher.seal(userId, conversationId, "title", title),
+      revision: sql`${chatConversations.revision} + 1`,
+    })
+    .where(
+      and(
+        eq(chatConversations.userId, userId),
+        eq(chatConversations.id, conversationId),
+        isNull(chatConversations.deletedAt),
+      ),
+    );
 }

@@ -1,30 +1,18 @@
 import { redirect } from "next/navigation";
 import { Brand } from "@/components/shell/brand";
-import { LiveHalftone } from "@/components/texture/live-halftone";
+import { LogoMorph } from "@/components/texture/logo-morph";
 import { SignInPanel } from "@/components/wallet/sign-in-panel";
 import { currentUser } from "@/server/auth/session";
 import { signInFont } from "./fonts";
 
-// Decorative pane: glow and live halftone stay inside it, so nothing sits under text.
+// Decorative pane: a dark well where the logo morph runs, so nothing sits under text. No glow.
 function SignInVisual() {
   return (
     <div
       aria-hidden="true"
       className="relative order-first h-36 overflow-hidden rounded-inset bg-sunken sm:h-44 lg:order-none lg:h-auto"
     >
-      <div className="absolute inset-0 glow-pane motion-safe:animate-glow-breathe" />
-      <LiveHalftone className="absolute inset-0 text-texture-hero fade-radial-end" />
-    </div>
-  );
-}
-
-// Backdrop light at the bottom edge and, mirrored, the top edge. It sits behind everything (-z-10 inside the
-// isolated main), and the card is opaque, so the light never shows through or over it.
-function PageGlow() {
-  return (
-    <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
-      <div className="absolute inset-x-0 top-0 h-1/4 -scale-y-100 glow-page" />
-      <div className="absolute inset-x-0 bottom-0 h-1/4 glow-page" />
+      <LogoMorph className="absolute inset-0 text-texture-hero" />
     </div>
   );
 }
@@ -34,8 +22,7 @@ export default async function SignInPage() {
     redirect("/portfolio");
   }
   return (
-    <main className="relative isolate grid min-h-dvh place-items-center overflow-hidden px-gutter py-8">
-      <PageGlow />
+    <main className="grid min-h-dvh place-items-center px-gutter py-8">
       <div className="relative grid w-full max-w-4xl gap-2 card-shine rounded-xl p-2 lg:min-h-120 lg:grid-cols-2">
         <section
           aria-labelledby="sign-in-heading"

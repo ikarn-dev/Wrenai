@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { inferenceModelSchema } from "@/shared/ai-models";
+import { MAX_WALLET_TOKEN_DECIMALS, walletAssetSchema } from "./agent-budget";
 import { chatQuoteRequestSchema } from "./chat-quote";
 import { researchReportSchema, researchToolSchema } from "./research";
+import { walletSwapViewSchema } from "./wallet-swap";
 
 export const MAX_CHAT_MESSAGE = 8_000;
 export const MAX_CHAT_TURNS = 100;
@@ -34,6 +36,23 @@ export const chatContextSchema = z.strictObject({
     z.strictObject({ kind: z.literal("no_account"), readAt: z.number() }),
     z.strictObject({ kind: z.literal("unavailable") }),
   ]),
+  // Older encrypted replies contain the native wallet reading only.
+  walletHoldings: z
+    .strictObject({
+      coverage: z.enum(["complete", "partial", "unavailable"]),
+      tokens: z.array(
+        z.strictObject({
+          assetId: walletAssetSchema,
+          symbol: z.string().min(1).max(64),
+          balance: z.string().max(MAX_WALLET_TOKEN_DECIMALS + 2),
+          available: z
+            .string()
+            .max(MAX_WALLET_TOKEN_DECIMALS + 2)
+            .nullable(),
+        }),
+      ),
+    })
+    .optional(),
   agents: z
     .array(z.strictObject({ name: z.string(), pack: z.string(), status: z.string(), updatedAt: z.number() }))
     .max(50),
@@ -88,12 +107,14 @@ export interface Conversation extends ConversationSummary {
   readonly hasEarlier?: boolean;
 }
 
-export const CHAT_PAGE_SIZE = 20;
-export const conversationPageSchema = z.strictObject({
+export const conversationSummarySchema = z.strictObject({
   id: z.uuid(),
   title: z.string(),
   updatedAt: z.number().int().positive(),
   revision: z.number().int().positive(),
+});
+export const CHAT_PAGE_SIZE = 20;
+export const conversationPageSchema = conversationSummarySchema.extend({
   turns: z.array(chatTurnSchema).max(CHAT_PAGE_SIZE),
   hasEarlier: z.boolean(),
 });
@@ -110,7 +131,12 @@ export const chatEventSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("research"), reports: z.array(researchReportSchema).max(6) }),
   z.strictObject({ type: z.literal("verified") }),
   z.strictObject({ type: z.literal("reset") }),
-  z.strictObject({ type: z.literal("done"), turn: chatTurnSchema }),
+  z.strictObject({
+    type: z.literal("done"),
+    turn: chatTurnSchema,
+    walletSwap: walletSwapViewSchema.optional(),
+    quoteError: z.string().max(40).optional(),
+  }),
   z.strictObject({ type: z.literal("title"), title: z.string().min(1).max(72) }),
   z.strictObject({ type: z.literal("error"), code: z.string(), message: z.string().max(500) }),
 ]);
@@ -130,20 +156,21 @@ export type ChatResult<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly code: ChatFailureCode; readonly message: string };
 
+export const chatFailureSchema = z.strictObject({
+  ok: z.literal(false),
+  code: z.enum([
+    "signed_out",
+    "invalid_input",
+    "not_found",
+    "conflict",
+    "rate_limited",
+    "unavailable",
+    "verification_failed",
+    "cancelled",
+  ]),
+  message: z.string(),
+});
 export const chatResponseSchema = z.discriminatedUnion("ok", [
   z.strictObject({ ok: z.literal(true), value: chatTurnSchema }),
-  z.strictObject({
-    ok: z.literal(false),
-    code: z.enum([
-      "signed_out",
-      "invalid_input",
-      "not_found",
-      "conflict",
-      "rate_limited",
-      "unavailable",
-      "verification_failed",
-      "cancelled",
-    ]),
-    message: z.string(),
-  }),
+  chatFailureSchema,
 ]);

@@ -7,6 +7,7 @@ import { claimChatTurn, deleteConversation, finishChatTurn } from "@/server/chat
 import type { ChatInput } from "@/shared/chat";
 
 vi.mock("server-only", () => ({}));
+vi.mock("next/server", () => ({ after: () => {} }));
 vi.mock("@/server/chat/redis-cache", () => ({
   readChatCache: async () => null,
   writeChatCache: async () => false,

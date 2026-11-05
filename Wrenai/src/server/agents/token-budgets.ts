@@ -6,16 +6,18 @@ import { chatAgentDrafts } from "@/server/db/chat-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { positionLots } from "@/server/db/position-schema";
 import { users } from "@/server/db/schema";
-import { nativeWalletHolds } from "@/server/funding/native-records";
+import { activeNativeFunding, nativeFundingHeldUnits } from "@/server/funding/native-records";
 import { walletTokenHolding, walletTokenHoldings } from "@/server/portfolio/wallet-tokens";
 import {
   type AgentBudgetInput,
   type AgentTokenBudget,
   checkedWalletBudget,
+  MAX_AGENT_BUDGET_DECIMALS,
   type WalletBudgetView,
   type WalletHolding,
   walletBudgetAvailability,
 } from "@/shared/agent-budget";
+import type { NativeFundingView } from "@/shared/native-funding";
 import { agentSetupDraftSchema } from "@/shared/research";
 import { parseTokenAmount } from "@/shared/token-units";
 
@@ -44,34 +46,84 @@ export async function prepareAgentBudget(
   input: AgentBudgetInput,
 ): Promise<PreparedAgentBudget> {
   const accountId = await ownerAccount(db, userId);
-  return { accountId, input, holding: await walletTokenHolding(accountId, input.assetId) };
+  const holding = await walletTokenHolding(accountId, input.assetId);
+  if (holding.decimals > MAX_AGENT_BUDGET_DECIMALS) {
+    throw new ChatError("invalid_input", "This token's precision is unsupported for agent budgets.");
+  }
+  return { accountId, input, holding };
 }
 
 export async function reservedWalletBudgets(
   db: AppDatabase,
   owner: string,
-  cipher: ChatCipher = chatCipher(),
+  cipher?: ChatCipher,
   excludeId?: string,
 ): Promise<readonly AgentTokenBudget[]> {
   const rows = await db.select().from(chatAgentDrafts).where(eq(chatAgentDrafts.userId, owner)).limit(1001);
   if (rows.length > 1000) {
     throw new ChatError("conflict", "Discard old setups before allocating another budget.");
   }
-  return rows
-    .filter((row) => row.id !== excludeId)
-    .flatMap((row) => {
-      try {
-        const draft = agentSetupDraftSchema.parse(
-          JSON.parse(cipher.open(owner, row.id, "agent-setup", row.sealedDraft)),
-        );
-        return draft.budget ? [draft.budget] : [];
-      } catch {
-        throw new ChatError(
-          "unavailable",
-          "Saved agent allocations could not be verified. No new funds were reserved.",
-        );
-      }
-    });
+  const selected = rows.filter((row) => row.id !== excludeId);
+  if (selected.length === 0) {
+    return [];
+  }
+  const decoder = cipher ?? chatCipher();
+  return selected.flatMap((row) => {
+    try {
+      const draft = agentSetupDraftSchema.parse(
+        JSON.parse(decoder.open(owner, row.id, "agent-setup", row.sealedDraft)),
+      );
+      return draft.budget ? [draft.budget] : [];
+    } catch {
+      throw new ChatError(
+        "unavailable",
+        "Saved agent allocations could not be verified. No new funds were reserved.",
+      );
+    }
+  });
+}
+
+export async function walletAllocatedUnits(
+  db: AppDatabase,
+  owner: string,
+  accountId: string,
+  assetId: string,
+  cipher?: ChatCipher,
+  excludeId?: string,
+): Promise<bigint> {
+  return (await readWalletAllocations(db, owner, accountId, cipher, excludeId))(assetId);
+}
+
+/** Read the owner's reservations once for all tokens in a wallet snapshot. */
+export async function readWalletAllocations(
+  db: AppDatabase,
+  owner: string,
+  accountId: string,
+  cipher?: ChatCipher,
+  excludeId?: string,
+): Promise<(assetId: string) => bigint> {
+  const [budgets, pending] = await Promise.all([
+    reservedWalletBudgets(db, owner, cipher, excludeId),
+    activeNativeFunding(db, owner),
+  ]);
+  return walletAllocationLookup(budgets, pending, accountId);
+}
+
+function walletAllocationLookup(
+  budgets: readonly AgentTokenBudget[],
+  pending: NativeFundingView | null,
+  accountId: string,
+): (assetId: string) => bigint {
+  const units = new Map<string, bigint>();
+  for (const budget of budgets) {
+    if (budget.accountId === accountId) {
+      units.set(
+        budget.assetId,
+        (units.get(budget.assetId) ?? 0n) + BigInt(budget.walletReservedUnits ?? budget.units),
+      );
+    }
+  }
+  return (assetId) => (units.get(assetId) ?? 0n) + nativeFundingHeldUnits(pending, assetId);
 }
 
 /** Owner lock required: drafts and funded lots use exact units, never a price-derived token balance. */
@@ -86,17 +138,14 @@ export async function reserveSetupBudget(
   if ((await ownerAccount(db, owner)) !== prepared.accountId) {
     throw new ChatError("conflict", "The wallet changed. Refresh before allocating funds.");
   }
-  const budgets = await reservedWalletBudgets(db, owner, cipher, id);
-  const allocated =
-    (await nativeWalletHolds(db, owner, prepared.input.assetId)) +
-    budgets.reduce(
-      (sum, budget) =>
-        sum +
-        (budget.accountId === prepared.accountId && budget.assetId === prepared.input.assetId
-          ? BigInt(budget.walletReservedUnits ?? budget.units)
-          : 0n),
-      0n,
-    );
+  const allocated = await walletAllocatedUnits(
+    db,
+    owner,
+    prepared.accountId,
+    prepared.input.assetId,
+    cipher,
+    id,
+  );
   try {
     const oldUnits =
       previous?.accountId === prepared.accountId &&
@@ -145,7 +194,10 @@ export async function readWalletBudgets(
   cipher: ChatCipher = chatCipher(),
 ): Promise<WalletBudgetView> {
   const accountId = await ownerAccount(db, owner);
-  const budgets = await reservedWalletBudgets(db, owner, cipher, excludeId);
+  const [budgets, pending] = await Promise.all([
+    reservedWalletBudgets(db, owner, cipher, excludeId),
+    activeNativeFunding(db, owner),
+  ]);
   const extras = [
     ...new Set([
       ...(extraAsset ? [extraAsset] : []),
@@ -165,30 +217,11 @@ export async function readWalletBudgets(
       .groupBy(positionLots.scope, positionLots.assetId)
       .limit(500),
   ]);
-  const nativeHolds = new Map(
-    await Promise.all(
-      wallet.tokens.map(
-        async (holding) => [holding.assetId, await nativeWalletHolds(db, owner, holding.assetId)] as const,
-      ),
-    ),
-  );
+  const allocated = walletAllocationLookup(budgets, pending, accountId);
   return {
     accountId,
     note: wallet.note,
     funded,
-    tokens: wallet.tokens.map((holding) =>
-      walletBudgetAvailability(
-        holding,
-        (nativeHolds.get(holding.assetId) ?? 0n) +
-          budgets.reduce(
-            (sum, budget) =>
-              sum +
-              (budget.accountId === accountId && budget.assetId === holding.assetId
-                ? BigInt(budget.walletReservedUnits ?? budget.units)
-                : 0n),
-            0n,
-          ),
-      ),
-    ),
+    tokens: wallet.tokens.map((holding) => walletBudgetAvailability(holding, allocated(holding.assetId))),
   };
 }

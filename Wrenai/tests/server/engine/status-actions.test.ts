@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentError } from "@/server/agents/errors";
-import { readAgentRuntimeStatus, recoverAgentOrders } from "@/server/engine/status-actions";
+import { readAgentRuntimeStatus } from "@/server/engine/status-access";
+import { recoverAgentOrders } from "@/server/engine/status-actions";
 
 vi.mock("server-only", () => ({}));
 const calls = vi.hoisted(() => ({ user: vi.fn(), rate: vi.fn(), status: vi.fn(), recover: vi.fn() }));

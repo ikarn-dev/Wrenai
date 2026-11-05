@@ -1,14 +1,29 @@
-import type { AgentSummary } from "./agents";
+import { z } from "zod";
+import { statusSchema } from "./agents";
 
-export interface AgentRuntimeStatus {
-  readonly agent: Pick<AgentSummary, "id" | "status" | "reason" | "revision" | "updatedAt">;
-  readonly runtime: {
-    readonly state: "starting" | "active" | "stopped" | "blocked";
-    readonly nextCheckAt: number;
-  } | null;
-  readonly pending: readonly {
-    readonly id: string;
-    readonly status: string;
-    readonly startedAt: number | null;
-  }[];
-}
+export const agentRuntimeStatusSchema = z.strictObject({
+  agent: z.strictObject({
+    id: z.string(),
+    status: statusSchema,
+    reason: z.string(),
+    revision: z.number().int(),
+    updatedAt: z.number().int(),
+  }),
+  runtime: z
+    .strictObject({
+      state: z.enum(["starting", "active", "stopped", "blocked"]),
+      nextCheckAt: z.number().int(),
+    })
+    .nullable(),
+  pending: z
+    .array(
+      z.strictObject({
+        id: z.string(),
+        status: z.string(),
+        startedAt: z.number().int().nullable(),
+      }),
+    )
+    .max(10)
+    .readonly(),
+});
+export type AgentRuntimeStatus = z.infer<typeof agentRuntimeStatusSchema>;

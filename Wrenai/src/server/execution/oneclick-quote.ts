@@ -61,12 +61,17 @@ export async function oneClickJson(
   return tradingResponseJson(response, 256_000);
 }
 
+/** Leave room for provider rounding while enforcing the original cap on the signed quote. */
+export function providerSlippageBps(maximumSlippageBps: number): number {
+  return Math.max(0, maximumSlippageBps - 1);
+}
+
 export function dryQuoteRequest(
   accountId: string,
   inputAssetId: string,
   outputAssetId: string,
   inputUnits: string,
-  slippageBps: number,
+  maximumSlippageBps: number,
   scope: ExecutionScope,
   now: number,
 ): QuoteRequest {
@@ -76,7 +81,7 @@ export function dryQuoteRequest(
   return {
     dry: true,
     swapType: QuoteRequest.swapType.EXACT_INPUT,
-    slippageTolerance: slippageBps,
+    slippageTolerance: providerSlippageBps(maximumSlippageBps),
     originAsset: inputAssetId,
     destinationAsset: outputAssetId,
     amount: inputUnits,
@@ -105,7 +110,7 @@ export function verifiedProviderQuote(
   request: QuoteRequest,
   scope: ExecutionScope,
   capturedAt: number,
-  maximumSlippageBps = request.slippageTolerance,
+  maximumSlippageBps: number,
 ): TradeQuote {
   const parsed = z
     .object({
@@ -212,7 +217,7 @@ export function verifiedDryQuote(
   request: QuoteRequest,
   scope: ExecutionScope,
   capturedAt: number,
-  maximumSlippageBps = request.slippageTolerance,
+  maximumSlippageBps: number,
 ): TradeQuote {
   if (!request.dry) {
     throw new ExecutionError("not_ready", "A dry preview cannot accept an executable quote.");
@@ -235,8 +240,7 @@ export async function freshDryQuote(
     inputAssetId,
     outputAssetId,
     inputUnits,
-    // Leave one basis point for smallest-unit rounding while enforcing the user's original cap below.
-    Math.max(0, slippageBps - 1),
+    slippageBps,
     scope,
     Date.now(),
   );

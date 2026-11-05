@@ -1,53 +1,84 @@
 import "server-only";
 import { QuoteRequest } from "@defuse-protocol/one-click-sdk-typescript";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
+import { walletAllocatedUnits } from "@/server/agents/token-budgets";
 import type { AppDatabase } from "@/server/db/client";
 import { users } from "@/server/db/schema";
 import { walletSwaps } from "@/server/db/wallet-swap-schema";
 import { ExecutionError } from "@/server/execution/contracts";
 import { intentsStatusSchema, readIntentsProviderStatus } from "@/server/execution/intents-reconciliation";
-import { oneClickJson, verifiedProviderQuote } from "@/server/execution/oneclick-quote";
+import { oneClickJson, providerSlippageBps, verifiedProviderQuote } from "@/server/execution/oneclick-quote";
 import { executionHash } from "@/server/execution/records";
+import { MAX_NATIVE_GAS_UNITS } from "@/server/execution/rhea/contracts";
 import { reportUnexpectedError } from "@/server/http/unexpected-error";
-import { readFinalTransaction } from "@/server/near/rpc";
+import { callViewFunction, readFinalTransaction } from "@/server/near/rpc";
 import { walletTokenHolding } from "@/server/portfolio/wallet-tokens";
-import { tokenUnits } from "@/server/research/decimal";
 import { intentTokens } from "@/server/research/intents";
+import { nearAccountSchema } from "@/shared/agent-budget";
+import { tokenUnitsSchema } from "@/shared/token-units";
 import { tradeAssetSchema } from "@/shared/trade-preview";
+import { tradeSizeUnits } from "@/shared/trade-size";
 import {
   WALLET_SWAP_INPUT,
+  WALLET_SWAP_NATIVE_OUTPUT,
+  WALLET_SWAP_RHEA_POOL,
+  WALLET_SWAP_USDC,
   type WalletSwapQuote,
   type WalletSwapView,
-  WRAP_STORAGE_YOCTO,
   walletSwapIdSchema,
   walletSwapProofSchema,
   walletSwapQuoteSchema,
   walletSwapRequestSchema,
+  walletSwapSubmissionSchema,
 } from "@/shared/wallet-swap";
 import { verifyWalletSwapTransaction } from "./proof";
+import { nativeNearAsset, quoteRheaNative, usdcAsset, verifyRheaNativeContracts } from "./rhea-native";
+import { reconcileRheaNativeSwap, submitRheaNativeSwap } from "./rhea-native-lifecycle";
 
 // The deposit must reach 1Click before its quote deadline; the card stops offering Confirm a minute earlier so a
 // slow wallet approval still lands in time.
 const QUOTE_LIFETIME_MS = 10 * 60_000;
 const SIGNING_MARGIN_MS = 60_000;
-// Left in the wallet for the transaction's gas, so the swap never empties the account (about 0.009 NEAR is
-// enough for 90 Tgas at current prices).
+// 1Click deposits need a gas buffer. RHEA uses the reviewed native-execution ceiling because its call attaches
+// 180 Tgas and 0.01 NEAR cannot cover that at the current 100 million yoctoNEAR gas price.
 const GAS_RESERVE_YOCTO = 10_000_000_000_000_000_000_000n;
+const NATIVE_ASSET = "native:near";
+
+function gasReserve(rheaNative: boolean): bigint {
+  return rheaNative ? MAX_NATIVE_GAS_UNITS : GAS_RESERVE_YOCTO;
+}
 
 type Row = typeof walletSwaps.$inferSelect;
 
 function view(row: Row, now = Date.now()): WalletSwapView {
   const quote = walletSwapQuoteSchema.parse(JSON.parse(row.quoteJson));
-  const unsigned = row.state === "quoted" || row.state === "signing";
   return {
     id: row.id,
-    state: unsigned && now >= row.expiresAt ? "expired" : row.state,
+    state: row.state === "quoted" && (now >= row.expiresAt || !quote.pairVerified) ? "expired" : row.state,
     quote,
     transactionHash: row.transactionHash,
     receivedUnits: row.receivedUnits,
+    spentUnits: row.spentUnits,
     expiresAt: row.expiresAt,
   };
+}
+
+async function walletAvailability(db: AppDatabase, userId: string, accountId: string, assetId: string) {
+  const [holding, allocated] = await Promise.all([
+    walletTokenHolding(accountId, assetId),
+    walletAllocatedUnits(db, userId, accountId, assetId),
+  ]);
+  return { units: BigInt(holding.spendableUnits) - allocated, decimals: holding.decimals };
+}
+
+function requireWalletFunds(available: bigint, units: bigint, symbol: string): void {
+  if (units <= 0n || units > available) {
+    throw new ExecutionError(
+      "insufficient_funds",
+      `Not enough available ${symbol} in your wallet after gas and existing allocations.`,
+    );
+  }
 }
 
 async function ownedSwap(db: AppDatabase, userId: string, id: string): Promise<Row> {
@@ -62,40 +93,48 @@ async function ownedSwap(db: AppDatabase, userId: string, id: string): Promise<R
   return row;
 }
 
-async function ownerAccount(db: AppDatabase, userId: string): Promise<string> {
-  const [owner] = await db
-    .select({ accountId: users.accountId })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-  if (!owner) {
-    throw new ExecutionError("not_found", "Sign in again before swapping.");
-  }
-  return owner.accountId;
-}
-
 /**
- * Quotes a swap paid from the wallet: a real 1Click quote (it reserves a deposit address; no funds move until
- * the wallet signs), verified against the exact request and its signature, then saved for review.
+ * Saves a verified quote for wallet approval: a finalized RHEA pool quote or a signed 1Click quote.
  */
 export async function prepareWalletSwap(
   db: AppDatabase,
   userId: string,
   raw: unknown,
+  signal?: AbortSignal,
 ): Promise<WalletSwapView> {
   const request = walletSwapRequestSchema.parse(raw);
-  const [existing] = await db
-    .select()
-    .from(walletSwaps)
-    .where(and(eq(walletSwaps.userId, userId), eq(walletSwaps.id, request.requestId)))
+  const [owner] = await db
+    .select({ accountId: users.accountId, existing: walletSwaps })
+    .from(users)
+    .leftJoin(walletSwaps, and(eq(walletSwaps.userId, users.id), eq(walletSwaps.id, request.requestId)))
+    .where(eq(users.id, userId))
     .limit(1);
-  if (existing) {
-    return view(existing);
+  if (!owner) {
+    throw new ExecutionError("not_found", "Sign in again before swapping.");
   }
-  const accountId = await ownerAccount(db, userId);
-  const { tokens } = await intentTokens();
+  if (owner.existing) {
+    return view(owner.existing);
+  }
+  const { accountId } = owner;
+  const nativeOutput = request.outputAssetId === WALLET_SWAP_NATIVE_OUTPUT;
+  const walletAssetId = request.inputAssetId ?? NATIVE_ASSET;
+  if (nativeOutput && walletAssetId !== WALLET_SWAP_USDC) {
+    throw new ExecutionError("not_ready", "Native NEAR payouts are currently available for USDC swaps.");
+  }
+  const native = walletAssetId === NATIVE_ASSET;
+  const origin = native ? WALLET_SWAP_INPUT : walletAssetId;
+  const [registry, holding, near, storage] = await Promise.all([
+    nativeOutput ? null : intentTokens(signal),
+    walletAvailability(db, userId, accountId, walletAssetId),
+    native ? null : walletAvailability(db, userId, accountId, NATIVE_ASSET),
+    native || nativeOutput
+      ? null
+      : callViewFunction(origin.slice(7), "storage_balance_bounds", {}, signal).then(
+          ({ value }) => z.object({ min: tokenUnitsSchema }).parse(value).min,
+        ),
+  ]);
   const find = (assetId: string) => {
-    const token = tokens.find((t) => t.assetId === assetId);
+    const token = registry?.tokens.find((t) => t.assetId === assetId && t.blockchain === "near");
     if (!token) {
       throw new ExecutionError("not_ready", "Choose a token 1Click supports on NEAR.");
     }
@@ -108,23 +147,83 @@ export async function prepareWalletSwap(
       decimals: token.decimals,
     });
   };
-  const wrapped = find(WALLET_SWAP_INPUT);
-  const input = { ...wrapped, symbol: "NEAR", tokenSymbol: "NEAR" };
-  const output = find(request.outputAssetId);
-  const units = tokenUnits(request.amount, input.decimals);
-  const holding = await walletTokenHolding(accountId, "native:near");
-  if (BigInt(holding.spendableUnits) < units + BigInt(WRAP_STORAGE_YOCTO) + GAS_RESERVE_YOCTO) {
-    throw new ExecutionError(
-      "insufficient_funds",
-      "Your wallet doesn't have enough NEAR for this swap plus about 0.011 NEAR for fees.",
-    );
+  const asset = nativeOutput ? usdcAsset() : find(origin);
+  const input = native ? { ...asset, symbol: "NEAR", tokenSymbol: "NEAR" } : asset;
+  const destination = nativeOutput ? nativeNearAsset : find(request.outputAssetId);
+  const output =
+    destination.assetId === WALLET_SWAP_INPUT
+      ? { ...destination, symbol: "wNEAR", tokenSymbol: "wNEAR" }
+      : destination;
+  if (output.assetId === origin) {
+    if (native) {
+      throw new ExecutionError("not_ready", "This route cannot wrap native NEAR into wNEAR.");
+    }
+    throw new ExecutionError("not_ready", "Choose a different token on NEAR for this wallet swap.");
   }
+  if (!native && holding.decimals !== input.decimals) {
+    throw new ExecutionError("not_ready", "The wallet token decimals do not match the supported route.");
+  }
+  const reserve = gasReserve(nativeOutput);
+  if (!nativeOutput && storage !== null && BigInt(storage) > reserve) {
+    throw new ExecutionError("limit", "The token registration cost exceeds the supported limit.");
+  }
+  if (near) {
+    requireWalletFunds(near.units, reserve + BigInt(storage ?? "0") + 1n, "NEAR for gas");
+  }
+  const available = holding.units - (native ? reserve : 0n);
+  let units: bigint;
+  try {
+    units = tradeSizeUnits(request.amount, input.decimals, available);
+  } catch (error) {
+    if (error instanceof RangeError) {
+      throw new ExecutionError("limit", error.message);
+    }
+    throw error;
+  }
+  requireWalletFunds(available, units, input.tokenSymbol);
   const now = Date.now();
+  if (nativeOutput) {
+    const quote = await quoteRheaNative(units.toString(), request.slippageBps, request.maximumFeeBps, signal);
+    const savedQuote: WalletSwapQuote = walletSwapQuoteSchema.parse({
+      request,
+      accountId,
+      depositAddress: null,
+      depositKind: "rhea_native",
+      pairVerified: true,
+      rheaPoolId: WALLET_SWAP_RHEA_POOL,
+      rheaBlockHash: quote.blockHash,
+      input,
+      output: destination,
+      inputUnits: units.toString(),
+      outputUnits: quote.outputUnits,
+      minimumOutputUnits: quote.minimumOutputUnits,
+      appFeeBps: 0,
+      quoteHash: executionHash(quote),
+    });
+    const created = Date.now();
+    const expiresAt = created + 60_000;
+    const [row] = await db
+      .insert(walletSwaps)
+      .values({
+        id: request.requestId,
+        userId,
+        accountId,
+        quoteJson: JSON.stringify(savedQuote),
+        depositAddress: null,
+        state: "quoted",
+        expiresAt,
+        createdAt: created,
+        updatedAt: created,
+      })
+      .onConflictDoNothing()
+      .returning();
+    return view(row ?? (await ownedSwap(db, userId, request.requestId)));
+  }
   const quoteRequest: QuoteRequest = {
     dry: false,
     swapType: QuoteRequest.swapType.EXACT_INPUT,
-    slippageTolerance: request.slippageBps,
-    originAsset: WALLET_SWAP_INPUT,
+    slippageTolerance: providerSlippageBps(request.slippageBps),
+    originAsset: origin,
     destinationAsset: output.assetId,
     amount: units.toString(),
     depositType: QuoteRequest.depositType.ORIGIN_CHAIN,
@@ -136,9 +235,15 @@ export async function prepareWalletSwap(
     quoteWaitingTimeMs: 0,
     appFees: [],
   };
-  const providerQuote = await oneClickJson("/v0/quote", quoteRequest);
+  const providerQuote = await oneClickJson("/v0/quote", quoteRequest, signal);
   // The scope only labels the returned record; every routing field is checked against quoteRequest above.
-  const verified = verifiedProviderQuote(providerQuote, quoteRequest, "intents", Date.now());
+  const verified = verifiedProviderQuote(
+    providerQuote,
+    quoteRequest,
+    "intents",
+    Date.now(),
+    request.slippageBps,
+  );
   if (verified.appFeeBps > request.maximumFeeBps) {
     throw new ExecutionError(
       "limit",
@@ -146,12 +251,21 @@ export async function prepareWalletSwap(
     );
   }
   const deposit = z
-    .object({ quote: z.object({ depositAddress: z.string().min(2).max(64), deadline: z.iso.datetime() }) })
+    .object({
+      quote: z.object({
+        depositAddress: z.string().min(2).max(64),
+        deadline: z.iso.datetime(),
+        depositMemo: z.union([z.literal(""), z.null()]).optional(),
+      }),
+    })
     .parse(providerQuote).quote;
   const quote: WalletSwapQuote = walletSwapQuoteSchema.parse({
     request,
     accountId,
     depositAddress: deposit.depositAddress,
+    depositKind: native ? "native_near" : "nep141",
+    pairVerified: true,
+    ...(storage !== null ? { storageDepositUnits: storage } : {}),
     input,
     output,
     inputUnits: verified.inputUnits,
@@ -190,6 +304,33 @@ export async function beginWalletSwap(
   raw: unknown,
 ): Promise<WalletSwapView> {
   const { id } = walletSwapIdSchema.parse(raw);
+  const saved = view(await ownedSwap(db, userId, id));
+  if (saved.state === "expired" && !saved.quote.pairVerified) {
+    throw new ExecutionError("not_ready", "Request a new quote with the exact tokens.");
+  }
+  if (saved.state !== "quoted") {
+    throw new ExecutionError("conflict", "This quote expired or was already sent. Refresh the quote.");
+  }
+  const { quote } = saved;
+  const assetId = quote.request.inputAssetId ?? NATIVE_ASSET;
+  const native = assetId === NATIVE_ASSET;
+  const [asset, near] = await Promise.all([
+    walletAvailability(db, userId, quote.accountId, assetId),
+    native ? null : walletAvailability(db, userId, quote.accountId, NATIVE_ASSET),
+    quote.depositKind === "rhea_native" ? verifyRheaNativeContracts() : null,
+  ]);
+  if (!native && asset.decimals !== quote.input.decimals) {
+    throw new ExecutionError("not_ready", "Token decimals changed. Request a fresh quote.");
+  }
+  const reserve = gasReserve(quote.depositKind === "rhea_native");
+  requireWalletFunds(
+    asset.units,
+    BigInt(quote.inputUnits) + (native ? reserve : 0n),
+    quote.input.tokenSymbol,
+  );
+  if (near) {
+    requireWalletFunds(near.units, reserve + BigInt(quote.storageDepositUnits ?? "0") + 1n, "NEAR for gas");
+  }
   const now = Date.now();
   const [row] = await db
     .update(walletSwaps)
@@ -198,58 +339,47 @@ export async function beginWalletSwap(
       and(
         eq(walletSwaps.userId, userId),
         eq(walletSwaps.id, id),
-        inArray(walletSwaps.state, ["quoted", "signing"]),
+        eq(walletSwaps.state, "quoted"),
+        gt(walletSwaps.expiresAt, now),
+        sql`${walletSwaps.quoteJson}::jsonb ->> 'depositKind' IN ('native_near', 'nep141', 'rhea_native')`,
       ),
     )
     .returning();
-  if (!row || now >= row.expiresAt) {
+  if (!row) {
     throw new ExecutionError("conflict", "This quote expired or was already sent. Refresh the quote.");
   }
   return view(row, now);
 }
 
 /**
- * Records the wallet's transaction after checking its final receipt matches the reviewed swap exactly, then
- * tells 1Click about the deposit. 1Click also watches the address itself, so that notice only speeds it up.
+ * Saves a RHEA hash for receipt checks, or verifies and reports a finalized 1Click deposit.
  */
 export async function submitWalletSwap(
   db: AppDatabase,
   userId: string,
   raw: unknown,
 ): Promise<WalletSwapView> {
-  const input = walletSwapProofSchema.parse(raw);
+  const input = walletSwapSubmissionSchema.parse(raw);
   const saved = await ownedSwap(db, userId, input.id);
+  const quote = view(saved).quote;
+  if (quote.depositKind === "rhea_native") {
+    return view(await submitRheaNativeSwap(db, saved, input.transactionHash, input.fromRecovery));
+  }
   if (saved.transactionHash !== null) {
     if (saved.transactionHash !== input.transactionHash) {
       throw new ExecutionError("conflict", "This swap already belongs to another wallet transaction.");
     }
     return view(saved);
   }
-  const quote = walletSwapQuoteSchema.parse(JSON.parse(saved.quoteJson));
-  verifyWalletSwapTransaction(
-    await readFinalTransaction(input.transactionHash, quote.accountId),
-    quote,
-    input.transactionHash,
-  );
-  const now = Date.now();
-  const [row] = await db
-    .update(walletSwaps)
-    .set({ state: "submitted", transactionHash: input.transactionHash, updatedAt: now })
-    .where(
-      and(
-        eq(walletSwaps.userId, userId),
-        eq(walletSwaps.id, input.id),
-        inArray(walletSwaps.state, ["quoted", "signing"]),
-      ),
-    )
-    .returning();
-  if (!row) {
-    return view(await ownedSwap(db, userId, input.id));
+  if (saved.state !== "signing") {
+    throw new ExecutionError("conflict", "This swap is not awaiting a wallet deposit.");
   }
+  const row = await recordConfirmedDeposit(db, saved, input.transactionHash);
   try {
     await oneClickJson("/v0/deposit/submit", {
       txHash: input.transactionHash,
-      depositAddress: quote.depositAddress,
+      depositAddress: nearAccountSchema.parse(row.depositAddress),
+      nearSenderAccount: row.accountId,
     });
   } catch (error) {
     reportUnexpectedError("trading", error);
@@ -257,14 +387,50 @@ export async function submitWalletSwap(
   return view(row);
 }
 
-/** The saved swap; a submitted one is refreshed from 1Click's status for its deposit address. */
+async function recordConfirmedDeposit(db: AppDatabase, saved: Row, hash: string): Promise<Row> {
+  const quote = view(saved).quote;
+  verifyWalletSwapTransaction(await readFinalTransaction(hash, quote.accountId), quote, hash);
+  const [row] = await db
+    .update(walletSwaps)
+    .set({ state: "submitted", transactionHash: hash, updatedAt: Date.now() })
+    .where(
+      and(
+        eq(walletSwaps.userId, saved.userId),
+        eq(walletSwaps.id, saved.id),
+        eq(walletSwaps.state, "signing"),
+      ),
+    )
+    .returning();
+  const current = row ?? (await ownedSwap(db, saved.userId, saved.id));
+  if (current.transactionHash !== hash) {
+    throw new ExecutionError("conflict", "This deposit does not match the active swap.");
+  }
+  return current;
+}
+
+/** The saved swap; submitted RHEA swaps recheck NEAR, while 1Click swaps refresh by deposit address. */
 export async function readWalletSwap(db: AppDatabase, userId: string, raw: unknown): Promise<WalletSwapView> {
   const { id } = walletSwapIdSchema.parse(raw);
-  const row = await ownedSwap(db, userId, id);
-  if (row.state !== "submitted") {
+  let row = await ownedSwap(db, userId, id);
+  if (row.state !== "submitted" && row.state !== "signing") {
     return view(row);
   }
-  const status = intentsStatusSchema.parse(await readIntentsProviderStatus(row.depositAddress));
+  const quote = view(row).quote;
+  if (quote.depositKind === "rhea_native") {
+    return view(row.state === "submitted" ? await reconcileRheaNativeSwap(db, row) : row);
+  }
+  const status = intentsStatusSchema.parse(
+    await readIntentsProviderStatus(nearAccountSchema.parse(row.depositAddress)),
+  );
+  if (row.state === "signing") {
+    const hashes = status.swapDetails.originChainTxHashes;
+    const hash = hashes?.length === 1 ? hashes[0]?.hash : undefined;
+    if (!hash) {
+      return view(row);
+    }
+    const proof = walletSwapProofSchema.parse({ id, transactionHash: hash });
+    row = await recordConfirmedDeposit(db, row, proof.transactionHash);
+  }
   const terminal =
     status.status === "SUCCESS"
       ? "settled"
@@ -285,11 +451,15 @@ export async function readWalletSwap(db: AppDatabase, userId: string, raw: unkno
   return view(updated ?? (await ownedSwap(db, userId, id)));
 }
 
-/** Drops an unsigned quote. A signed swap can't be dismissed; its funds are already with 1Click. */
+/** Only quotes that have not entered wallet approval can be dismissed. */
 export async function cancelWalletSwap(db: AppDatabase, userId: string, raw: unknown): Promise<void> {
   const { id } = walletSwapIdSchema.parse(raw);
-  await db
+  const [cancelled] = await db
     .update(walletSwaps)
     .set({ state: "cancelled", updatedAt: Date.now() })
-    .where(and(eq(walletSwaps.userId, userId), eq(walletSwaps.id, id), eq(walletSwaps.state, "quoted")));
+    .where(and(eq(walletSwaps.userId, userId), eq(walletSwaps.id, id), eq(walletSwaps.state, "quoted")))
+    .returning({ id: walletSwaps.id });
+  if (!cancelled && (await ownedSwap(db, userId, id)).state !== "cancelled") {
+    throw new ExecutionError("conflict", "Approval has already started. Check the swap status.");
+  }
 }

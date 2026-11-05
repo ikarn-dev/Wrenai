@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, Eye, History, Info, LoaderCircle, Lock, MessageSquare, Plus, X } from "lucide-react";
+import { Ban, Eye, History, Info, Lock, MessageSquare, Plus, X } from "lucide-react";
 import { AlertDialog, Dialog, ScrollArea, Tooltip } from "radix-ui";
 import {
   type ReactElement,
@@ -13,10 +13,11 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { notify, useToastState } from "@/components/ui/toast";
-import { loadChatHistory, removeConversation } from "@/server/chat/actions";
+import { removeConversation } from "@/server/chat/actions";
 import { type Conversation, type ConversationSummary, MAX_CHAT_TURNS } from "@/shared/chat";
 import { chatStatus } from "@/shared/chat-status";
 import { AgentOfferPrompt, latestAgentOffer } from "./agent-offer";
+import { loadChatHistory } from "./chat-api";
 import { ChatComposer } from "./composer";
 import { ChatEmptyState } from "./empty-state";
 import { ChatHistory } from "./history";
@@ -48,7 +49,9 @@ export function ChatScreen({
   const chat = useChat(initialId, conversation, history, initialPrompt);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [deletion, setDeletion] = useState<ConversationSummary | null>(null);
-  const [managing, startTransition] = useTransition();
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [refreshing, startTransition] = useTransition();
+  const historyRead = useRef<AbortController | null>(null);
   const [, setManagementError] = useToastState("error");
   const [showStatus, setShowStatus] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
@@ -120,41 +123,51 @@ export function ChatScreen({
   }
 
   const refreshHistory = useCallback((): void => {
+    historyRead.current?.abort();
+    const request = new AbortController();
+    historyRead.current = request;
+    const before = new Map(chat.history.map((item) => [item.id, item]));
     startTransition(async () => {
       try {
-        const result = await loadChatHistory();
-        if (result.ok) {
-          chat.setHistory(result.value);
-        } else {
-          chat.setError(result.message);
+        const result = await loadChatHistory(request.signal);
+        if (!request.signal.aborted) {
+          chat.setHistory((items) => {
+            const updated = items.filter((item) => before.get(item.id) !== item);
+            const ids = new Set(updated.map((item) => item.id));
+            return [...updated, ...result.filter((item) => !ids.has(item.id))];
+          });
         }
       } catch {
-        chat.setError("Chat history could not be refreshed. Try again.");
+        if (!request.signal.aborted) {
+          chat.setError("Chat history could not be refreshed. Try again.");
+        }
       }
     });
-  }, [chat.setHistory, chat.setError]);
+  }, [chat.history, chat.setHistory, chat.setError]);
 
-  function deleteChat(): void {
-    if (!deletion) {
+  async function deleteChat(): Promise<void> {
+    if (!deletion || deleting) {
       return;
     }
     const id = deletion.id;
     setManagementError(null);
-    startTransition(async () => {
-      try {
-        const result = await removeConversation(id);
-        if (!result.ok) {
-          setManagementError(result.message);
-          return;
-        }
-        chat.setHistory((items) => items.filter((item) => item.id !== id));
-        chat.forget(id);
-        setDeletion(null);
-        notify("success", "Chat deleted.");
-      } catch {
-        setManagementError("The deletion could not be confirmed. Refresh history to check.");
+    setDeleting(id);
+    setDeletion(null);
+    try {
+      const result = await removeConversation(id);
+      if (!result.ok && result.code !== "not_found") {
+        setManagementError(result.message);
+        return;
       }
-    });
+      historyRead.current?.abort();
+      chat.setHistory((items) => items.filter((item) => item.id !== id));
+      chat.forget(id);
+      notify("success", "Chat deleted.");
+    } catch {
+      setManagementError("The deletion could not be confirmed. Refresh history to check.");
+    } finally {
+      setDeleting(null);
+    }
   }
 
   const newChat = useCallback((): void => {
@@ -163,17 +176,23 @@ export function ChatScreen({
     chat.newChat();
   }, [chat.newChat]);
 
-  const chooseDeletion = useCallback((item: ConversationSummary): void => {
-    setManagementError(null);
-    setDeletion(item);
-  }, []);
+  const chooseDeletion = useCallback(
+    (item: ConversationSummary): void => {
+      if (deleting) {
+        return;
+      }
+      setManagementError(null);
+      setDeletion(item);
+    },
+    [deleting],
+  );
   const closeHistory = useCallback((): void => setHistoryOpen(false), []);
 
   const historyProps = {
-    items: chat.history,
+    items: deleting ? chat.history.filter((item) => item.id !== deleting) : chat.history,
     onSelect: chat.select,
     currentId: chat.conversationId,
-    refreshing: managing,
+    refreshing,
     onNew: newChat,
     onRefresh: refreshHistory,
     onDelete: chooseDeletion,
@@ -413,7 +432,7 @@ export function ChatScreen({
       <AlertDialog.Root
         open={deletion !== null}
         onOpenChange={(open) => {
-          if (!open && !managing) {
+          if (!open) {
             setDeletion(null);
           }
         }}
@@ -443,30 +462,10 @@ export function ChatScreen({
             </p>
             <div className="mt-5 grid grid-cols-2 gap-2">
               <AlertDialog.Cancel asChild>
-                <Button disabled={managing}>Keep chat</Button>
+                <Button>Keep chat</Button>
               </AlertDialog.Cancel>
-              {/* Busy, not disabled, so it stays red; clicks are ignored while the delete runs. */}
-              <Button
-                variant="destructive"
-                aria-busy={managing}
-                aria-label={managing ? "Deleting chat" : undefined}
-                onClick={() => {
-                  if (!managing) {
-                    deleteChat();
-                  }
-                }}
-              >
-                {managing ? (
-                  <LoaderCircle
-                    size={16}
-                    strokeWidth={2}
-                    absoluteStrokeWidth
-                    aria-hidden="true"
-                    className="motion-safe:animate-spin"
-                  />
-                ) : (
-                  "Delete"
-                )}
+              <Button variant="destructive" onClick={() => void deleteChat()}>
+                Delete
               </Button>
             </div>
           </AlertDialog.Content>

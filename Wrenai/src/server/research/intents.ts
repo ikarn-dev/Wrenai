@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { exactToken } from "@/server/manual-trading/token-identity";
 import type { ResearchInput, ResearchItem, ResearchSource } from "@/shared/research";
 import { displayDecimal, price, tokenUnits } from "./decimal";
 import { MarketUnavailable, marketJson } from "./market-http";
@@ -81,23 +82,22 @@ export async function drySwapQuote(
   input: ResearchInput,
   signal?: AbortSignal,
 ): Promise<{ readonly item: ResearchItem; readonly sources: readonly ResearchSource[] }> {
+  const [pay, receive] = input.symbols;
+  if (!pay || !receive || input.symbols.length !== 2 || !input.amount || !input.amountAsset) {
+    throw new MarketUnavailable("An exact swap pair and input amount");
+  }
   const registry = await intentTokens(signal);
-  const origin = selectToken(registry.tokens, input.symbols[0] ?? "NEAR");
-  const destination = selectToken(registry.tokens, input.symbols[1] ?? "USDC");
+  const inputId = exactToken(registry.tokens, pay);
+  const outputId = exactToken(registry.tokens, receive);
+  const origin = registry.tokens.find((token) => token.assetId === inputId);
+  const destination = registry.tokens.find((token) => token.assetId === outputId);
   if (!origin || !destination || origin.assetId === destination.assetId) {
     throw new MarketUnavailable("This asset pair");
   }
-  if (
-    input.amountAsset &&
-    ![
-      origin.symbol.toUpperCase(),
-      origin.assetId.toUpperCase(),
-      ...(origin.assetId === "nep141:wrap.near" ? ["NEAR"] : []),
-    ].includes(input.amountAsset.toUpperCase())
-  ) {
+  if (exactToken(registry.tokens, input.amountAsset) !== origin.assetId) {
     throw new MarketUnavailable("Quote amount denomination");
   }
-  const units = tokenUnits(input.amount ?? "1", origin.decimals);
+  const units = tokenUnits(input.amount, origin.decimals);
   if (units <= 0n) {
     throw new MarketUnavailable("This amount");
   }

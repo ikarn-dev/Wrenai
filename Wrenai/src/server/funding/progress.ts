@@ -1,6 +1,6 @@
 import "server-only";
 import { and, eq, gt, isNull, ne, sql } from "drizzle-orm";
-import { agentSummary, auditAgent, ownedAgent } from "@/server/agents/records";
+import { auditAgent, ownedAgent, ownedAgentSummary } from "@/server/agents/records";
 import type { SessionUser } from "@/server/auth/session";
 import type { AppDatabase } from "@/server/db/client";
 import { executionReceipts } from "@/server/db/defi-schema";
@@ -12,26 +12,18 @@ import { readDelegatedKey } from "@/server/delegation/delegated-key";
 import { advanceLedgerAction } from "@/server/engine/ledger-action";
 import { ExecutionError } from "@/server/execution/contracts";
 import { databaseTime, ownedLedgerAction } from "@/server/execution/records";
-import type { AgentTokenBudget } from "@/shared/agent-budget";
 import { instructionFundingAsset } from "@/shared/agent-instructions";
-import type { WalletFundingView } from "@/shared/wallet-funding";
+import type { AgentFundingState } from "@/shared/wallet-funding";
 import { linkedAgentBudget, ownedWalletFunding, walletFundingView } from "./records";
 
-export interface AgentFundingState {
-  readonly authorized: boolean;
-  readonly budget: AgentTokenBudget | null;
-  readonly funding: WalletFundingView | null;
-  readonly allocatedPrivateUnits: string;
-  readonly allocatedPublicUnits: string;
-}
 export async function readFundingState(
   db: AppDatabase,
   user: SessionUser,
   agentId: string,
 ): Promise<AgentFundingState> {
-  const agent = await agentSummary(db, await ownedAgent(db, user.id, agentId)),
-    setup = await linkedAgentBudget(db, user.id, agentId);
-  const [key, rows, lots] = await Promise.all([
+  const agent = await ownedAgentSummary(db, user.id, agentId);
+  const [setup, key, rows, lots] = await Promise.all([
+    linkedAgentBudget(db, user.id, agentId),
     readDelegatedKey(user),
     db
       .select()

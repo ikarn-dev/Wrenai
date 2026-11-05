@@ -1,13 +1,16 @@
 "use client";
+import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, type ReactElement, useId, useState, useTransition } from "react";
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { Button } from "@/components/ui/button";
+import { notify } from "@/components/ui/toast";
 import { requestManualQuote, requestWalletSwap } from "@/server/manual-trading/actions";
 import { DEFAULT_SPOT_FEE_BPS } from "@/shared/manual-trading";
 import type { SpotMarketToken } from "@/shared/market-pages";
 import { decimalDisplay } from "@/shared/trading-display";
 import { WALLET_SWAP_INPUT } from "@/shared/wallet-swap";
 import { TRADING_INPUT } from "./fields";
+import { notifyQuoteFailure } from "./quote-feedback";
 import { displaySymbol, networkName } from "./spot-markets-table";
 import { Segment, SLIPPAGE, UnitField } from "./ticket-fields";
 import { TradeCard } from "./trade-card";
@@ -44,6 +47,7 @@ function TradeForm({
   readonly tokens: readonly SpotMarketToken[];
 }): ReactElement {
   const payId = useId();
+  const cache = useQueryClient();
   // Wallet swaps pay NEAR into 1Click and deliver to the same NEAR account, so they reach NEAR tokens only.
   const walletAllowed = target.blockchain === "near" && target.assetId !== WALLET_SWAP_INPUT;
   const payable = tokens.filter((t) => t.assetId !== target.assetId);
@@ -67,33 +71,43 @@ function TradeForm({
     startTransition(async () => {
       setError(null);
       const requestId = crypto.randomUUID();
-      const result =
-        source === "wallet"
-          ? await requestWalletSwap({
-              requestId,
-              amount: amount.trim(),
-              outputAssetId: target.assetId,
-              slippageBps: slippage,
-              maximumFeeBps: DEFAULT_SPOT_FEE_BPS,
-            })
-          : await requestManualQuote({
-              requestId,
-              source: "spot",
-              intent: {
-                kind: "spot",
-                inputAssetId: pay,
-                outputAssetId: target.assetId,
+      try {
+        const result =
+          source === "wallet"
+            ? await requestWalletSwap({
+                requestId,
                 amount: amount.trim(),
-                balance: "confidential",
+                outputAssetId: target.assetId,
                 slippageBps: slippage,
                 maximumFeeBps: DEFAULT_SPOT_FEE_BPS,
-              },
-            });
-      if (!result.ok) {
-        setError(result.message);
-        return;
+              })
+            : await requestManualQuote({
+                requestId,
+                source: "spot",
+                intent: {
+                  kind: "spot",
+                  inputAssetId: pay,
+                  outputAssetId: target.assetId,
+                  amount: amount.trim(),
+                  balance: "confidential",
+                  slippageBps: slippage,
+                  maximumFeeBps: DEFAULT_SPOT_FEE_BPS,
+                },
+              });
+        if (!result.ok) {
+          setError(result.message);
+          notifyQuoteFailure(result.code);
+          return;
+        }
+        if (source === "wallet") {
+          cache.setQueryData(["wallet-swap", result.value.id], result.value);
+          notify("success", "Quote ready.");
+        }
+        setQuote({ kind: source, id: result.value.id });
+      } catch {
+        setError("Couldn't get a quote. Try again.");
+        notifyQuoteFailure("unavailable");
       }
-      setQuote({ kind: source, id: result.value.id });
     });
   }
 

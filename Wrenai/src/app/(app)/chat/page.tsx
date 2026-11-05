@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { z } from "zod";
 import { ChatScreen } from "@/components/chat/screen";
 import { requireUser } from "@/server/auth/session";
+import { ChatError } from "@/server/chat/errors";
 import { listConversations, readConversationPage } from "@/server/chat/queries";
 import { database } from "@/server/db/client";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
@@ -22,15 +23,21 @@ export default async function ChatPage({
   const user = await requireUser();
   const params = await searchParams;
   const parsed = z.uuid().safeParse(params.conversation);
-  const id = parsed.success ? parsed.data : randomUUID();
   const [conversation, history] = await Promise.all([
-    parsed.success ? readConversationPage(database(), user.id, id, null) : Promise.resolve(null),
+    parsed.success
+      ? readConversationPage(database(), user.id, parsed.data, null).catch((error: unknown) => {
+          if (error instanceof ChatError && error.code === "not_found") {
+            return null;
+          }
+          throw error;
+        })
+      : Promise.resolve(null),
     listConversations(database(), user.id),
   ]);
   const tool = activeAgentToolSchema.safeParse(params.tool);
   return (
     <ChatScreen
-      initialId={id}
+      initialId={conversation?.id ?? randomUUID()}
       initialPrompt={
         !conversation
           ? z

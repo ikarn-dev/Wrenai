@@ -167,6 +167,10 @@ export function TradeCard({
               )}
             </Button>
           </div>
+        ) : trade.status === "expired" && trade.intent.kind === "spot" && !trade.pairVerified ? (
+          <p role="status" className="text-small text-fg-muted">
+            Request a new quote with the exact tokens.
+          </p>
         ) : trade.status === "expired" ? (
           <div className="grid">
             <Button type="button" variant="soft" aria-busy={busy} onClick={() => run("refresh")}>
@@ -213,7 +217,7 @@ export function TradeCard({
           </details>
           {(quoted || terminal) && canAutomate ? (
             <Link
-              href={`/agents/new?tool=${trade.intent.kind === "perps" ? "perps" : "spot_trader"}&manual=${trade.id}`}
+              href={`/agents?create=${trade.intent.kind === "perps" ? "perps" : "spot_trader"}&manual=${trade.id}`}
               className="text-caption text-accent-text hover:underline"
             >
               Automate with an agent

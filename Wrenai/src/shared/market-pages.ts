@@ -50,6 +50,14 @@ export const spotMarketViewSchema = z.strictObject({
 });
 export type SpotMarketView = z.infer<typeof spotMarketViewSchema>;
 
+/**
+ * Hyperliquid's coin icon for a Perps market. Not every market has one; a missing one falls back to the letter
+ * mark. Pure, so server and client components can both build it.
+ */
+export function perpsIcon(market: string): string {
+  return `https://app.hyperliquid.xyz/coins/${encodeURIComponent(market)}.svg`;
+}
+
 export const perpsMarketRowSchema = z.strictObject({
   name: z.string().max(40),
   mark: z.string().max(80),

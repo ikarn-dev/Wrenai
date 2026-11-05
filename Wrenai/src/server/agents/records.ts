@@ -54,15 +54,33 @@ export async function agentSummary(db: AppDatabase, row: typeof agents.$inferSel
   return summarize(row, version);
 }
 
-/** Fetch versions in one query instead of one network round trip per card. */
-export async function listAgents(db: AppDatabase, userId: string): Promise<readonly AgentSummary[]> {
-  const rows = await db
+function agentsWithVersion(db: AppDatabase) {
+  return db
     .select({ agent: agents, strategy: strategyVersions })
     .from(agents)
     .leftJoin(
       strategyVersions,
       and(eq(strategyVersions.agentId, agents.id), eq(strategyVersions.version, agents.version)),
-    )
+    );
+}
+
+export async function ownedAgentSummary(
+  db: AppDatabase,
+  userId: string,
+  agentId: string,
+): Promise<AgentSummary> {
+  const [row] = await agentsWithVersion(db)
+    .where(and(eq(agents.userId, userId), eq(agents.id, agentId), isNull(agents.deletedAt)))
+    .limit(1);
+  if (!row) {
+    throw new AgentError("not_found", "Agent not found.");
+  }
+  return summarize(row.agent, row.strategy);
+}
+
+/** Fetch versions in one query instead of one network round trip per card. */
+export async function listAgents(db: AppDatabase, userId: string): Promise<readonly AgentSummary[]> {
+  const rows = await agentsWithVersion(db)
     .where(and(eq(agents.userId, userId), isNull(agents.deletedAt)))
     .orderBy(desc(agents.createdAt));
   return rows.map(({ agent, strategy }) => summarize(agent, strategy));

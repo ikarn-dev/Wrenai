@@ -9,7 +9,7 @@ import { positiveTokenUnitsSchema } from "@/shared/token-units";
 import { tradeAssetSchema } from "@/shared/trade-preview";
 import { ExecutionError } from "../contracts";
 import type { DefiPlan } from "../defi-contracts";
-import { verifiedProviderQuote } from "../oneclick-quote";
+import { providerSlippageBps, verifiedProviderQuote } from "../oneclick-quote";
 import { executionHash, type LedgerAction } from "../records";
 import { HYPERLIQUID_BRIDGE_USDC, hlAddressSchema, perpsCashAssetId } from "./contracts";
 import { hlText } from "./decimal";
@@ -46,7 +46,7 @@ export function returnQuoteRequest(
   return {
     dry: false,
     swapType: QuoteRequest.swapType.EXACT_INPUT,
-    slippageTolerance: Math.max(0, saved.slippageBps - 1),
+    slippageTolerance: providerSlippageBps(saved.slippageBps),
     originAsset: HYPERLIQUID_BRIDGE_USDC,
     destinationAsset: saved.output.assetId,
     amount: saved.bridgeUnits,

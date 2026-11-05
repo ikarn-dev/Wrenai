@@ -5,7 +5,10 @@ vi.mock("server-only", () => ({}));
 const call = {
   id: "one",
   type: "function",
-  function: { name: "research_dca", arguments: '{"symbols":["NEAR","USDC"]}' },
+  function: {
+    name: "research_dca",
+    arguments: '{"symbols":["wNEAR","USDC"],"amount":"1","amountAsset":"wNEAR"}',
+  },
 } as const;
 
 describe("research call boundary", () => {
@@ -19,10 +22,16 @@ describe("research call boundary", () => {
   it("normalizes JSON property ordering and defaults to a shared request identity", () => {
     const first = parseResearchCalls([call])[0];
     const second = parseResearchCalls([
-      { ...call, function: { ...call.function, arguments: '{ "symbols" : ["NEAR", "USDC"] }' } },
+      {
+        ...call,
+        function: {
+          ...call.function,
+          arguments: '{ "amountAsset":"wNEAR", "amount":"1", "symbols":["wNEAR","USDC"] }',
+        },
+      },
     ])[0];
     expect(first?.key).toBe(second?.key);
-    expect(first?.arguments).toBe('{"symbols":["NEAR","USDC"]}');
+    expect(first?.arguments).toBe('{"symbols":["wNEAR","USDC"],"amount":"1","amountAsset":"wNEAR"}');
   });
   it.each([
     "{",
@@ -30,6 +39,7 @@ describe("research call boundary", () => {
     '{"symbols":["NEAR"]}',
     '{"symbols":["NEAR","USDC"],"url":"https://example.org"}',
     '{"symbols":["NEAR","USDC"],"amount":"10"}',
+    '{"symbols":["wNEAR","USDC"]}',
     '{"symbols":["NEAR","USDC"],"amount":"0","amountAsset":"NEAR"}',
   ])("rejects malformed or incomplete input %s", (args) => {
     expect(() =>

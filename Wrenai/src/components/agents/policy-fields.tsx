@@ -6,7 +6,7 @@ import { parseUsd, usdInputSchema } from "@/shared/agents";
 import { formatExactMicroUsd } from "@/shared/money";
 
 export const INPUT_CLASS =
-  "h-11 w-full rounded-sm border border-line bg-surface-2 px-3 text-body text-fg-strong placeholder:text-fg-subtle disabled:opacity-60";
+  "h-11 w-full rounded-sm border border-line-strong bg-sunken px-3 text-body text-fg-strong placeholder:text-fg-subtle disabled:text-fg-disabled";
 export function Field({
   label,
   hint,

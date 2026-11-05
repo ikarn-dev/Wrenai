@@ -1,12 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { POST } from "@/app/api/chat/route";
+import { GET, POST } from "@/app/api/chat/route";
+import { ChatError } from "@/server/chat/errors";
 import type { ChatEvent, ChatInput } from "@/shared/chat";
 
-const access = vi.hoisted(() => ({ user: vi.fn(), rate: vi.fn(), answer: vi.fn() }));
+const access = vi.hoisted(() => ({
+  user: vi.fn(),
+  rate: vi.fn(),
+  answer: vi.fn(),
+  history: vi.fn(),
+  page: vi.fn(),
+}));
 vi.mock("server-only", () => ({}));
 vi.mock("@/server/auth/session", () => ({ currentUser: access.user }));
 vi.mock("@/server/http/rate-limit", () => ({ consumeRateLimit: access.rate }));
 vi.mock("@/server/chat/service", () => ({ answerChat: access.answer }));
+vi.mock("@/server/chat/queries", () => ({
+  listConversations: access.history,
+  readConversationPage: access.page,
+}));
 vi.mock("@/server/chat/cipher", () => ({ chatCipher: () => ({}) }));
 vi.mock("@/server/db/client", () => ({ database: () => ({}) }));
 vi.mock("@/server/env", () => ({ serverEnv: () => ({ appOrigin: "https://wren.example" }) }));
@@ -86,6 +97,26 @@ describe("chat endpoint authorization and bounded input", () => {
     expect(access.answer.mock.calls[0]?.[1]).toEqual({ id: "owner", accountId: "owner.near" });
     expect(response.headers.get("content-type")).toContain("text/event-stream");
     expect(await response.text()).toContain(data.requestId);
+  });
+
+  it("reads chat history independently with private caching headers and owner-scoped pages", async () => {
+    const root = "https://wren.example/api/chat";
+    access.history.mockResolvedValueOnce([]);
+    const history = await GET(new Request(root));
+    expect(history.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(await history.json()).toEqual({ ok: true, value: [] });
+
+    access.page.mockImplementationOnce(async (_db: unknown, owner: unknown) => {
+      if (owner !== "owner") {
+        return { turns: [] };
+      }
+      throw new ChatError("not_found", "Conversation not found.");
+    });
+    const url = `${root}?conversationId=${crypto.randomUUID()}&beforeSequence=5`;
+    expect((await GET(new Request(url))).status).toBe(404);
+    access.user.mockResolvedValueOnce(null);
+    expect((await GET(new Request(root))).status).toBe(401);
+    expect((await GET(new Request(`${root}?conversationId=invalid`))).status).toBe(400);
   });
 
   it("does not return provider, database or credential error content", async () => {

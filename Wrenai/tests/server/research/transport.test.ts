@@ -34,11 +34,15 @@ describe("public research transport", () => {
       return Response.json({ quote: { amountIn: "1000000000000000000000000", amountOut: "4200000" } });
     });
     vi.stubGlobal("fetch", fetcher);
-    const result = await drySwapQuote({ symbols: ["NEAR", "USDC"], amount: "1", amountAsset: "NEAR" });
+    const result = await drySwapQuote({ symbols: ["wNEAR", "USDC"], amount: "1", amountAsset: "wNEAR" });
     expect(result.item.status).toBe("quoted");
     await expect(
-      drySwapQuote({ symbols: ["NEAR", "USDC"], amount: "10", amountAsset: "USD" }),
+      drySwapQuote({ symbols: ["wNEAR", "USDC"], amount: "10", amountAsset: "USDC" }),
     ).rejects.toThrow("denomination");
+    await expect(
+      drySwapQuote({ symbols: ["USDC", "NEAR"], amount: "1", amountAsset: "USDC" }),
+    ).rejects.toThrow("asset pair");
+    await expect(drySwapQuote({ symbols: ["USDC"] })).rejects.toThrow("exact swap pair");
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 });

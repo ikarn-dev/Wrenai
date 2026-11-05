@@ -14,11 +14,6 @@ function markClass(symbol: string): string {
   return MARKS[hash % MARKS.length] ?? MARKS[0];
 }
 
-/** Hyperliquid's coin icon for a Perps market. Not every market has one; a missing one falls back to the mark. */
-export function perpsIcon(market: string): string {
-  return `https://app.hyperliquid.xyz/coins/${encodeURIComponent(market)}.svg`;
-}
-
 interface TokenIconProps {
   readonly symbol: string;
   /**
