@@ -1,22 +1,22 @@
+import { BrainCircuit, ChartNoAxesCombined, MessageCircle, ShieldCheck, Wallet } from "lucide-react";
 import type { ReactElement } from "react";
 import { ActivitySkeleton } from "@/components/activity/skeleton";
+import { TradingAccessSkeleton } from "@/components/portfolio/access-card";
 import { MarketInsightsSkeleton } from "@/components/portfolio/market-insights";
-import { PortfolioSection } from "@/components/portfolio/panel";
+import { MarketTickerSkeleton } from "@/components/portfolio/market-ticker";
+import { PortfolioSection, StatTile } from "@/components/portfolio/panel";
 
-// Same grid as page.tsx, so nothing shifts when the data arrives.
+// The same components and grid as page.tsx with line-tall placeholders (`h-lh` in each value's own text style), so
+// nothing shifts when the real page replaces this one.
 const PANEL = "min-w-0 card-shine rounded-lg p-card";
 const BLOCK = "rounded-xs bg-surface-2 motion-safe:animate-pulse";
-const TILES = ["agents", "pnl", "limit", "telegram"] as const;
-
-function TileSkeleton(): ReactElement {
-  return (
-    <div className={`${PANEL} flex min-h-32 flex-col gap-3 p-4`}>
-      <div className={`${BLOCK} h-3 w-20`} />
-      <div className={`${BLOCK} h-5 w-28`} />
-      <div className={`${BLOCK} mt-auto h-3 w-24`} />
-    </div>
-  );
-}
+const LINE = `block h-lh ${BLOCK}`;
+const TILES = [
+  { label: "Agents", icon: BrainCircuit },
+  { label: "Realized PnL", icon: ChartNoAxesCombined },
+  { label: "Budgets", icon: ShieldCheck },
+  { label: "Telegram", icon: MessageCircle },
+] as const;
 
 function SectionSkeleton({ children }: { readonly children: ReactElement }): ReactElement {
   return (
@@ -38,20 +38,30 @@ export default function PortfolioLoading(): ReactElement {
         <div aria-hidden="true" className={`${BLOCK} h-10 w-32 pointer-coarse:h-11`} />
       </header>
       <div aria-hidden="true" className="flex min-w-0 flex-col gap-12">
-        <div className="grid gap-stack lg:grid-cols-2">
+        <div className="grid min-w-0 gap-stack lg:grid-cols-2">
           <div className="grid gap-stack sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <TileSkeleton />
+            <div className="grid sm:col-span-2">
+              <StatTile icon={Wallet} label="NEAR wallet">
+                <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                  <span className={`${LINE} w-24 font-mono text-num-xl`} />
+                  <span className={`${LINE} w-28 text-small`} />
+                </span>
+              </StatTile>
             </div>
-            {TILES.map((id) => (
-              <TileSkeleton key={id} />
+            {TILES.map((tile) => (
+              <StatTile key={tile.label} icon={tile.icon} label={tile.label}>
+                <span className={`${LINE} w-24`} />
+              </StatTile>
             ))}
           </div>
-          <div className={`${PANEL} min-h-72`} />
+          <TradingAccessSkeleton />
         </div>
         {/* The real section title and card shells: they need no data. */}
         <PortfolioSection id="insights-loading" title="Insights">
-          <MarketInsightsSkeleton />
+          <div className="flex min-w-0 flex-col gap-stack">
+            <MarketTickerSkeleton />
+            <MarketInsightsSkeleton />
+          </div>
         </PortfolioSection>
         <SectionSkeleton>
           <div className="grid gap-stack xl:grid-cols-3">

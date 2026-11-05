@@ -3,11 +3,13 @@ import { z } from "zod";
 // The Portfolio Insights cards read these over GET /api/portfolio/insights. The browser parses each response with
 // the same schema the types come from. Every figure is display-only.
 
-export const INSIGHT_CARDS = ["spot", "perps", "memecoins"] as const;
+export const INSIGHT_CARDS = ["spot", "perps", "memecoins", "ticker"] as const;
 export type InsightCard = (typeof INSIGHT_CARDS)[number];
 
-/** Rows per list. */
+/** Rows per card list. */
 export const INSIGHT_ROWS = 5;
+/** Spot coins in the ticker above the cards. */
+export const TICKER_ROWS = 20;
 
 const decimalText = z.string().regex(/^-?\d{1,30}(?:\.\d{1,18})?$/);
 
@@ -41,3 +43,8 @@ export const listInsightSchema = z.strictObject({
   rows: z.array(insightRowSchema).max(INSIGHT_ROWS),
 });
 export type ListInsight = z.infer<typeof listInsightSchema>;
+
+export const tickerInsightSchema = z.strictObject({
+  rows: z.array(insightRowSchema).max(TICKER_ROWS),
+});
+export type TickerInsight = z.infer<typeof tickerInsightSchema>;

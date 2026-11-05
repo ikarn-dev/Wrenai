@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { ReactElement } from "react";
+import { type ReactElement, Suspense } from "react";
 import { PortfolioPanel } from "@/components/portfolio/panel";
+import { ProofIntro, ProofRecordsLoading } from "@/components/proof/proof-layout";
 import { requireUser } from "@/server/auth/session";
 import { database } from "@/server/db/client";
 import { readProofReport } from "@/server/execution/proof-report";
@@ -17,24 +18,10 @@ function Hash({ value, label }: { readonly value: string | null; readonly label:
     </div>
   );
 }
-export default async function ProofPage(): Promise<ReactElement> {
-  const user = await requireUser(),
-    report = await readProofReport(database(), user.id);
+async function ProofRecords({ userId }: { readonly userId: string }): Promise<ReactElement> {
+  const report = await readProofReport(database(), userId);
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="font-display text-page-title">Proof</h1>
-        <p className="text-small text-fg-muted">
-          Inference verification and execution records for your agents.
-        </p>
-      </header>
-      <PortfolioPanel title="Verification boundary" id="verification-boundary">
-        <p className="text-small leading-relaxed text-fg-muted">
-          Strategy inference is verified against NEAR AI model TEE evidence. Trading keys are encrypted in
-          storage and used by the Vercel backend. Provider settlement records are provider assertions; they
-          are not independent public-chain proofs of confidential execution.
-        </p>
-      </PortfolioPanel>
+    <>
       <section className="flex flex-col gap-4" aria-labelledby="inference-heading">
         <h2 id="inference-heading" className="text-h3">
           Strategy inference
@@ -103,6 +90,18 @@ export default async function ProofPage(): Promise<ReactElement> {
           <p className="text-small text-fg-subtle">No execution records yet.</p>
         )}
       </section>
+    </>
+  );
+}
+
+export default async function ProofPage(): Promise<ReactElement> {
+  const user = await requireUser();
+  return (
+    <div className="flex flex-col gap-8">
+      <ProofIntro />
+      <Suspense fallback={<ProofRecordsLoading />}>
+        <ProofRecords userId={user.id} />
+      </Suspense>
     </div>
   );
 }

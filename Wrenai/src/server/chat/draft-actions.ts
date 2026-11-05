@@ -1,8 +1,7 @@
 "use server";
 import { z } from "zod";
-import { readWalletBudgets } from "@/server/agents/token-budgets";
 import { database } from "@/server/db/client";
-import { agentBudgetInputSchema, type WalletBudgetView, walletAssetSchema } from "@/shared/agent-budget";
+import { agentBudgetInputSchema } from "@/shared/agent-budget";
 import { activeAgentToolSchema } from "@/shared/agent-scope";
 import type { ChatResult } from "@/shared/chat";
 import type { AgentSetupDraft } from "@/shared/research";
@@ -64,16 +63,6 @@ export async function createAgentToolSetup(raw: unknown): Promise<ChatResult<Age
       chatCipher(),
       input.budget,
     );
-  });
-}
-
-export async function loadWalletBudgets(raw: unknown): Promise<ChatResult<WalletBudgetView>> {
-  return chatResult(async () => {
-    const user = await chatUser("manage");
-    const input = z
-      .strictObject({ excludeId: z.uuid().optional(), assetId: walletAssetSchema.optional() })
-      .parse(raw);
-    return readWalletBudgets(database(), user.id, input.excludeId, input.assetId);
   });
 }
 

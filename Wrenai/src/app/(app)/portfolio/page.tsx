@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AccountActivity } from "@/components/activity/account-activity";
 import { ActivitySkeleton } from "@/components/activity/skeleton";
-import { TradingAccessPane } from "@/components/portfolio/access-card";
+import { TradingAccessPane, TradingAccessSkeleton } from "@/components/portfolio/access-card";
 import { MarketInsights } from "@/components/portfolio/market-insights";
+import { MarketTicker } from "@/components/portfolio/market-ticker";
 import { PortfolioOverview } from "@/components/portfolio/overview";
 import { PortfolioSection } from "@/components/portfolio/panel";
 import { AgentPerformanceCard, PnlCalendarCard } from "@/components/portfolio/pnl-cards";
@@ -63,14 +64,16 @@ export default async function PortfolioPage() {
       {/* One gap token between and inside the columns; the pane stretches to the overview's height. */}
       <div className="grid min-w-0 gap-stack lg:grid-cols-2">
         <PortfolioOverview agents={agents} telegram={telegram} performance={performance} />
-        <Suspense
-          fallback={<div role="status" aria-label="Loading trading access" className={PANEL_PLACEHOLDER} />}
-        >
+        <Suspense fallback={<TradingAccessSkeleton />}>
           <Access accountId={user.accountId} keyReading={agentKey} />
         </Suspense>
       </div>
+      {/* The ticker opens the market section it belongs to, above the cards that detail it. */}
       <PortfolioSection id="insights" title="Insights">
-        <MarketInsights />
+        <div className="flex min-w-0 flex-col gap-stack">
+          <MarketTicker />
+          <MarketInsights />
+        </div>
       </PortfolioSection>
       <PortfolioSection id="agents-overview" title="Agents">
         <div className="grid min-w-0 gap-stack xl:grid-cols-3">

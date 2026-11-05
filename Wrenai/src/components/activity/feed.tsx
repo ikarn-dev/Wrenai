@@ -128,7 +128,7 @@ export function ActivityFeed({ ownerId, initial, full }: ActivityFeedProps): Rea
             />
           ) : null
         ) : (
-          <Link href="/activity" prefetch={false} className={QUIET_BUTTON}>
+          <Link href="/activity" className={QUIET_BUTTON}>
             View all activity
             <ArrowRight {...ICON} size={14} />
           </Link>

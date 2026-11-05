@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { Tooltip } from "radix-ui";
 import { type ReactElement, type ReactNode, useState } from "react";
@@ -60,6 +60,30 @@ interface NavigationItemsProps {
   readonly view: NavigationView;
 }
 
+function LinkPending({
+  label,
+  view,
+}: {
+  readonly label: string;
+  readonly view: NavigationView;
+}): ReactElement | null {
+  const { pending } = useLinkStatus();
+  if (!pending) {
+    return null;
+  }
+  return (
+    <span role="status" className="pointer-events-none absolute inset-0">
+      <span className="sr-only">Opening {label}</span>
+      {view === "expanded" ? (
+        <span
+          aria-hidden="true"
+          className="absolute inset-y-0 right-2.5 my-auto size-1.5 rounded-full bg-accent motion-safe:animate-pulse"
+        />
+      ) : null}
+    </span>
+  );
+}
+
 /** One set of routes, unavailable states and active indicators for the sidebar and mobile navigation. */
 export function NavigationItems({ items, view }: NavigationItemsProps): ReactElement {
   const pathname = usePathname();
@@ -102,12 +126,12 @@ export function NavigationItems({ items, view }: NavigationItemsProps): ReactEle
               {item.kind === "link" ? (
                 <Link
                   href={item.href}
-                  prefetch={item.href === "/activity" ? false : null}
                   aria-current={active ? "page" : undefined}
                   aria-label={view === "collapsed" ? item.label : undefined}
                   className={`relative ${className}`}
                 >
                   {contents}
+                  <LinkPending label={item.label} view={view} />
                 </Link>
               ) : (
                 // aria-disabled keeps the explanation reachable by keyboard; there is no action or route.

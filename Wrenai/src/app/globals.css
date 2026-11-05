@@ -3,6 +3,7 @@
 @import "./base.css";
 @import "./styles/surfaces.css";
 @import "./styles/chat.css";
+@import "./styles/ticker.css";
 
 /* Palette: Docs/DESIGN.md → Color. Components use the semantic tokens below, never these steps. */
 :root {

@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import type { ReactElement } from "react";
+import { type ReactElement, Suspense } from "react";
 import { AgentsInfo } from "@/components/agents/agents-info";
 import { RefreshPortfolioButton } from "@/components/portfolio/refresh-button";
 import { Badge } from "@/components/ui/badge";
@@ -13,15 +13,8 @@ interface AgentCounts {
 }
 
 /** How many agents are live, under the page title. A placeholder of the same height while the page loads. */
-function LiveCount({ counts }: { readonly counts: AgentCounts | null }): ReactElement {
-  if (counts === null) {
-    return (
-      <span
-        aria-hidden="true"
-        className="block h-6 w-40 rounded-full bg-surface-2 motion-safe:animate-pulse"
-      />
-    );
-  }
+async function LiveCount({ data }: { readonly data: Promise<AgentCounts> }): Promise<ReactElement> {
+  const counts = await data;
   return (
     <p className="flex items-center gap-2 text-small text-fg-muted">
       <Badge tone={counts.live > 0 ? "accent" : "neutral"} dot>
@@ -36,12 +29,21 @@ function LiveCount({ counts }: { readonly counts: AgentCounts | null }): ReactEl
 }
 
 /** The Agents page title, live count and actions. Without counts (the loading screen) the count is a placeholder. */
-export function AgentsHeader({ counts = null }: { readonly counts?: AgentCounts | null }): ReactElement {
+export function AgentsHeader({ counts }: { readonly counts?: Promise<AgentCounts> }): ReactElement {
+  const placeholder = (
+    <span aria-hidden="true" className="block h-6 w-40 rounded-full bg-surface-2 motion-safe:animate-pulse" />
+  );
   return (
     <header className="flex flex-wrap items-center justify-between gap-4">
       <div className="flex flex-col gap-2">
         <h1 className="font-display text-page-title">Agents</h1>
-        <LiveCount counts={counts} />
+        {counts ? (
+          <Suspense fallback={placeholder}>
+            <LiveCount data={counts} />
+          </Suspense>
+        ) : (
+          placeholder
+        )}
       </div>
       <div className="flex items-center gap-3">
         <AgentsInfo />

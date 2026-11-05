@@ -9,6 +9,8 @@ import {
   type InsightRow,
   type ListInsight,
   type SpotInsight,
+  TICKER_ROWS,
+  type TickerInsight,
 } from "@/shared/portfolio-insights";
 import { WALLET_SWAP_INPUT } from "@/shared/wallet-swap";
 
@@ -20,47 +22,55 @@ function numeric(value: string | null): number {
   return value === null ? 0 : Number(value);
 }
 
-const spotInsight = displaySnapshot(60_000, async (): Promise<SpotInsight> => {
-  const view = await spotMarketView();
-  const seen = new Set<string>();
-  const movers = view.tokens.flatMap((token): InsightRow[] => {
-    const metrics = token.metrics;
-    const change = metrics?.change["24h"] ?? null;
-    // Tokens with one CoinGecko ID are the same asset on different chains or bridges: list it once.
-    if (
-      !metrics ||
-      change === null ||
-      !token.price ||
-      numeric(metrics.volume24h) < MIN_MOVER_VOLUME_USD ||
-      seen.has(metrics.coinId)
-    ) {
-      return [];
-    }
-    seen.add(metrics.coinId);
-    return [
-      {
-        key: token.assetId,
-        symbol: token.assetId === WALLET_SWAP_INPUT ? "wNEAR" : token.tokenSymbol,
-        icon: metrics.icon,
-        price: token.price,
-        volume24h: metrics.volume24h,
-        marketCap: metrics.marketCap,
-        verdict: null,
-        change24h: change,
-      },
-    ];
-  });
-  return {
-    gainers: movers
-      .filter((row) => numeric(row.change24h) > 0)
-      .sort((a, b) => numeric(b.change24h) - numeric(a.change24h))
-      .slice(0, INSIGHT_ROWS),
-    losers: movers
-      .filter((row) => numeric(row.change24h) < 0)
-      .sort((a, b) => numeric(a.change24h) - numeric(b.change24h))
-      .slice(0, INSIGHT_ROWS),
-  };
-});
+// One spot read per minute feeds both the movers card and the ticker. The spot list covers every chain NEAR
+// Intents routes to.
+const spotSnapshot = displaySnapshot(
+  60_000,
+  async (): Promise<SpotInsight & { readonly ticker: readonly InsightRow[] }> => {
+    const view = await spotMarketView();
+    const seen = new Set<string>();
+    const priced = view.tokens.flatMap((token): InsightRow[] => {
+      const metrics = token.metrics;
+      // Tokens with one CoinGecko ID are the same asset on different chains or bridges: list it once.
+      if (!metrics || !token.price || seen.has(metrics.coinId)) {
+        return [];
+      }
+      seen.add(metrics.coinId);
+      return [
+        {
+          key: token.assetId,
+          symbol: token.assetId === WALLET_SWAP_INPUT ? "wNEAR" : token.tokenSymbol,
+          icon: metrics.icon,
+          price: token.price,
+          volume24h: metrics.volume24h,
+          marketCap: metrics.marketCap,
+          verdict: null,
+          change24h: metrics.change["24h"],
+        },
+      ];
+    });
+    const movers = priced.filter(
+      (row) => row.change24h !== null && numeric(row.volume24h) >= MIN_MOVER_VOLUME_USD,
+    );
+    return {
+      gainers: movers
+        .filter((row) => numeric(row.change24h) > 0)
+        .sort((a, b) => numeric(b.change24h) - numeric(a.change24h))
+        .slice(0, INSIGHT_ROWS),
+      losers: movers
+        .filter((row) => numeric(row.change24h) < 0)
+        .sort((a, b) => numeric(a.change24h) - numeric(b.change24h))
+        .slice(0, INSIGHT_ROWS),
+      // The most traded coins, whichever way they moved.
+      ticker: [...priced].sort((a, b) => numeric(b.volume24h) - numeric(a.volume24h)).slice(0, TICKER_ROWS),
+    };
+  },
+);
+
+async function spotInsight(): Promise<SpotInsight> {
+  const { gainers, losers } = await spotSnapshot();
+  return { gainers, losers };
+}
 
 const perpsInsight = displaySnapshot(15_000, async (): Promise<ListInsight> => {
   const markets = await perpsMarketRows();
@@ -97,7 +107,11 @@ const memecoinInsight = displaySnapshot(60_000, async (): Promise<ListInsight> =
   };
 });
 
-export async function marketInsight(card: InsightCard): Promise<SpotInsight | ListInsight> {
+async function tickerInsight(): Promise<TickerInsight> {
+  return { rows: [...(await spotSnapshot()).ticker] };
+}
+
+export async function marketInsight(card: InsightCard): Promise<SpotInsight | ListInsight | TickerInsight> {
   switch (card) {
     case "spot":
       return spotInsight();
@@ -105,6 +119,8 @@ export async function marketInsight(card: InsightCard): Promise<SpotInsight | Li
       return perpsInsight();
     case "memecoins":
       return memecoinInsight();
+    case "ticker":
+      return tickerInsight();
     default: {
       const unhandled: never = card;
       throw new Error(`Unhandled insight card: ${String(unhandled)}`);

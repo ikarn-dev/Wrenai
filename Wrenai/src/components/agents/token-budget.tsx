@@ -1,13 +1,14 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactElement, useId, useState } from "react";
+import { readTrading } from "@/components/trading/trading-api";
 import { Button } from "@/components/ui/button";
-import { loadWalletBudgets } from "@/server/chat/draft-actions";
 import {
   type AgentBudgetInput,
   budgetTokenAmount,
   MAX_AGENT_BUDGET_DECIMALS,
   nearAccountSchema,
+  walletBudgetViewSchema,
 } from "@/shared/agent-budget";
 
 interface TokenBudgetProps {
@@ -24,15 +25,12 @@ export function TokenBudget({ value, onChange, excludeId, disabled }: TokenBudge
   const [lookupError, setLookupError] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["wallet-budget", id, excludeId ?? null, extra ?? null],
-    queryFn: async () => {
-      const result = await loadWalletBudgets({
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams({
         ...(excludeId ? { excludeId } : {}),
         ...(extra ? { assetId: extra } : {}),
       });
-      if (!result.ok) {
-        throw new Error(result.message);
-      }
-      return result.value;
+      return readTrading(`/api/agents/budget?${params}`, walletBudgetViewSchema, signal);
     },
     staleTime: 0,
     gcTime: 0,

@@ -1,0 +1,45 @@
+/* The Portfolio market ticker (components/portfolio/market-ticker.tsx), built like the landing page's marquee: one
+   transform animation on a track holding the list twice. Moving it by half its width lands the second copy where
+   the first began, so the loop has no seam. Linear and slow (about 30 px per second for 20 coins) so figures stay
+   readable; transform only, on the compositor. Hovering or keyboard focus holds it still. Under reduced motion it
+   never moves: the first copy scrolls sideways by hand instead. */
+@utility ticker {
+  overflow: hidden;
+  /* Fades the coins in and out at both edges. Decoration on a moving list, not a text color. */
+  mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+  @media (prefers-reduced-motion: reduce) {
+    overflow-x: auto;
+    mask-image: none;
+  }
+}
+
+@utility ticker-track {
+  display: flex;
+  width: max-content;
+  animation: ticker-scroll 90s linear infinite;
+  &:hover,
+  &:focus-within {
+    animation-play-state: paused;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    & > [aria-hidden] {
+      display: none;
+    }
+  }
+}
+
+/* The gap also follows the last coin, so both copies are the same width and the half-way point is exact. */
+@utility ticker-list {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 1.5rem;
+  padding-inline-end: 1.5rem;
+}
+
+@keyframes ticker-scroll {
+  to {
+    transform: translateX(-50%);
+  }
+}

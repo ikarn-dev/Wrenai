@@ -47,12 +47,13 @@ function telegramValue(telegram: TelegramLinkState): ReactElement {
   }
 }
 
+/** Exactly one line of the tile's value text tall (`h-lh`), so the tile keeps its height when the value arrives. */
 function TileLoading(): ReactElement {
   return (
     <span
       role="status"
       aria-label="Loading"
-      className="inline-block h-4 w-24 rounded-xs bg-surface-2 motion-safe:animate-pulse"
+      className="block h-lh w-24 rounded-xs bg-surface-2 motion-safe:animate-pulse"
     />
   );
 }

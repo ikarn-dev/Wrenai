@@ -7,7 +7,11 @@ import type { AppDatabase } from "@/server/db/client";
 import { positionLots } from "@/server/db/position-schema";
 import { users } from "@/server/db/schema";
 import { activeNativeFunding, nativeFundingHeldUnits } from "@/server/funding/native-records";
-import { walletTokenHolding, walletTokenHoldings } from "@/server/portfolio/wallet-tokens";
+import {
+  WALLET_SCAN_TIMEOUT_MS,
+  walletTokenHolding,
+  walletTokenHoldings,
+} from "@/server/portfolio/wallet-tokens";
 import {
   type AgentBudgetInput,
   type AgentTokenBudget,
@@ -192,6 +196,7 @@ export async function readWalletBudgets(
   excludeId?: string,
   extraAsset?: string,
   cipher: ChatCipher = chatCipher(),
+  signal?: AbortSignal,
 ): Promise<WalletBudgetView> {
   const accountId = await ownerAccount(db, owner);
   const [budgets, pending] = await Promise.all([
@@ -205,7 +210,13 @@ export async function readWalletBudgets(
     ]),
   ];
   const [wallet, funded] = await Promise.all([
-    walletTokenHoldings(accountId, extras),
+    signal
+      ? walletTokenHoldings(
+          accountId,
+          extras,
+          AbortSignal.any([signal, AbortSignal.timeout(WALLET_SCAN_TIMEOUT_MS)]),
+        )
+      : walletTokenHoldings(accountId, extras),
     db
       .select({
         scope: positionLots.scope,

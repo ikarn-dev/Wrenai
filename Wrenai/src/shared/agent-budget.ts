@@ -63,6 +63,19 @@ export interface WalletBudgetView {
   /** Funded venue lots are already outside this wallet. Never subtract them from it again. */
   readonly funded: readonly { readonly scope: string; readonly assetId: string; readonly units: string }[];
 }
+const aggregateUnits = z.string().regex(/^\d{1,100}$/);
+export const walletBudgetViewSchema = z.strictObject({
+  accountId: nearAccountSchema,
+  tokens: z.array(
+    walletHoldingSchema.extend({
+      allocatedUnits: aggregateUnits,
+      availableUnits: tokenUnitsSchema,
+      deficitUnits: aggregateUnits,
+    }),
+  ),
+  note: z.string(),
+  funded: z.array(z.strictObject({ scope: z.string(), assetId: z.string(), units: aggregateUnits })).max(500),
+});
 export const BUDGET_BALANCE_MAX_AGE_MS = 15_000;
 
 /** Exact display and editable amounts; no rounding, scientific notation or USD price dependency. */

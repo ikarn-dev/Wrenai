@@ -1,6 +1,6 @@
 import { ArrowUpRight, KeyRound } from "lucide-react";
 import Link from "next/link";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { AccountLabel } from "@/components/ui/account-label";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { AgentKeyDialog } from "@/components/wallet/agent-key-dialog";
@@ -33,61 +33,73 @@ const ACTIVE_SINCE = new Intl.DateTimeFormat("en-GB", {
   timeZone: "UTC",
 });
 
-function KeyFacts({ accountId, reading }: TradingAccessPaneProps): ReactElement {
+const FACT_TERMS = ["Account", "Agent key", "Active since", "Signs for", "Network"] as const;
+type FactTerm = (typeof FACT_TERMS)[number];
+
+function FactList({ values }: { readonly values: Readonly<Record<FactTerm, ReactNode>> }): ReactElement {
   return (
     <dl className="flex flex-1 flex-col divide-y divide-line-card border-y border-line-card text-small">
-      <div className={FACT_ROW}>
-        <dt className={FACT_TERM}>Account</dt>
-        <dd className="min-w-0 text-right">
-          <AccountLabel accountId={accountId} />
-        </dd>
-      </div>
-      <div className={FACT_ROW}>
-        <dt className={FACT_TERM}>Agent key</dt>
-        {reading.state.kind === "none" ? (
-          <dd className="text-fg-muted">Not set up</dd>
-        ) : (
-          <dd className="font-mono text-fg" title={reading.state.publicKey}>
-            <span aria-hidden="true">{middleTruncate(reading.state.publicKey, 12, 6)}</span>
-            <span className="sr-only">{reading.state.publicKey}</span>
-          </dd>
-        )}
-      </div>
-      <div className={FACT_ROW}>
-        <dt className={FACT_TERM}>Active since</dt>
-        {reading.state.kind === "active" ? (
-          <dd className="text-fg">
-            <time dateTime={new Date(reading.state.activatedAt).toISOString()}>
-              {ACTIVE_SINCE.format(reading.state.activatedAt)}
-            </time>
-          </dd>
-        ) : (
-          <dd className="text-fg-muted">—</dd>
-        )}
-      </div>
-      <div className={FACT_ROW}>
-        <dt className={FACT_TERM}>Signs for</dt>
-        <dd className="text-fg">Intents account only</dd>
-      </div>
-      <div className={FACT_ROW}>
-        <dt className={FACT_TERM}>Network</dt>
-        <dd className="text-fg">NEAR mainnet</dd>
-      </div>
+      {FACT_TERMS.map((term) => (
+        <div key={term} className={FACT_ROW}>
+          <dt className={FACT_TERM}>{term}</dt>
+          {values[term]}
+        </div>
+      ))}
     </dl>
   );
 }
 
-/**
- * A showcase pane (dot grid) holding one floating card with the agent key's state and its action, the way a
- * dashboard shows its primary resource. Docs/DESIGN.md → Screens → Portfolio.
- */
-export function TradingAccessPane({ accountId, reading }: TradingAccessPaneProps): ReactElement {
-  const status = KEY_STATUS[reading.state.kind];
+function KeyFacts({ accountId, reading }: TradingAccessPaneProps): ReactElement {
   return (
-    // The dot grid shows only as a thin frame; the inner card fills the pane, so neither wastes space.
-    // 8 px frame of dot grid around one inner card (its 12 px corners sit concentric inside the pane's 20 px). Inside,
-    // one 16 px rhythm: padding, and the gap between header, facts and action. The pane stretches to the overview's
-    // height, so the action sits at the bottom and lines up with the last card on the left.
+    <FactList
+      values={{
+        Account: (
+          <dd className="min-w-0 text-right">
+            <AccountLabel accountId={accountId} />
+          </dd>
+        ),
+        "Agent key":
+          reading.state.kind === "none" ? (
+            <dd className="text-fg-muted">Not set up</dd>
+          ) : (
+            <dd className="font-mono text-fg" title={reading.state.publicKey}>
+              <span aria-hidden="true">{middleTruncate(reading.state.publicKey, 12, 6)}</span>
+              <span className="sr-only">{reading.state.publicKey}</span>
+            </dd>
+          ),
+        "Active since":
+          reading.state.kind === "active" ? (
+            <dd className="text-fg">
+              <time dateTime={new Date(reading.state.activatedAt).toISOString()}>
+                {ACTIVE_SINCE.format(reading.state.activatedAt)}
+              </time>
+            </dd>
+          ) : (
+            <dd className="text-fg-muted">—</dd>
+          ),
+        "Signs for": <dd className="text-fg">Intents account only</dd>,
+        Network: <dd className="text-fg">NEAR mainnet</dd>,
+      }}
+    />
+  );
+}
+
+// The dot grid shows only as a thin frame: an 8 px frame around one inner card (its 12 px corners sit concentric
+// inside the pane's 20 px). Inside, one 16 px rhythm: padding, and the gap between header, facts and action. The
+// pane stretches to the overview's height, so the action sits at the bottom and lines up with the last card on the
+// left. The skeleton below reuses this frame, so swapping one for the other never changes the page's height.
+function PaneFrame({
+  description,
+  badge,
+  facts,
+  action,
+}: {
+  readonly description: ReactNode;
+  readonly badge: ReactNode;
+  readonly facts: ReactNode;
+  readonly action: ReactNode;
+}): ReactElement {
+  return (
     <section
       aria-labelledby="trading-access-heading"
       className="relative flex h-full overflow-hidden card-shine rounded-lg p-2"
@@ -108,29 +120,74 @@ export function TradingAccessPane({ accountId, reading }: TradingAccessPaneProps
                 Trading access
               </h2>
             </div>
-            <Badge tone={reading.checked ? status.tone : "warn"} dot>
-              {reading.checked ? status.label : "Not verified"}
-            </Badge>
+            {badge}
           </div>
-          <p className="text-small text-fg-muted">
-            {reading.checked ? status.description : "Showing the last recorded status. Refresh to retry."}
-          </p>
+          <div className="text-small text-fg-muted">{description}</div>
         </div>
-        <KeyFacts accountId={accountId} reading={reading} />
-        <div className="grid">
-          {reading.state.kind === "active" ? (
-            <Link
-              href="/settings/trading-access"
-              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-sm bg-surface-4 text-body font-medium text-fg-strong ring-1 ring-line-strong/50 ring-inset transition-colors duration-300 ease-ios hover:bg-surface-5 pointer-coarse:h-11"
-            >
-              Manage access
-              <ArrowUpRight aria-hidden="true" size={14} strokeWidth={1.75} absoluteStrokeWidth />
-            </Link>
-          ) : (
-            <AgentKeyDialog accountId={accountId} />
-          )}
-        </div>
+        {facts}
+        <div className="grid">{action}</div>
       </div>
     </section>
+  );
+}
+
+const PULSE = "block rounded-xs bg-surface-4 motion-safe:animate-pulse";
+
+/** The pane while the key is read: the same frame, rows and action height, with line-tall placeholders. */
+export function TradingAccessSkeleton(): ReactElement {
+  const value = <dd aria-hidden="true" className={`${PULSE} h-lh w-28`} />;
+  return (
+    <div role="status" aria-label="Loading trading access" className="grid h-full">
+      <PaneFrame
+        badge={<span aria-hidden="true" className={`${PULSE} h-6 w-24 rounded-full`} />}
+        description={<span aria-hidden="true" className={`${PULSE} h-lh w-60 max-w-full`} />}
+        facts={
+          <FactList
+            values={{
+              Account: value,
+              "Agent key": value,
+              "Active since": value,
+              "Signs for": value,
+              Network: value,
+            }}
+          />
+        }
+        action={<span aria-hidden="true" className={`${PULSE} h-10 rounded-sm pointer-coarse:h-11`} />}
+      />
+    </div>
+  );
+}
+
+/**
+ * A showcase pane (dot grid) holding one floating card with the agent key's state and its action, the way a
+ * dashboard shows its primary resource. Docs/DESIGN.md → Screens → Portfolio.
+ */
+export function TradingAccessPane({ accountId, reading }: TradingAccessPaneProps): ReactElement {
+  const status = KEY_STATUS[reading.state.kind];
+  return (
+    <PaneFrame
+      badge={
+        <Badge tone={reading.checked ? status.tone : "warn"} dot>
+          {reading.checked ? status.label : "Not verified"}
+        </Badge>
+      }
+      description={
+        <p>{reading.checked ? status.description : "Showing the last recorded status. Refresh to retry."}</p>
+      }
+      facts={<KeyFacts accountId={accountId} reading={reading} />}
+      action={
+        reading.state.kind === "active" ? (
+          <Link
+            href="/settings/trading-access"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-sm bg-surface-4 text-body font-medium text-fg-strong ring-1 ring-line-strong/50 ring-inset transition-colors duration-300 ease-ios hover:bg-surface-5 pointer-coarse:h-11"
+          >
+            Manage access
+            <ArrowUpRight aria-hidden="true" size={14} strokeWidth={1.75} absoluteStrokeWidth />
+          </Link>
+        ) : (
+          <AgentKeyDialog accountId={accountId} />
+        )
+      }
+    />
   );
 }

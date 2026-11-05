@@ -56,7 +56,8 @@ export function NearAmount({ amount, compact = false, large = false }: NearAmoun
       >
         {displayNear(amount, compact)}
       </span>
-      <span aria-hidden="true" className={`text-fg-muted ${large ? "text-small" : "text-caption"}`}>
+      {/* Beside a large figure the unit steps down to small; otherwise it matches the amount's own size. */}
+      <span aria-hidden="true" className={`text-fg-muted ${large ? "text-small" : ""}`}>
         NEAR
       </span>
       <span className="sr-only">{exact} NEAR</span>
@@ -94,14 +95,16 @@ export function WalletValue(): ReactElement {
       : value && !value.complete
         ? "Partial value"
         : null;
+  // One line: the USD figure, then the NEAR balance and the other-token count on the figure's baseline. Each part
+  // holds exactly one line of its own text while loading, so the tile never changes height.
   return (
-    <span className="flex flex-col gap-1">
-      <span className="flex min-h-lh items-center font-mono text-num-xl text-fg-strong tabular-nums">
+    <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+      <span className="flex h-lh items-baseline font-mono text-num-xl text-fg-strong tabular-nums">
         {valuation.isPending ? (
           <span
             role="status"
             aria-label="Loading wallet value"
-            className="h-6 w-24 rounded-xs bg-surface-2 motion-safe:animate-pulse"
+            className="block h-lh w-24 rounded-xs bg-surface-2 motion-safe:animate-pulse"
           />
         ) : hasEstimate ? (
           formatCompactMicroUsd(BigInt(value.knownMicroUsd))
@@ -114,20 +117,20 @@ export function WalletValue(): ReactElement {
           </>
         )}
       </span>
-      <span className="flex min-h-lh flex-wrap items-baseline gap-x-2 gap-y-1 text-small">
+      <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-small text-fg-muted">
         {balance.data ? (
           <NearAmount amount={BigInt(balance.data.yocto ?? "0")} />
         ) : balance.isPending ? (
           <span
             role="status"
             aria-label="Loading NEAR balance"
-            className="block h-3.5 w-24 rounded-xs bg-surface-2 motion-safe:animate-pulse"
+            className="inline-block h-lh w-24 rounded-xs bg-surface-2 align-bottom motion-safe:animate-pulse"
           />
         ) : (
           <span className="text-fg-muted">NEAR balance unavailable</span>
         )}
-        {value?.otherTokens ? <span className="text-fg-muted">+ {value.otherTokens} more</span> : null}
-        {note ? <span className="text-caption text-fg-subtle">{note}</span> : null}
+        {value?.otherTokens ? <span>+ {value.otherTokens} more</span> : null}
+        {note ? <span className="text-fg-subtle">· {note}</span> : null}
       </span>
     </span>
   );
