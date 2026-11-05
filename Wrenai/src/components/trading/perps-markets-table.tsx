@@ -1,5 +1,5 @@
 "use client";
-import type { ReactElement } from "react";
+import { memo, type ReactElement } from "react";
 import { type PerpsMarketRow, perpsIcon } from "@/shared/market-pages";
 import { decimalDisplay } from "@/shared/trading-display";
 import { BLOCK, CELL, Change, compactUsd, HEAD, NUM, SKELETON_ROWS, TRADE_BUTTON } from "./market-cells";
@@ -12,11 +12,13 @@ export function fundingDisplay(funding: string): string {
   return decimalDisplay(funding, true).replace(/^-/, "−");
 }
 
-function Row({
+const Row = memo(function Row({
   row,
+  mark,
   onTrade,
 }: {
   readonly row: PerpsMarketRow;
+  readonly mark: string;
   readonly onTrade: (row: PerpsMarketRow) => void;
 }): ReactElement {
   return (
@@ -27,7 +29,7 @@ function Row({
           {row.name}
         </span>
       </th>
-      <td className={`${NUM} text-fg-strong`}>${decimalDisplay(row.mark)}</td>
+      <td className={`${NUM} text-fg-strong`}>${decimalDisplay(mark)}</td>
       <td className={NUM}>
         <Change value={row.change24h} />
       </td>
@@ -47,7 +49,7 @@ function Row({
       </td>
     </tr>
   );
-}
+});
 
 function SkeletonRows(): ReactElement {
   return (
@@ -77,11 +79,12 @@ function SkeletonRows(): ReactElement {
 interface PerpsMarketsTableProps {
   /** null while the first read loads. */
   readonly rows: readonly PerpsMarketRow[] | null;
+  readonly marks: ReadonlyMap<string, string> | null;
   readonly onTrade: (row: PerpsMarketRow) => void;
 }
 
 /** Hyperliquid perpetuals, flat: mark, 24 h change and volume, open interest, funding and leverage cap. */
-export function PerpsMarketsTable({ rows, onTrade }: PerpsMarketsTableProps): ReactElement {
+export function PerpsMarketsTable({ rows, marks, onTrade }: PerpsMarketsTableProps): ReactElement {
   return (
     <div className="-mx-gutter overflow-x-auto px-gutter">
       <table
@@ -109,7 +112,9 @@ export function PerpsMarketsTable({ rows, onTrade }: PerpsMarketsTableProps): Re
           {rows === null ? (
             <SkeletonRows />
           ) : (
-            rows.map((row) => <Row key={row.name} row={row} onTrade={onTrade} />)
+            rows.map((row) => (
+              <Row key={row.name} row={row} mark={marks?.get(row.name) ?? row.mark} onTrade={onTrade} />
+            ))
           )}
         </tbody>
       </table>

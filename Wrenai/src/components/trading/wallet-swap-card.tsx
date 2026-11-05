@@ -16,6 +16,7 @@ import {
   startWalletSwap,
 } from "@/server/manual-trading/actions";
 import type { TradingResult } from "@/shared/manual-trading";
+import { PORTFOLIO_WALLET_KEY } from "@/shared/portfolio-wallet";
 import {
   type WalletSwapView,
   walletSwapProofSchema,
@@ -85,12 +86,15 @@ export function WalletSwapCard({ id }: { readonly id: string }): ReactElement {
     }
     if (!observed.states.has(swap.state)) {
       observed.states.add(swap.state);
+      if (swap.state === "settled" || swap.state === "refunded") {
+        void cache.invalidateQueries({ queryKey: PORTFOLIO_WALLET_KEY });
+      }
       const notice = walletSwapNotice(swap);
       if (notice) {
         notify(notice.tone, notice.text);
       }
     }
-  }, [swap]);
+  }, [cache, swap]);
 
   useEffect(() => {
     if (readError && readError !== observedReadError.current) {

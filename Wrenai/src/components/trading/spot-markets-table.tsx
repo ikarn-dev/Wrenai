@@ -1,5 +1,5 @@
 "use client";
-import type { ReactElement } from "react";
+import { memo, type ReactElement } from "react";
 import { CopyButton } from "@/components/chat/copy-button";
 import type { ChangePeriod, SpotMarketToken } from "@/shared/market-pages";
 import { decimalDisplay } from "@/shared/trading-display";
@@ -41,7 +41,7 @@ function displayName(token: SpotMarketToken): string | undefined {
   return token.assetId === WALLET_SWAP_INPUT ? "Wrapped NEAR" : token.metrics?.name;
 }
 
-function Row({
+const Row = memo(function Row({
   token,
   period,
   onTrade,
@@ -93,7 +93,7 @@ function Row({
       </td>
     </tr>
   );
-}
+});
 
 function SkeletonRows(): ReactElement {
   return (

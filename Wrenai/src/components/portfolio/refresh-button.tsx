@@ -1,9 +1,11 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Tooltip } from "radix-ui";
 import { type ReactElement, useTransition } from "react";
+import { PORTFOLIO_WALLET_KEY } from "@/shared/portfolio-wallet";
 
 /**
  * Icon-only refresh, iOS style: a round lit control (card-shine) that dips on press. Hover turns the arrows a
@@ -12,6 +14,7 @@ import { type ReactElement, useTransition } from "react";
  */
 export function RefreshPortfolioButton(): ReactElement {
   const router = useRouter();
+  const cache = useQueryClient();
   const [pending, startTransition] = useTransition();
   return (
     <Tooltip.Provider delayDuration={300}>
@@ -23,7 +26,13 @@ export function RefreshPortfolioButton(): ReactElement {
             aria-busy={pending}
             onClick={() => {
               if (!pending) {
-                startTransition(() => router.refresh());
+                startTransition(async () => {
+                  router.refresh();
+                  await Promise.all([
+                    cache.invalidateQueries({ queryKey: PORTFOLIO_WALLET_KEY }),
+                    cache.invalidateQueries({ queryKey: ["portfolio-insight"] }),
+                  ]);
+                });
               }
             }}
             className="group inline-flex size-8 shrink-0 cursor-pointer items-center justify-center card-shine rounded-full text-fg-muted transition-[color,scale] duration-300 ease-ios hover:text-fg-strong active:scale-92 active:duration-120 aria-busy:text-fg-strong motion-reduce:active:scale-100 pointer-coarse:size-11"

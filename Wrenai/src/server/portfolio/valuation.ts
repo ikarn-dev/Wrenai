@@ -12,7 +12,7 @@ import { readPrivateBalances } from "@/server/execution/private-inventory";
 import { decimal } from "@/server/research/decimal";
 import { type IntentToken, intentTokens } from "@/server/research/intents";
 import { readPublicIntentsInventory } from "./public-intents";
-import { walletTokenHoldings } from "./wallet-tokens";
+import { WALLET_SCAN_TIMEOUT_MS, walletTokenHoldings } from "./wallet-tokens";
 
 export interface PortfolioLocationValue {
   readonly id: string;
@@ -143,6 +143,15 @@ async function walletValue(
   tokens: readonly IntentToken[],
 ): Promise<PortfolioLocationValue> {
   const holdings = await walletTokenHoldings(account);
+  return valueWalletHoldings(id, label, holdings, tokens);
+}
+
+function valueWalletHoldings(
+  id: string,
+  label: string,
+  holdings: Awaited<ReturnType<typeof walletTokenHoldings>>,
+  tokens: readonly IntentToken[],
+): PortfolioLocationValue {
   return valuedLocation(
     id,
     label,
@@ -156,6 +165,19 @@ async function walletValue(
     holdings.complete,
     holdings.complete ? "Finalized balances; reference prices" : "Token discovery is incomplete",
   );
+}
+
+/** The wallet tile depends only on finalized wallet balances and display reference prices. */
+export async function readConnectedWalletValue(
+  accountId: string,
+  signal: AbortSignal,
+): Promise<PortfolioLocationValue> {
+  const deadline = AbortSignal.any([signal, AbortSignal.timeout(WALLET_SCAN_TIMEOUT_MS)]);
+  const [holdings, registry] = await Promise.all([
+    walletTokenHoldings(accountId, [], deadline),
+    intentTokens(deadline).catch(() => null),
+  ]);
+  return valueWalletHoldings("wallet", "NEAR wallet", holdings, registry?.tokens ?? []);
 }
 async function privateValue(
   db: AppDatabase,

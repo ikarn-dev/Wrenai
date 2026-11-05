@@ -3,14 +3,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { connectedBalanceToken } from "@/server/execution/balance-session";
 import { readHlAccount } from "@/server/execution/hyperliquid/account-state";
 import { readPrivateBalances } from "@/server/execution/private-inventory";
-import { balanceReferenceValue, readPortfolioValuation } from "@/server/portfolio/valuation";
+import {
+  balanceReferenceValue,
+  readConnectedWalletValue,
+  readPortfolioValuation,
+} from "@/server/portfolio/valuation";
 import { walletTokenHoldings } from "@/server/portfolio/wallet-tokens";
 import type { IntentToken } from "@/server/research/intents";
 import { intentTokens } from "@/server/research/intents";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/server/research/intents", () => ({ intentTokens: vi.fn() }));
-vi.mock("@/server/portfolio/wallet-tokens", () => ({ walletTokenHoldings: vi.fn() }));
+vi.mock("@/server/portfolio/wallet-tokens", () => ({
+  walletTokenHoldings: vi.fn(),
+  WALLET_SCAN_TIMEOUT_MS: 15_000,
+}));
 vi.mock("@/server/execution/balance-session", () => ({ connectedBalanceToken: vi.fn() }));
 vi.mock("@/server/execution/private-inventory", () => ({ readPrivateBalances: vi.fn() }));
 vi.mock("@/server/execution/hyperliquid/account-state", async (original) => ({
@@ -106,5 +113,33 @@ describe("portfolio display estimates without financial writes", () => {
     });
     expect(readHlAccount).not.toHaveBeenCalled();
     expect(walletTokenHoldings).toHaveBeenCalledWith("stranger.near");
+  });
+
+  it("values the connected wallet independently and retains balances when reference prices fail", async () => {
+    vi.mocked(intentTokens).mockRejectedValue(new Error("Offline price registry"));
+    vi.mocked(walletTokenHoldings).mockResolvedValue({
+      tokens: [
+        {
+          assetId: usdc.assetId,
+          symbol: "USDC",
+          decimals: 6,
+          balanceUnits: "396272",
+          spendableUnits: "396272",
+          blockHeight: 1,
+          observedAt: now,
+        },
+      ],
+      complete: true,
+      note: "Offline wallet",
+    });
+    await expect(readConnectedWalletValue("owner.near", new AbortController().signal)).resolves.toMatchObject(
+      {
+        id: "wallet",
+        complete: false,
+        holdings: [{ assetId: usdc.assetId, quantity: 396272n, valueMicroUsd: null }],
+      },
+    );
+    expect(connectedBalanceToken).not.toHaveBeenCalled();
+    expect(readHlAccount).not.toHaveBeenCalled();
   });
 });

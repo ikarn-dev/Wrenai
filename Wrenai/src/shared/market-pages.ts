@@ -36,6 +36,7 @@ export const tokenMetricsSchema = z.strictObject({
 export type TokenMetrics = z.infer<typeof tokenMetricsSchema>;
 
 export const spotMarketTokenSchema = tradeAssetSchema.extend({
+  coinId: z.string().max(120).optional(),
   price: z.string().max(80).nullable(),
   /** When 1Click last updated the price (epoch ms); its token list is a cached snapshot. */
   priceUpdatedAt: z.number().int().nullable(),
@@ -49,6 +50,12 @@ export const spotMarketViewSchema = z.strictObject({
   metricsNotice: z.string().max(200).nullable(),
 });
 export type SpotMarketView = z.infer<typeof spotMarketViewSchema>;
+
+export const spotMetricsViewSchema = z.strictObject({
+  metrics: z.array(tokenMetricsSchema).max(250),
+  notice: z.string().max(200).nullable(),
+});
+export type SpotMetricsView = z.infer<typeof spotMetricsViewSchema>;
 
 /**
  * Hyperliquid's coin icon for a Perps market. Not every market has one; a missing one falls back to the letter
@@ -120,7 +127,7 @@ export const memecoinRowSchema = z.strictObject({
   /** Squint's risk score, 0 (lowest) to 100, and its grade; null until Squint grades the coin. */
   risk: z.number().int().min(0).max(100).nullable(),
   verdict: z.enum(["clean", "caution", "danger"]).nullable(),
-  /** Set when NEAR Intents lists the token, so the Spot trade dialog can swap it. */
+  /** The Memecoins screen joins the exact token to the independent NEAR Intents catalog. */
   asset: spotMarketTokenSchema.nullable(),
 });
 export type MemecoinRow = z.infer<typeof memecoinRowSchema>;

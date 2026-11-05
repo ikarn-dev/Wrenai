@@ -1,4 +1,5 @@
 import "server-only";
+import { displaySnapshot } from "@/server/manual-trading/display-snapshot";
 import { perpsMarketRows, spotMarketView } from "@/server/manual-trading/markets";
 import { memecoinView } from "@/server/manual-trading/memecoins";
 import { perpsIcon } from "@/shared/market-pages";
@@ -14,36 +15,12 @@ import { WALLET_SWAP_INPUT } from "@/shared/wallet-swap";
 // Movers below this daily volume are mostly thin markets, so they are left out.
 const MIN_MOVER_VOLUME_USD = 1_000_000;
 
-/**
- * Public market summaries, shared by every signed-in user in this warm instance for a short time. Concurrent
- * requests share one in-flight read, and a failed read is dropped so the next request retries. Display data only;
- * nothing here authorizes or prices a trade.
- */
-function shared<T>(ttlMs: number, load: () => Promise<T>): () => Promise<T> {
-  let entry: { readonly value: Promise<T>; readonly expiresAt: number } | null = null;
-  return () => {
-    const now = Date.now();
-    if (entry && entry.expiresAt > now) {
-      return entry.value;
-    }
-    const value = load();
-    const current = { value, expiresAt: now + ttlMs };
-    entry = current;
-    void value.catch(() => {
-      if (entry === current) {
-        entry = null;
-      }
-    });
-    return value;
-  };
-}
-
 /** Display-only ordering of decimal strings. */
 function numeric(value: string | null): number {
   return value === null ? 0 : Number(value);
 }
 
-const spotInsight = shared(60_000, async (): Promise<SpotInsight> => {
+const spotInsight = displaySnapshot(60_000, async (): Promise<SpotInsight> => {
   const view = await spotMarketView();
   const seen = new Set<string>();
   const movers = view.tokens.flatMap((token): InsightRow[] => {
@@ -85,7 +62,7 @@ const spotInsight = shared(60_000, async (): Promise<SpotInsight> => {
   };
 });
 
-const perpsInsight = shared(15_000, async (): Promise<ListInsight> => {
+const perpsInsight = displaySnapshot(15_000, async (): Promise<ListInsight> => {
   const markets = await perpsMarketRows();
   return {
     rows: [...markets]
@@ -104,7 +81,7 @@ const perpsInsight = shared(15_000, async (): Promise<ListInsight> => {
   };
 });
 
-const memecoinInsight = shared(60_000, async (): Promise<ListInsight> => {
+const memecoinInsight = displaySnapshot(60_000, async (): Promise<ListInsight> => {
   const view = await memecoinView("volume");
   return {
     rows: view.coins.slice(0, INSIGHT_ROWS).map((coin) => ({

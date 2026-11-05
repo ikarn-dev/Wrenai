@@ -13,22 +13,47 @@ import { requireUser } from "@/server/auth/session";
 import { database } from "@/server/db/client";
 import { readDelegatedKey } from "@/server/delegation/delegated-key";
 import { readPortfolioPerformance } from "@/server/portfolio/performance";
-import { readWalletBalance } from "@/server/portfolio/wallet-balance";
 import { readTelegramLinkState } from "@/server/telegram/linking";
 
 export const metadata: Metadata = { title: "Portfolio" };
+
+async function Access({
+  accountId,
+  keyReading,
+}: {
+  readonly accountId: string;
+  readonly keyReading: ReturnType<typeof readDelegatedKey>;
+}) {
+  return <TradingAccessPane accountId={accountId} reading={await keyReading} />;
+}
+
+async function AgentResults({
+  agents,
+  performance,
+}: {
+  readonly agents: ReturnType<typeof listAgents>;
+  readonly performance: ReturnType<typeof readPortfolioPerformance>;
+}) {
+  const [list, report] = await Promise.all([agents, performance]);
+  return (
+    <>
+      <AgentPerformanceCard agents={list} performance={report} />
+      <PnlCalendarCard performance={report} />
+    </>
+  );
+}
+
+const PANEL_PLACEHOLDER = "min-h-72 card-shine rounded-lg motion-safe:animate-pulse";
 
 // Docs/DESIGN.md → Screens → Portfolio: an overview (facts left, the trading-access pane right), then titled
 // sections of neutral cards. Mint marks only status and actions.
 export default async function PortfolioPage() {
   const user = await requireUser();
-  const [wallet, agentKey, agents, telegram, performance] = await Promise.all([
-    readWalletBalance(user.accountId),
-    readDelegatedKey(user),
-    listAgents(database(), user.id),
-    readTelegramLinkState(database(), user.id),
-    readPortfolioPerformance(database(), user.id),
-  ]);
+  const db = database();
+  const agentKey = readDelegatedKey(user);
+  const agents = listAgents(db, user.id);
+  const telegram = readTelegramLinkState(db, user.id);
+  const performance = readPortfolioPerformance(db, user.id);
   return (
     <div className="flex flex-col gap-12">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -37,16 +62,32 @@ export default async function PortfolioPage() {
       </header>
       {/* One gap token between and inside the columns; the pane stretches to the overview's height. */}
       <div className="grid min-w-0 gap-stack lg:grid-cols-2">
-        <PortfolioOverview wallet={wallet} agents={agents} telegram={telegram} performance={performance} />
-        <TradingAccessPane accountId={user.accountId} reading={agentKey} />
+        <PortfolioOverview agents={agents} telegram={telegram} performance={performance} />
+        <Suspense
+          fallback={<div role="status" aria-label="Loading trading access" className={PANEL_PLACEHOLDER} />}
+        >
+          <Access accountId={user.accountId} keyReading={agentKey} />
+        </Suspense>
       </div>
       <PortfolioSection id="insights" title="Insights">
         <MarketInsights />
       </PortfolioSection>
       <PortfolioSection id="agents-overview" title="Agents">
         <div className="grid min-w-0 gap-stack xl:grid-cols-3">
-          <AgentPerformanceCard agents={agents} performance={performance} />
-          <PnlCalendarCard performance={performance} />
+          <Suspense
+            fallback={
+              <>
+                <div
+                  role="status"
+                  aria-label="Loading agent performance"
+                  className={`${PANEL_PLACEHOLDER} xl:col-span-2`}
+                />
+                <div aria-hidden="true" className={PANEL_PLACEHOLDER} />
+              </>
+            }
+          >
+            <AgentResults agents={agents} performance={performance} />
+          </Suspense>
         </div>
       </PortfolioSection>
       <PortfolioSection id="global-activity" title="Global activity">

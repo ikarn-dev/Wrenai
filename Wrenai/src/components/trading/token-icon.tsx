@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { type ReactElement, useState } from "react";
+import { memo, type ReactElement, useState } from "react";
 
 // A quiet letter mark when a token has no icon: two neutral greys picked from the symbol, so the same token always
 // looks the same and no colour implies meaning.
@@ -25,7 +25,7 @@ interface TokenIconProps {
 }
 
 /** The token's icon, otherwise (or if it fails to load) its first letter on a round grey mark. */
-export function TokenIcon({ symbol, icon, size = 24 }: TokenIconProps): ReactElement {
+export const TokenIcon = memo(function TokenIcon({ symbol, icon, size = 24 }: TokenIconProps): ReactElement {
   const [failed, setFailed] = useState<string | null>(null);
   if (icon && failed !== icon) {
     return (
@@ -53,4 +53,4 @@ export function TokenIcon({ symbol, icon, size = 24 }: TokenIconProps): ReactEle
         .toUpperCase()}
     </span>
   );
-}
+});

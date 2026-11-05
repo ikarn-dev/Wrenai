@@ -23,15 +23,16 @@ import type {
   PerpsMarketRow,
   SpotMarketToken,
   SpotMarketView,
+  SpotMetricsView,
 } from "@/shared/market-pages";
 import { manualAvailableUnits } from "./balances";
+import { displaySnapshot } from "./display-snapshot";
 import { readManualPreview } from "./service";
 import { manualSubject } from "./subject";
 import { tokenMetrics } from "./token-metrics";
 
-export async function spotMarketView(): Promise<SpotMarketView> {
+export const spotMarketCatalog = displaySnapshot(15_000, async (): Promise<SpotMarketView> => {
   const tokens = (await intentTokens()).tokens.filter((t) => /^nep141:[a-z0-9._-]+$/.test(t.assetId));
-  const snapshot = await tokenMetrics(tokens.flatMap((t) => (t.coingeckoId ? [t.coingeckoId] : [])));
   const seen = new Set<string>();
   const rows = tokens.flatMap((t): SpotMarketToken[] => {
     if (seen.has(t.assetId)) {
@@ -42,15 +43,38 @@ export async function spotMarketView(): Promise<SpotMarketView> {
     return [
       {
         ...registryTradeAsset(t),
+        ...(t.coingeckoId ? { coinId: t.coingeckoId } : {}),
         price: t.price ?? null,
         priceUpdatedAt: Number.isFinite(updated) ? updated : null,
-        metrics: (t.coingeckoId && snapshot.byId.get(t.coingeckoId)) || null,
+        metrics: null,
       },
     ];
   });
-  return { tokens: rows.slice(0, 1000), metricsNotice: snapshot.notice };
+  return { tokens: rows.slice(0, 1000), metricsNotice: null };
+});
+
+async function metricsFor(tokens: readonly SpotMarketToken[]) {
+  return tokenMetrics(tokens.flatMap((token) => (token.coinId ? [token.coinId] : [])));
 }
-export async function perpsMarketRows(): Promise<readonly PerpsMarketRow[]> {
+
+export async function spotMarketMetrics(): Promise<SpotMetricsView> {
+  const catalog = await spotMarketCatalog();
+  const snapshot = await metricsFor(catalog.tokens);
+  return { metrics: [...snapshot.byId.values()], notice: snapshot.notice };
+}
+
+export async function spotMarketView(): Promise<SpotMarketView> {
+  const catalog = await spotMarketCatalog();
+  const snapshot = await metricsFor(catalog.tokens);
+  return {
+    tokens: catalog.tokens.map((token) => ({
+      ...token,
+      metrics: token.coinId ? (snapshot.byId.get(token.coinId) ?? null) : null,
+    })),
+    metricsNotice: snapshot.notice,
+  };
+}
+export const perpsMarketRows = displaySnapshot(5_000, async (): Promise<readonly PerpsMarketRow[]> => {
   const [meta, contexts] = z
     .tuple([
       z.object({ universe: z.array(hlMarketSchema).max(2000) }),
@@ -91,7 +115,7 @@ export async function perpsMarketRows(): Promise<readonly PerpsMarketRow[]> {
       },
     ];
   });
-}
+});
 export async function manualAccountView(db: AppDatabase, userId: string): Promise<ManualAccountView> {
   const subjectId = await manualSubject(db, userId),
     root = await activeTradingAccount(db, userId),

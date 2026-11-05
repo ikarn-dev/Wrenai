@@ -1,7 +1,13 @@
+"use client";
+import { useQuery } from "@tanstack/react-query";
 import type { ReactElement } from "react";
-import { currentPortfolioValuation } from "@/server/portfolio/current-valuation";
-import type { WalletBalanceReading } from "@/server/portfolio/wallet-balance";
+import { readTrading } from "@/components/trading/trading-api";
 import { formatCompactMicroUsd, formatUnits } from "@/shared/money";
+import {
+  PORTFOLIO_WALLET_KEY,
+  walletBalanceViewSchema,
+  walletValueViewSchema,
+} from "@/shared/portfolio-wallet";
 
 const NEAR_DECIMALS = 24;
 const MIN_DISPLAY_AMOUNT = 10n ** 20n;
@@ -58,67 +64,71 @@ export function NearAmount({ amount, compact = false, large = false }: NearAmoun
   );
 }
 
-const ROW = "flex flex-wrap items-baseline gap-x-5 gap-y-1";
+const UPDATE_MS = 15_000;
+const walletRead = {
+  staleTime: UPDATE_MS,
+  refetchInterval: UPDATE_MS,
+  refetchIntervalInBackground: false,
+  refetchOnWindowFocus: true,
+  retry: false,
+} as const;
 
-function NearHoldings({
-  wallet,
-  others,
-  large = false,
-}: {
-  readonly wallet: WalletBalanceReading;
-  readonly others: number;
-  readonly large?: boolean;
-}): ReactElement {
+/** Native balance renders independently of token discovery and keeps its last successful value during refresh. */
+export function WalletValue(): ReactElement {
+  const balance = useQuery({
+    ...walletRead,
+    queryKey: [...PORTFOLIO_WALLET_KEY, "balance"],
+    queryFn: ({ signal }) =>
+      readTrading("/api/portfolio/wallet?view=balance", walletBalanceViewSchema, signal),
+  });
+  const valuation = useQuery({
+    ...walletRead,
+    queryKey: [...PORTFOLIO_WALLET_KEY, "value"],
+    queryFn: ({ signal }) => readTrading("/api/portfolio/wallet?view=value", walletValueViewSchema, signal),
+  });
+  const value = valuation.data;
+  const hasEstimate = value && (value.complete || value.knownMicroUsd !== "0");
+  const note =
+    balance.isError || valuation.isError
+      ? "Refresh unavailable"
+      : value && !value.complete
+        ? "Partial value"
+        : null;
   return (
-    <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
-      {wallet.kind === "unavailable" ? (
-        <span className="text-fg-muted">NEAR balance unavailable</span>
-      ) : (
-        <NearAmount amount={wallet.kind === "balance" ? wallet.yocto : 0n} large={large} />
-      )}
-      {others > 0 ? <span className="text-small text-fg-muted">+ {others} more</span> : null}
-    </span>
-  );
-}
-
-/** While the wallet's tokens and prices load: the NEAR balance, with the USD figure's space held. */
-export function WalletValueSkeleton({ wallet }: { readonly wallet: WalletBalanceReading }): ReactElement {
-  return (
-    <span className={ROW}>
-      <span
-        role="status"
-        aria-label="Loading wallet value"
-        className="block h-lh w-28 rounded-xs bg-surface-2 text-num-xl motion-safe:animate-pulse"
-      />
-      <NearHoldings wallet={wallet} others={0} />
-    </span>
-  );
-}
-
-/**
- * The wallet's value in USD across every token it holds, then its NEAR balance and how many other tokens it
- * holds. When no token could be priced, the NEAR balance is the figure instead of a misleading $0.00.
- */
-export async function WalletValue({
-  wallet,
-}: {
-  readonly wallet: WalletBalanceReading;
-}): Promise<ReactElement> {
-  const location = (await currentPortfolioValuation()).locations.find((item) => item.id === "wallet");
-  const others = location?.holdings.filter((holding) => holding.assetId !== "native:near").length ?? 0;
-  if (!location || (location.knownMicroUsd === 0n && !location.complete)) {
-    return (
-      <span className={ROW}>
-        <NearHoldings wallet={wallet} others={others} large />
+    <span className="flex flex-col gap-1">
+      <span className="flex min-h-lh items-center font-mono text-num-xl text-fg-strong tabular-nums">
+        {valuation.isPending ? (
+          <span
+            role="status"
+            aria-label="Loading wallet value"
+            className="h-6 w-24 rounded-xs bg-surface-2 motion-safe:animate-pulse"
+          />
+        ) : hasEstimate ? (
+          formatCompactMicroUsd(BigInt(value.knownMicroUsd))
+        ) : (
+          <>
+            <span aria-hidden="true" className="text-fg-subtle">
+              —
+            </span>
+            <span className="sr-only">Wallet value unavailable</span>
+          </>
+        )}
       </span>
-    );
-  }
-  return (
-    <span className={ROW}>
-      <span className="font-mono text-num-xl tabular-nums text-fg-strong">
-        {formatCompactMicroUsd(location.knownMicroUsd)}
+      <span className="flex min-h-lh flex-wrap items-baseline gap-x-2 gap-y-1 text-small">
+        {balance.data ? (
+          <NearAmount amount={BigInt(balance.data.yocto ?? "0")} />
+        ) : balance.isPending ? (
+          <span
+            role="status"
+            aria-label="Loading NEAR balance"
+            className="block h-3.5 w-24 rounded-xs bg-surface-2 motion-safe:animate-pulse"
+          />
+        ) : (
+          <span className="text-fg-muted">NEAR balance unavailable</span>
+        )}
+        {value?.otherTokens ? <span className="text-fg-muted">+ {value.otherTokens} more</span> : null}
+        {note ? <span className="text-caption text-fg-subtle">{note}</span> : null}
       </span>
-      <NearHoldings wallet={wallet} others={others} />
     </span>
   );
 }

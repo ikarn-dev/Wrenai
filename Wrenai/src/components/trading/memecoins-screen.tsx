@@ -1,7 +1,8 @@
 "use client";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
-import { type ReactElement, useState } from "react";
+import dynamic from "next/dynamic";
+import { type ReactElement, useCallback, useDeferredValue, useMemo, useState } from "react";
 import {
   type MemecoinRow,
   type MemecoinSort,
@@ -10,7 +11,7 @@ import {
   spotMarketViewSchema,
 } from "@/shared/market-pages";
 import { MemecoinsTable } from "./memecoins-table";
-import { SpotTradeDialog } from "./spot-trade-dialog";
+import { MARKET_PAGE_SIZE, MoreMarketRows } from "./more-market-rows";
 import { readTrading } from "./trading-api";
 
 const SORTS: readonly { readonly id: MemecoinSort; readonly label: string }[] = [
@@ -21,6 +22,7 @@ const SORTS: readonly { readonly id: MemecoinSort; readonly label: string }[] = 
 ];
 const PILL =
   "h-8 cursor-pointer rounded-full px-3 text-small transition-colors duration-200 ease-ios pointer-coarse:h-11";
+const SpotTradeDialog = dynamic(() => import("./spot-trade-dialog").then((module) => module.SpotTradeDialog));
 
 /**
  * Memecoins on NEAR from Squint's coin index, one sort at a time. Coins NEAR Intents lists open the Spot trade
@@ -29,6 +31,7 @@ const PILL =
 export function MemecoinsScreen(): ReactElement {
   const [sort, setSort] = useState<MemecoinSort>("mcap"),
     [search, setSearch] = useState(""),
+    [limit, setLimit] = useState(MARKET_PAGE_SIZE),
     [target, setTarget] = useState<SpotMarketToken | null>(null);
   const coins = useQuery({
     queryKey: ["memecoins", sort],
@@ -46,16 +49,24 @@ export function MemecoinsScreen(): ReactElement {
     staleTime: 15000,
     retry: false,
   });
-  const needle = search.trim().toLowerCase();
-  const rows = coins.data
-    ? coins.data.coins.filter((c) => `${c.symbol} ${c.name} ${c.token}`.toLowerCase().includes(needle))
-    : null;
+  const needle = useDeferredValue(search.trim().toLowerCase());
+  const listed = useMemo(
+    () => new Map(registry.data?.tokens.map((token) => [token.assetId, token])),
+    [registry.data],
+  );
+  const rows = useMemo(
+    () =>
+      coins.data?.coins
+        .filter((coin) => `${coin.symbol} ${coin.name} ${coin.token}`.toLowerCase().includes(needle))
+        .map((coin) => ({ ...coin, asset: listed.get(`nep141:${coin.token}`) ?? null })) ?? null,
+    [coins.data, listed, needle],
+  );
 
-  function trade(coin: MemecoinRow): void {
+  const trade = useCallback((coin: MemecoinRow): void => {
     if (coin.asset) {
       setTarget(coin.asset);
     }
-  }
+  }, []);
 
   return (
     <div className="flex min-w-0 flex-col gap-8">
@@ -71,7 +82,10 @@ export function MemecoinsScreen(): ReactElement {
                 key={option.id}
                 type="button"
                 aria-pressed={sort === option.id}
-                onClick={() => setSort(option.id)}
+                onClick={() => {
+                  setSort(option.id);
+                  setLimit(MARKET_PAGE_SIZE);
+                }}
                 className={`${PILL} ${sort === option.id ? "bg-surface-3 font-medium text-fg-strong" : "text-fg-muted hover:text-fg-strong"}`}
               >
                 {option.label}
@@ -90,7 +104,10 @@ export function MemecoinsScreen(): ReactElement {
             <input
               type="search"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setLimit(MARKET_PAGE_SIZE);
+              }}
               placeholder="Search memecoins"
               className="w-full min-w-0 bg-transparent text-small text-fg-strong outline-none placeholder:text-fg-subtle"
             />
@@ -105,10 +122,21 @@ export function MemecoinsScreen(): ReactElement {
             {needle ? `No memecoin matches “${search.trim()}”.` : "No memecoins listed right now."}
           </p>
         ) : (
-          <MemecoinsTable coins={rows} now={coins.dataUpdatedAt} onTrade={trade} />
+          <MemecoinsTable coins={rows?.slice(0, limit) ?? null} now={coins.dataUpdatedAt} onTrade={trade} />
         )}
+        <MoreMarketRows
+          shown={limit}
+          total={rows?.length ?? 0}
+          onMore={() => setLimit((size) => size + MARKET_PAGE_SIZE)}
+        />
       </section>
-      <SpotTradeDialog target={target} tokens={registry.data?.tokens ?? []} onClose={() => setTarget(null)} />
+      {target ? (
+        <SpotTradeDialog
+          target={target}
+          tokens={registry.data?.tokens ?? []}
+          onClose={() => setTarget(null)}
+        />
+      ) : null}
     </div>
   );
 }

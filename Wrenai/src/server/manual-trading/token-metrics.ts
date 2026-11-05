@@ -99,7 +99,9 @@ async function load(ids: readonly string[], apiKey: string): Promise<MetricsSnap
 }
 
 function fallback(): MetricsSnapshot {
-  return lastGood && Date.now() - (lastGood.observedAt ?? 0) < KEEP_MS ? lastGood : EMPTY;
+  return lastGood && Date.now() - (lastGood.observedAt ?? 0) < KEEP_MS
+    ? { ...lastGood, notice: "Some market statistics are delayed." }
+    : EMPTY;
 }
 
 /** Market figures by CoinGecko ID. 1Click's "custom:" IDs aren't CoinGecko coins and are skipped. */
@@ -114,6 +116,9 @@ export async function tokenMetrics(coingeckoIds: readonly string[]): Promise<Met
   }
   if (ids.length === 0) {
     return { ...EMPTY, notice: null };
+  }
+  if (lastGood && Date.now() - (lastGood.observedAt ?? 0) < FRESH_MS) {
+    return lastGood;
   }
   if (Date.now() - failedAt < COOLDOWN_MS) {
     return fallback();

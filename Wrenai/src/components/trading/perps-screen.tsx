@@ -1,15 +1,20 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
-import { type ReactElement, useState } from "react";
+import dynamic from "next/dynamic";
+import { type ReactElement, useDeferredValue, useMemo, useState } from "react";
 import { z } from "zod";
 import { type PerpsMarketRow, perpsMarketRowSchema } from "@/shared/market-pages";
-import { PerpsAccount } from "./perps-account";
+import { MARKET_PAGE_SIZE, MoreMarketRows } from "./more-market-rows";
 import { PerpsMarketsTable } from "./perps-markets-table";
-import { PerpsTradeDialog } from "./perps-trade-dialog";
 import { readTrading } from "./trading-api";
+import { usePerpsMarks } from "./use-perps-marks";
 
 const PERPS_ROWS = z.array(perpsMarketRowSchema).max(2000);
+const PerpsTradeDialog = dynamic(() =>
+  import("./perps-trade-dialog").then((module) => module.PerpsTradeDialog),
+);
+const PerpsAccount = dynamic(() => import("./perps-account").then((module) => module.PerpsAccount));
 type Tab = "markets" | "account";
 
 const PILL =
@@ -27,24 +32,31 @@ function byVolume(a: PerpsMarketRow, b: PerpsMarketRow): number {
 export function PerpsScreen({ accountId }: { readonly accountId: string }): ReactElement {
   const [tab, setTab] = useState<Tab>("markets"),
     [search, setSearch] = useState(""),
+    [limit, setLimit] = useState(MARKET_PAGE_SIZE),
     [target, setTarget] = useState<PerpsMarketRow | null>(null);
+  const marks = usePerpsMarks(tab === "markets");
   const query = useQuery({
     queryKey: ["perps-markets"],
     queryFn: ({ signal }) => readTrading("/api/trading/perps-markets", PERPS_ROWS, signal),
     staleTime: 5000,
     refetchInterval: 10000,
+    enabled: tab === "markets",
     retry: false,
   });
   const rows = query.data;
-  const needle = search.trim().toLowerCase();
-  const traded = rows?.filter((r) => r.volume24h !== "0");
-  const shown = traded?.filter((r) => r.name.toLowerCase().includes(needle)).toSorted(byVolume) ?? null;
+  const needle = useDeferredValue(search.trim().toLowerCase());
+  const traded = useMemo(() => rows?.filter((row) => row.volume24h !== "0").sort(byVolume), [rows]);
+  const shown = useMemo(
+    () => traded?.filter((row) => row.name.toLowerCase().includes(needle)) ?? null,
+    [traded, needle],
+  );
   // The dialog follows the latest prices while it stays open on the same market.
   const live = target ? (rows?.find((r) => r.name === target.name) ?? target) : null;
   const tabs = [
     { id: "markets", label: traded ? `Markets ${traded.length}` : "Markets" },
     { id: "account", label: "Account" },
   ] as const;
+  const feed = marks ? "Live marks" : query.isError ? "Last snapshot" : "Snapshot prices";
 
   return (
     <div className="flex min-w-0 flex-col gap-8">
@@ -66,6 +78,9 @@ export function PerpsScreen({ accountId }: { readonly accountId: string }): Reac
                 {t.label}
               </button>
             ))}
+            {tab === "markets" && rows ? (
+              <span className="ml-2 whitespace-nowrap text-caption text-fg-subtle">{feed}</span>
+            ) : null}
           </div>
           {tab === "markets" ? (
             <label className="flex h-9 w-full max-w-64 items-center gap-2 rounded-full bg-sunken px-3 ring-1 ring-line-strong ring-inset focus-within:ring-2 focus-within:ring-accent pointer-coarse:h-11">
@@ -80,7 +95,10 @@ export function PerpsScreen({ accountId }: { readonly accountId: string }): Reac
               <input
                 type="search"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setLimit(MARKET_PAGE_SIZE);
+                }}
                 placeholder="Search markets"
                 className="w-full min-w-0 bg-transparent text-small text-fg-strong outline-none placeholder:text-fg-subtle"
               />
@@ -96,10 +114,17 @@ export function PerpsScreen({ accountId }: { readonly accountId: string }): Reac
         ) : shown && shown.length === 0 ? (
           <p className="py-6 text-small text-fg-muted">No market matches “{search.trim()}”.</p>
         ) : (
-          <PerpsMarketsTable rows={shown} onTrade={setTarget} />
+          <PerpsMarketsTable rows={shown?.slice(0, limit) ?? null} marks={marks} onTrade={setTarget} />
         )}
+        {tab === "markets" ? (
+          <MoreMarketRows
+            shown={limit}
+            total={shown?.length ?? 0}
+            onMore={() => setLimit((size) => size + MARKET_PAGE_SIZE)}
+          />
+        ) : null}
       </section>
-      <PerpsTradeDialog target={live} onClose={() => setTarget(null)} />
+      {live ? <PerpsTradeDialog target={live} onClose={() => setTarget(null)} /> : null}
     </div>
   );
 }

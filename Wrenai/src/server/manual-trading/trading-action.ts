@@ -7,7 +7,9 @@ import { reportUnexpectedError } from "@/server/http/unexpected-error";
 import type { TradingResult } from "@/shared/manual-trading";
 
 /** Signed in, rate-limited and mapped to a stable code: shared by the trading Server Actions and GET routes. */
-export async function tradingAction<T>(run: (userId: string) => Promise<T>): Promise<TradingResult<T>> {
+export async function tradingAction<T>(
+  run: (userId: string, accountId: string) => Promise<T>,
+): Promise<TradingResult<T>> {
   const user = await currentUser();
   if (!user) {
     return { ok: false, code: "signed_out", message: "Sign in before trading." };
@@ -21,7 +23,7 @@ export async function tradingAction<T>(run: (userId: string) => Promise<T>): Pro
     };
   }
   try {
-    return { ok: true, value: await run(user.id) };
+    return { ok: true, value: await run(user.id, user.accountId) };
   } catch (error) {
     if (error instanceof ExecutionError) {
       return { ok: false, code: error.code, message: error.message };
@@ -62,7 +64,9 @@ function status(code: string): number {
  * time per client, so polled reads would queue behind each other and hold navigation (Next 16 docs, Server
  * Actions → Sequential dispatch on the client).
  */
-export async function tradingRead<T>(run: (userId: string) => Promise<T>): Promise<Response> {
+export async function tradingRead<T>(
+  run: (userId: string, accountId: string) => Promise<T>,
+): Promise<Response> {
   const result = await tradingAction(run);
   return Response.json(result, {
     status: result.ok ? 200 : status(result.code),
