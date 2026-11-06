@@ -15,7 +15,9 @@ import { preparePaymentExecution } from "@/server/execution/payment-order";
 import { preparePerpsFunding } from "@/server/execution/perps-funding-order";
 import { databaseTime } from "@/server/execution/records";
 import { prepareRheaAgentSwap } from "@/server/execution/rhea/agent-order";
+import { NearRpcError } from "@/server/near/rpc";
 import { ExplorerFeedPending } from "@/server/research/explorer-contracts";
+import { MarketUnavailable } from "@/server/research/market-http";
 import { advanceLedgerAction } from "./ledger-action";
 import { planStrategyCheck, type StrategyCheckPlan } from "./planning";
 import { claimStrategyCheck, finishStrategyCheck, readAgentRuntime, recordStrategyProgress } from "./runtime";
@@ -64,7 +66,7 @@ export async function checkAgentCycle(
     .limit(1);
   if (pending) {
     return Math.min(
-      await advanceLedgerAction(db, runtime.userId, pending.id),
+      await advanceOrWait(db, runtime.userId, pending.id),
       marketCheckSeconds(agent?.pack ?? ""),
     );
   }
@@ -152,20 +154,23 @@ export async function checkAgentCycle(
           : "Checking the reserved trade before submission.";
     }
   } catch (error) {
-    if (
+    if (error instanceof MarketUnavailable || error instanceof NearRpcError) {
+      reason = "Live data is temporarily unavailable. The agent will check again.";
+    } else if (
       !(error instanceof ExecutionError) &&
       !(error instanceof AgentError) &&
       !(error instanceof z.ZodError)
     ) {
       throw error;
-    }
-    reason =
-      error instanceof z.ZodError
-        ? "The reviewed strategy or provider data could not be validated."
-        : error.message;
-    failed = error instanceof z.ZodError || error.code === "not_ready";
-    if (error instanceof ExplorerFeedPending) {
-      intervalSeconds = 5;
+    } else {
+      reason =
+        error instanceof z.ZodError
+          ? "The reviewed strategy or provider data could not be validated."
+          : error.message;
+      failed = error instanceof z.ZodError || error.code === "not_ready";
+      if (error instanceof ExplorerFeedPending) {
+        intervalSeconds = 5;
+      }
     }
   }
   const delay = Math.min(intervalSeconds, marketCheckSeconds(agent.pack));
@@ -181,5 +186,17 @@ export async function checkAgentCycle(
   if (progress?.completed) {
     return perpsPosition && perpsPosition.quantity !== "0" ? 5 : null;
   }
-  return actionId === null ? delay : advanceLedgerAction(db, runtime.userId, actionId);
+  return actionId === null ? delay : advanceOrWait(db, runtime.userId, actionId);
+}
+
+/** A price-feed or RPC outage keeps the action as saved and checks it again; it never ends the lifecycle. */
+async function advanceOrWait(db: AppDatabase, userId: string, actionId: string): Promise<number> {
+  try {
+    return await advanceLedgerAction(db, userId, actionId);
+  } catch (error) {
+    if (error instanceof MarketUnavailable || error instanceof NearRpcError) {
+      return 5;
+    }
+    throw error;
+  }
 }

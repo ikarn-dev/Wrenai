@@ -9,10 +9,15 @@ import { userTransaction } from "@/server/db/user-transaction";
 import { currentAgentStrategy } from "@/server/execution/asset-review";
 import { ExecutionError } from "@/server/execution/contracts";
 import { databaseTime, executionHash } from "@/server/execution/records";
+import { quoteRhea } from "@/server/execution/rhea/quote";
 import { manualSubject } from "@/server/manual-trading/subject";
 import { callViewFunction } from "@/server/near/rpc";
 import { walletTokenHolding } from "@/server/portfolio/wallet-tokens";
+import { committedCapital } from "@/server/positions/capital-records";
 import { activeTradingAccount } from "@/server/trading-accounts/vault";
+import { nativeNearAsset, usdcAsset } from "@/server/wallet-swap/rhea-native";
+import { instructionFundingAsset, usesNativeNearPayout } from "@/shared/agent-instructions";
+import { parseUsd, policySchema } from "@/shared/agents";
 import {
   NATIVE_FUNDING_GAS,
   type NativeFundingView,
@@ -20,6 +25,7 @@ import {
   nativeFundingSnapshotSchema,
 } from "@/shared/native-funding";
 import { parseTokenAmount, positiveTokenUnitsSchema } from "@/shared/token-units";
+import { WALLET_SWAP_RHEA_POOL, WALLET_SWAP_USDC } from "@/shared/wallet-swap";
 import { activeNativeFunding, nativeFundingView } from "./native-records";
 import { linkedAgentBudget } from "./records";
 
@@ -65,6 +71,10 @@ export async function prepareNativeFunding(
   if (BigInt(storage.min) > 10n ** 22n) {
     throw new ExecutionError("limit", "This token's registration cost is above the supported funding limit.");
   }
+  const fundingQuote =
+    input.agentId && assetId === WALLET_SWAP_USDC
+      ? await quoteRhea(usdcAsset(), nativeNearAsset, units.toString(), 1, WALLET_SWAP_RHEA_POOL)
+      : null;
   return userTransaction(db, user.id, async (tx) => {
     const existing = await activeNativeFunding(tx, user.id);
     if (existing) {
@@ -95,8 +105,8 @@ export async function prepareNativeFunding(
     if (input.agentId) {
       const agent = await ownedAgent(tx, user.id, input.agentId),
         strategy = (await currentAgentStrategy(tx, user.id, input.agentId, agent.revision)).strategy;
-      if (agent.status === "running" || agent.pack !== "meme_hunter") {
-        throw new ExecutionError("not_ready", "Pause the Meme Hunter before funding its native allocation.");
+      if (agent.status === "running") {
+        throw new ExecutionError("not_ready", "Pause the agent before funding its public trading balance.");
       }
       const setup = await linkedAgentBudget(tx, user.id, agent.id);
       if (
@@ -109,11 +119,23 @@ export async function prepareNativeFunding(
           "Fund the exact remaining token budget selected for this agent.",
         );
       }
-      if (strategy.kind !== "meme_hunter" || strategy.payAssetId !== assetId) {
+      const oldHunter = strategy.kind === "meme_hunter" && strategy.payAssetId === "nep141:wrap.near";
+      const exactPublicSwap =
+        "format" in strategy &&
+        usesNativeNearPayout(strategy) &&
+        instructionFundingAsset(strategy) === input.assetId;
+      if (!exactPublicSwap && !(oldHunter && strategy.payAssetId === assetId)) {
         throw new ExecutionError(
           "not_ready",
-          "Native hunter funding must match its exact wNEAR spending token.",
+          "Fund the exact spending token reviewed for this public route.",
         );
+      }
+      if (
+        fundingQuote &&
+        (await committedCapital(tx, user.id, agent.id)) + BigInt(fundingQuote.inputMicroUsd) >
+          parseUsd(policySchema.parse(JSON.parse(agent.policyJson)).budgetUsd)
+      ) {
+        throw new ExecutionError("limit", "The funded amount exceeds this agent's capital limit.");
       }
       excludeId = setup.id;
     }
@@ -150,6 +172,7 @@ export async function prepareNativeFunding(
       sourceAssetId: input.assetId,
       assetId,
       units: units.toString(),
+      ...(fundingQuote ? { principalMicroUsd: fundingQuote.inputMicroUsd } : {}),
       decimals: holding.decimals,
       tokenSymbol: input.assetId === "native:near" ? "wNEAR" : holding.symbol,
       gasUnits: NATIVE_FUNDING_GAS,

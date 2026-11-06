@@ -7,7 +7,9 @@ import { ExecutionError } from "@/server/execution/contracts";
 import { linkedAgentBudget } from "@/server/funding/records";
 import { tradingAccountSummary } from "@/server/trading-accounts/vault";
 import { budgetTokenAmount } from "@/shared/agent-budget";
+import { usesNativeNearPayout } from "@/shared/agent-instructions";
 import type { AgentSummary } from "@/shared/agents";
+import { WALLET_SWAP_USDC } from "@/shared/wallet-swap";
 
 export async function NativeAgentFunding({
   agent,
@@ -16,7 +18,11 @@ export async function NativeAgentFunding({
   readonly agent: AgentSummary;
   readonly user: SessionUser;
 }): Promise<ReactElement | null> {
-  if (agent.strategy.kind !== "meme_hunter" || agent.strategy.payAssetId !== "nep141:wrap.near") {
+  const publicPayout = "format" in agent.strategy && usesNativeNearPayout(agent.strategy);
+  if (
+    !publicPayout &&
+    (agent.strategy.kind !== "meme_hunter" || agent.strategy.payAssetId !== "nep141:wrap.near")
+  ) {
     return null;
   }
   const recovery = await tradingAccountSummary(database(), user.id);
@@ -27,22 +33,30 @@ export async function NativeAgentFunding({
     if (error instanceof ExecutionError) {
       return (
         <p className="text-small text-fg-muted">
-          Review this agent's exact wNEAR wallet allocation before native funding.
+          Review this agent’s wallet allocation before funding its public trading balance.
         </p>
       );
     }
     throw error;
   }
-  if (!setup.budget || !["native:near", "nep141:wrap.near"].includes(setup.budget.assetId)) {
+  if (
+    !setup.budget ||
+    !(publicPayout
+      ? setup.budget.assetId === WALLET_SWAP_USDC
+      : ["native:near", "nep141:wrap.near"].includes(setup.budget.assetId))
+  ) {
     return null;
   }
   const units = setup.budget.walletReservedUnits ?? setup.budget.units;
   return (
     <section className="space-y-4 rounded-lg border border-line-card p-5">
-      <h2 className="text-lead font-medium">Native Meme Hunter</h2>
+      <h2 className="text-lead font-medium">
+        {publicPayout ? "Public trading balance" : "Native Meme Hunter"}
+      </h2>
       <p className="text-small text-fg-muted">
-        Eligible new Nearly listings can trade directly on RHEA without an Intents listing. Token admission
-        and price checks still apply. These swaps are public.
+        {publicPayout
+          ? "Fund USDC here. Native NEAR proceeds stay in this trading account. Use your encrypted backup to recover the account offline."
+          : "Eligible Nearly listings trade on RHEA after token and price checks. These swaps are public."}
       </p>
       {!recovery?.backupConfirmed ? (
         <TradingRecovery

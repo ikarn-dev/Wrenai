@@ -10,6 +10,7 @@ import { saveChatAgentSetup } from "@/server/chat/draft-actions";
 import { type AgentBudgetInput, budgetTokenAmount } from "@/shared/agent-budget";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
 import { isActiveAgentTool } from "@/shared/agent-scope";
+import { agentSetupProfile } from "@/shared/agent-templates";
 import { packSchema } from "@/shared/agents";
 import type { AgentSetupDraft } from "@/shared/research";
 
@@ -57,6 +58,7 @@ export function AgentSetupReview({ draft }: { readonly draft: AgentSetupDraft })
   }
   const active = isActiveAgentTool(draft.tool);
   const supported = active && packSchema.safeParse(draft.tool).success;
+  const setup = agentSetupProfile(draft.tool);
   if (draft.agentId) {
     return (
       <div className="mx-auto flex max-w-reading flex-col gap-4">
@@ -101,7 +103,7 @@ export function AgentSetupReview({ draft }: { readonly draft: AgentSetupDraft })
         </p>
       ) : null}
       <label className="flex flex-col gap-2 text-small">
-        Agent instructions
+        {setup.instructions}
         <textarea
           value={brief}
           onChange={(event) => setBrief(event.target.value)}
@@ -109,9 +111,16 @@ export function AgentSetupReview({ draft }: { readonly draft: AgentSetupDraft })
           rows={6}
           className="rounded-sm border border-line bg-surface-1 p-3 text-body leading-relaxed"
         />
+        <span className="text-caption text-fg-subtle">{setup.guidance}</span>
       </label>
       {active ? (
-        <TokenBudget value={budget} onChange={setBudget} excludeId={draft.id} disabled={busy} />
+        <TokenBudget
+          label={setup.budget}
+          value={budget}
+          onChange={setBudget}
+          excludeId={draft.id}
+          disabled={busy}
+        />
       ) : null}
       <div className="flex flex-wrap gap-3">
         <Button disabled={busy || !brief.trim()} onClick={() => save(false)}>

@@ -5,6 +5,7 @@ import { executionActions, executionFills } from "@/server/db/execution-schema";
 import { ExecutionError } from "@/server/execution/contracts";
 import { readPreparedOrder } from "@/server/execution/intents-order";
 import { ownedExecution } from "@/server/execution/records";
+import { readRheaPrepared } from "@/server/execution/rhea/order";
 import type { InstructionState } from "./instruction-state";
 import type { SpotInstruction } from "./spot-instructions";
 
@@ -147,7 +148,9 @@ export async function applyInstructionReceipt(
       "Reconcile this instruction's previous order before another signal.",
     );
   }
-  const signal = (await readPreparedOrder(db, action)).signal;
+  const signal = (
+    action.scope === "native_near" ? await readRheaPrepared(db, action) : await readPreparedOrder(db, action)
+  ).signal;
   if (
     !signal?.instructionSlot ||
     (signal.purpose !== "instruction_entry" && signal.purpose !== "instruction_exit") ||

@@ -17,13 +17,17 @@ import { executionActions } from "@/server/db/execution-schema";
 import { positionLots } from "@/server/db/position-schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import { hasOpenTriggerPosition } from "@/server/engine/strategy-state";
-import { registryTradeAsset } from "@/server/execution/asset-review";
+import { instructionTradeAssets } from "@/server/execution/asset-review";
 import { executionHash } from "@/server/execution/records";
 import { assertNoWalletFunding } from "@/server/funding/records";
-import { explicitTokenIds } from "@/server/manual-trading/token-identity";
+import { explicitTokenIds, namesBudgetToken } from "@/server/manual-trading/token-identity";
 import { assignedCapitalLimit } from "@/server/positions/capital-records";
 import type { IntentToken } from "@/server/research/intents";
-import { instructionAssets } from "@/shared/agent-instructions";
+import {
+  instructionAssets,
+  instructionFundingAsset,
+  usesNativeNearPayout,
+} from "@/shared/agent-instructions";
 import { REMOVED_AGENT_MESSAGE } from "@/shared/agent-scope";
 import {
   type AgentSummary,
@@ -124,6 +128,7 @@ export async function saveAgent(
   input: z.infer<typeof saveAgentSchema>,
   cipher?: ChatCipher,
   tokens?: readonly IntentToken[],
+  budgetAssetId?: string,
 ): Promise<string> {
   return userTransaction(db, userId, async (tx) => {
     const repeated = await repeatRequest(tx, userId, input.requestId, input);
@@ -178,6 +183,7 @@ export async function saveAgent(
       if (agent.status === "running") {
         throw new AgentError("conflict", "Pause the agent before editing it.");
       }
+      await checkFundedRoute(tx, agent, config);
       const [runtime] = await tx
         .select()
         .from(agentRuntimes)
@@ -231,7 +237,7 @@ export async function saveAgent(
       configJson: draft.configJson,
       attestationJson: draft.attestationJson,
       ...("format" in config && tokens
-        ? { resolvedAssetsJson: reviewedInstructionAssets(config, tokens, draft.strategyText) }
+        ? { resolvedAssetsJson: reviewedInstructionAssets(config, tokens, draft.strategyText, budgetAssetId) }
         : {}),
       createdAt: Date.now(),
     });
@@ -252,28 +258,64 @@ export async function saveAgent(
   });
 }
 
+async function checkFundedRoute(
+  db: AppDatabase,
+  agent: typeof agents.$inferSelect,
+  next: AgentSummary["strategy"],
+): Promise<void> {
+  const [version] = await db
+    .select({ config: strategyVersions.configJson })
+    .from(strategyVersions)
+    .where(and(eq(strategyVersions.agentId, agent.id), eq(strategyVersions.version, agent.version)))
+    .limit(1);
+  if (!version) {
+    throw new AgentError("unavailable", "The current strategy version is missing.");
+  }
+  const previous = strategySchema.parse(JSON.parse(version.config));
+  if (
+    ("format" in previous && usesNativeNearPayout(previous)) ===
+    ("format" in next && usesNativeNearPayout(next))
+  ) {
+    return;
+  }
+  const [owned] = await db
+    .select({ id: positionLots.id })
+    .from(positionLots)
+    .where(
+      and(
+        eq(positionLots.userId, agent.userId),
+        eq(positionLots.agentId, agent.id),
+        gt(positionLots.remainingUnits, 0n),
+      ),
+    )
+    .limit(1);
+  if (owned) {
+    throw new AgentError("conflict", "Release this agent’s allocation before switching its trading account.");
+  }
+}
+
 function reviewedInstructionAssets(
   instruction: Extract<AgentSummary["strategy"], { format: 2 }>,
   tokens: readonly IntentToken[],
   text: string,
+  budgetAssetId: string | undefined,
 ): string | null {
   const ids = instructionAssets(instruction);
   if (ids.length === 0) {
     return null;
   }
-  const assets = ids.map((id) => {
-    const token = tokens.find((candidate) => candidate.assetId === id);
-    if (!token) {
-      throw new AgentError(
-        "not_ready",
-        `No supported route exists for ${id}. Choose a supported token before saving.`,
-      );
-    }
-    return registryTradeAsset(token);
-  });
+  const assets = instructionTradeAssets(instruction, tokens);
   const explicit = explicitTokenIds(tokens, text);
-  if (instruction.kind !== "perps" && ids.some((id) => !explicit.has(id))) {
-    throw new AgentError("invalid_input", "Name each token explicitly and review the strategy again.");
+  const selected = tokens.find((token) => token.assetId === budgetAssetId);
+  const funding = instructionFundingAsset(instruction);
+  if (
+    ids.some(
+      (id) =>
+        !explicit.has(id) &&
+        !(id === funding && selected?.assetId === id && namesBudgetToken(selected, text)),
+    )
+  ) {
+    throw new AgentError("invalid_input", "Name each token and review the strategy again.");
   }
   return JSON.stringify({
     strategyHash: executionHash(instruction),

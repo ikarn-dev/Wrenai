@@ -10,7 +10,7 @@ import { minimumUnits } from "@/shared/token-units";
 import { ExecutionError, type ExecutionPlan } from "./contracts";
 import { planRiskPolicy } from "./plan-risk";
 import { verifiedReducingExit } from "./reducing-exit";
-import { checkStrategyAssets } from "./strategy-assets";
+import { allowsPublicAgentSwap, checkStrategyAssets } from "./strategy-assets";
 import { readSpendingUsage, readSubmissionUsage } from "./usage";
 
 /** Authoritative final Guard, called inside the Signer's owner transaction before producing any signature. */
@@ -37,10 +37,7 @@ export async function swapGuardVerdict(
   approvalGranted = false,
 ): Promise<GuardVerdict> {
   const agent = await ownedAgent(db, userId, plan.agentId);
-  if (
-    plan.scope !== "confidential" &&
-    !(plan.scope === "native_near" && agent.pack === "meme_hunter" && plan.budgetMode === "per_agent")
-  ) {
+  if (plan.scope !== "confidential" && !allowsPublicAgentSwap(agent.pack, plan)) {
     throw new ExecutionError("not_ready", "The current swap packs cannot select public execution.");
   }
   await checkStrategyAssets(db, plan);

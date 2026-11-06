@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { nearAccountSchema } from "./agent-budget";
+import { WALLET_SWAP_NATIVE_OUTPUT, WALLET_SWAP_USDC } from "./swap-assets";
 import { positiveTokenUnitsSchema } from "./token-units";
 
 export const instructionAssetSchema = z
@@ -15,9 +16,10 @@ const decimal = z
 const bps = z.number().int().min(1).max(9999);
 const expiresAt = z.iso.datetime();
 const common = { format: z.literal(2), expiresAt, onExpiry: z.enum(["stop", "close"]).default("stop") };
+const spotAsset = z.union([instructionAssetSchema, z.literal(WALLET_SWAP_NATIVE_OUTPUT)]);
 const pair = {
-  payAssetId: instructionAssetSchema,
-  buyAssetId: instructionAssetSchema,
+  payAssetId: spotAsset,
+  buyAssetId: spotAsset,
   priceUnit: z.enum(["usd", "quote_token"]),
 };
 const exits = z.strictObject({
@@ -98,7 +100,7 @@ const top = z.strictObject({
   ...common,
   kind: z.literal("sell_the_top"),
   sellAssetId: instructionAssetSchema,
-  receiveAssetId: instructionAssetSchema,
+  receiveAssetId: spotAsset,
   priceUnit: z.enum(["usd", "quote_token"]),
   quantityUnits: amount,
   confirmedBasisUnits: amount,
@@ -179,6 +181,36 @@ const perps = z.strictObject({
 });
 const fields = z.discriminatedUnion("kind", [payment, dca, spot, perps, meme, whale, dip, top]);
 export const agentInstructionSchema = fields.superRefine((instruction, context) => {
+  if (instructionAssets(instruction).includes(WALLET_SWAP_NATIVE_OUTPUT)) {
+    const [funding, output] =
+      instruction.kind === "sell_the_top"
+        ? [instruction.sellAssetId, instruction.receiveAssetId]
+        : "buyAssetId" in instruction
+          ? instruction.kind === "spot_trader" && instruction.side === "sell"
+            ? [instruction.buyAssetId, instruction.payAssetId]
+            : [instruction.payAssetId, instruction.buyAssetId]
+          : [];
+    if (!isNativeNearPayoutPair(funding, output)) {
+      context.addIssue({ code: "custom", message: "The public native NEAR route supports USDC to NEAR." });
+    } else if (
+      "exits" in instruction &&
+      (instruction.onExpiry === "close" || Object.values(instruction.exits).some((exit) => exit !== null))
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "This route buys native NEAR. Remove exit rules that would sell it back automatically.",
+      });
+    }
+    if (
+      (instruction.kind === "sell_the_top" ||
+        (instruction.kind === "spot_trader" &&
+          instruction.side === "sell" &&
+          instruction.entry.type === "price")) &&
+      instruction.priceUnit === "usd"
+    ) {
+      context.addIssue({ code: "custom", message: "Measure this USDC sale's price or cost in NEAR." });
+    }
+  }
   if (
     (instruction.kind === "dca" ||
       instruction.kind === "private_payments" ||
@@ -293,4 +325,15 @@ export function instructionFundingAsset(instruction: AgentInstruction): string |
     return instruction.sellAssetId;
   }
   return null;
+}
+
+export function isNativeNearPayoutPair(input: string | undefined, output: string | undefined): boolean {
+  return input === WALLET_SWAP_USDC && output === WALLET_SWAP_NATIVE_OUTPUT;
+}
+
+export function usesNativeNearPayout(instruction: AgentInstruction): boolean {
+  return (
+    instructionFundingAsset(instruction) === WALLET_SWAP_USDC &&
+    instructionAssets(instruction).includes(WALLET_SWAP_NATIVE_OUTPUT)
+  );
 }

@@ -84,3 +84,10 @@ export function explicitTokenIds(tokens: readonly IntentToken[], text: string): 
   }
   return ids;
 }
+
+export function namesBudgetToken(token: IntentToken, text: string): boolean {
+  return (
+    explicitTokenIds([token], text).has(token.assetId) ||
+    /\b(?:selected|chosen|allocated) (?:funding |budget )?token\b/i.test(text)
+  );
+}

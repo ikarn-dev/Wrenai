@@ -20,6 +20,7 @@ export const nativeFundingSnapshotSchema = z.strictObject({
   sourceAssetId: walletAssetSchema,
   assetId: z.string().regex(/^nep141:[a-z0-9._-]+$/),
   units: positiveTokenUnitsSchema,
+  principalMicroUsd: positiveTokenUnitsSchema.optional(),
   decimals: z.number().int().min(0).max(36),
   tokenSymbol: z.string().max(80),
   gasUnits: z.literal(NATIVE_FUNDING_GAS),

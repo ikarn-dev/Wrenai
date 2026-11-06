@@ -2,8 +2,8 @@
 
 import { ChevronDown } from "lucide-react";
 import { type ComponentPropsWithoutRef, cloneElement, type ReactElement, useId } from "react";
-import type { AgentPolicy } from "@/shared/agents";
-import { parseUsd, usdInputSchema } from "@/shared/agents";
+import { agentSetupProfile } from "@/shared/agent-templates";
+import { type AgentPolicy, parseUsd, usdInputSchema } from "@/shared/agents";
 import { formatExactMicroUsd } from "@/shared/money";
 
 // Form controls for agent setup (Docs/DESIGN.md → Components → Inputs): a sunken fill so the control reads on the
@@ -55,43 +55,46 @@ export function Select({
   );
 }
 
-const MONEY_FIELDS = [
-  { key: "budgetUsd", label: "Risk ceiling, USD" },
-  { key: "maxTradeUsd", label: "Per trade, USD" },
-  { key: "dailyCapUsd", label: "Per 24 hours, USD" },
-] as const;
-const COUNT_FIELDS = [
-  { key: "maxSlippageBps", label: "Slippage, bps", min: 1, max: 500 },
-  { key: "maxProviderFeeBps", label: "Partner fee, bps", min: 0, max: 2000 },
-  { key: "maxTradesPerHour", label: "Trades per hour", min: 1, max: 60 },
-  { key: "cooldownSeconds", label: "Cooldown, seconds", min: 0, max: 86400 },
-] as const;
-
-/** The two limits that matter most at a glance, shown on the collapsed row. Display only. */
-function limitsSummary(policy: AgentPolicy): string {
-  const trade = usdInputSchema.safeParse(policy.maxTradeUsd);
-  const perTrade = trade.success
-    ? `${formatExactMicroUsd(parseUsd(trade.data))} per trade`
-    : "Set a per-trade limit";
-  return Number.isNaN(policy.maxSlippageBps)
-    ? perTrade
-    : `${perTrade} · ${policy.maxSlippageBps / 100}% slippage`;
-}
-
 interface PolicyFieldsProps {
+  readonly pack: string;
   readonly policy: AgentPolicy;
   readonly onChange: (policy: AgentPolicy) => void;
   readonly disabled: boolean;
 }
 
 /** The user's risk limits as one collapsed row (its summary on the right) that opens into a two-column form. */
-export function PolicyFields({ policy, onChange, disabled }: PolicyFieldsProps): ReactElement {
+export function PolicyFields({ pack, policy, onChange, disabled }: PolicyFieldsProps): ReactElement {
+  const profile = agentSetupProfile(pack);
+  const payment = pack === "private_payments";
+  const amount = usdInputSchema.safeParse(policy.maxTradeUsd);
+  const summary = amount.success
+    ? `${formatExactMicroUsd(parseUsd(amount.data))} per ${profile.action}`
+    : `Set a ${profile.action} limit`;
+  const moneyFields = [
+    { key: "maxTradeUsd", label: `Per ${profile.action}, USD` },
+    { key: "dailyCapUsd", label: "Per 24 hours, USD" },
+    { key: "budgetUsd", label: "Capital ceiling, USD" },
+  ] as const;
+  const quoteFields = [
+    {
+      key: "maxSlippageBps",
+      label: payment ? "Quote tolerance, bps" : "Slippage cap, bps",
+      min: 1,
+      max: 500,
+    },
+    { key: "maxProviderFeeBps", label: "Provider fee cap, bps", min: 0, max: 2000 },
+  ] as const;
+  const frequencyFields = [
+    { key: "maxTradesPerHour", label: `Max ${profile.actions} per hour`, min: 1, max: 60 },
+    { key: "cooldownSeconds", label: `Seconds between ${profile.actions}`, min: 0, max: 86400 },
+  ] as const;
+  const countFields = payment ? quoteFields : [...quoteFields, ...frequencyFields];
   return (
     <details className="group rounded-sm border border-line">
-      <summary className="flex h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 pointer-coarse:h-11 [&::-webkit-details-marker]:hidden">
-        <span className="text-small text-fg">Risk limits</span>
+      <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
+        <span className="shrink-0 text-small text-fg">{profile.limits}</span>
         <span className="flex min-w-0 items-center gap-2 text-small text-fg-muted">
-          <span className="truncate font-mono tabular-nums">{limitsSummary(policy)}</span>
+          <span className="text-right font-mono tabular-nums">{summary}</span>
           <ChevronDown
             {...ICON}
             className="shrink-0 transition-transform duration-200 ease-ios group-open:rotate-180"
@@ -99,19 +102,20 @@ export function PolicyFields({ policy, onChange, disabled }: PolicyFieldsProps):
         </span>
       </summary>
       <fieldset disabled={disabled} className="grid min-w-0 gap-4 border-t border-line p-3 sm:grid-cols-2">
-        <legend className="sr-only">Risk limits</legend>
-        {MONEY_FIELDS.map(({ key, label }) => (
+        <legend className="sr-only">{profile.limits}</legend>
+        {moneyFields.map(({ key, label }) => (
           <Field key={key} label={label}>
             <input
               className={`${INPUT_CLASS} font-mono tabular-nums`}
               inputMode="decimal"
+              autoComplete="off"
               required
               value={policy[key]}
               onChange={(event) => onChange({ ...policy, [key]: event.target.value })}
             />
           </Field>
         ))}
-        {COUNT_FIELDS.map(({ key, label, min, max }) => (
+        {countFields.map(({ key, label, min, max }) => (
           <Field key={key} label={label}>
             <input
               type="number"
@@ -135,19 +139,24 @@ export function PolicyFields({ policy, onChange, disabled }: PolicyFieldsProps):
                 onChange={() => onChange({ ...policy, approvalMode: "autonomous" })}
                 className="size-4 accent-accent"
               />
-              Trade on its own within these limits
+              Run this agent automatically within these limits
             </label>
           ) : null}
-          <label className="flex items-center gap-2.5 text-small text-fg">
-            <input
-              type="checkbox"
-              checked={policy.allowRiskReducingExits === true}
-              onChange={(event) => onChange({ ...policy, allowRiskReducingExits: event.target.checked })}
-              className="size-4 accent-accent"
-            />
-            Allow exits after entry limits are reached
-          </label>
-          <p className="text-caption text-fg-subtle">100 bps = 1%. Only you can change these limits.</p>
+          {profile.protectiveExits ? (
+            <label className="flex items-center gap-2.5 text-small text-fg">
+              <input
+                type="checkbox"
+                checked={policy.allowRiskReducingExits === true}
+                onChange={(event) => onChange({ ...policy, allowRiskReducingExits: event.target.checked })}
+                className="size-4 accent-accent"
+              />
+              Allow position-reducing exits after spending limits are reached
+            </label>
+          ) : null}
+          <p className="text-caption text-fg-subtle">
+            {payment ? "Quote tolerance and the fee cap apply to the exact-amount payment. " : ""}
+            100 bps = 1%.
+          </p>
         </div>
       </fieldset>
     </details>

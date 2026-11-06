@@ -12,7 +12,7 @@ import { ExecutionError, type ExecutionPlan } from "./contracts";
 import { planRiskPolicy } from "./plan-risk";
 import { type ExecutionAction, executionHash, type LedgerAction } from "./records";
 import { verifiedReducingExit } from "./reducing-exit";
-import { checkStrategyAssets } from "./strategy-assets";
+import { allowsPublicAgentSwap, checkStrategyAssets } from "./strategy-assets";
 import { readSpendingUsage, readSubmissionUsage } from "./usage";
 
 interface ExecutionPolicy {
@@ -31,8 +31,7 @@ export async function currentExecutionPolicy(
   actionId?: string,
 ): Promise<ExecutionPolicy> {
   const agent = await ownedAgent(db, userId, plan.agentId);
-  const native =
-    plan.scope === "native_near" && agent.pack === "meme_hunter" && plan.budgetMode === "per_agent";
+  const native = allowsPublicAgentSwap(agent.pack, plan);
   if (plan.scope !== "confidential" && !native) {
     throw new ExecutionError(
       "not_ready",

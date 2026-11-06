@@ -3,8 +3,12 @@ import { z } from "zod";
 import { assetUsdPrice } from "@/server/engine/instruction-price";
 import { memeDclQuote } from "@/server/engine/meme-price";
 import { callViewFunction, finalBlockTime } from "@/server/near/rpc";
+import { MarketUnavailable } from "@/server/research/market-http";
+import { quoteRheaNative } from "@/server/wallet-swap/rhea-native";
+import { isNativeNearPayoutPair } from "@/shared/agent-instructions";
 import { positiveTokenUnitsSchema } from "@/shared/token-units";
 import type { TradeAsset, TradeQuote } from "@/shared/trade-preview";
+import { WALLET_SWAP_NATIVE_OUTPUT, WALLET_SWAP_RHEA_POOL } from "@/shared/wallet-swap";
 import { ExecutionError } from "../contracts";
 import { executionHash } from "../records";
 import { RHEA_DCL, rheaQuoteSchema } from "./contracts";
@@ -33,6 +37,36 @@ export async function quoteRhea(
   slippageBps: number,
   poolId: string,
 ): Promise<z.infer<typeof rheaQuoteSchema>> {
+  if (isNativeNearPayoutPair(input.assetId, output.assetId)) {
+    if (poolId !== WALLET_SWAP_RHEA_POOL || input.decimals !== 6 || output.decimals !== 24) {
+      throw new ExecutionError("not_ready", "This pool does not match the verified native NEAR route.");
+    }
+    const [quote, price] = await Promise.all([
+      quoteRheaNative(units, slippageBps, 1),
+      assetUsdPrice(WALLET_SWAP_NATIVE_OUTPUT),
+    ]);
+    const now = Date.now();
+    if (now - price.observedAt >= 5000) {
+      throw new MarketUnavailable("Current NEAR price");
+    }
+    const proceeds = BigInt(quote.outputUnits) * price.n * 1_000_000n;
+    const denominator = 10n ** 24n * price.d;
+    return rheaQuoteSchema.parse({
+      ...quote,
+      poolId,
+      input,
+      output,
+      inputUnits: units,
+      slippageBps,
+      // The debit is the USDC spent at face value (6 decimals = micro-USD). Valuing it by the proceeds made
+      // amounts equal to a limit exceed it whenever RHEA was cheaper than the reference book.
+      inputMicroUsd: units,
+      // Independently priced proceeds round down.
+      outputMicroUsd: proceeds >= denominator ? (proceeds / denominator).toString() : null,
+      observedAt: now,
+      expiresAt: now + 60_000,
+    });
+  }
   const reading = await callViewFunction(RHEA_DCL, "get_pool", { pool_id: poolId });
   const pool = z
     .object({
@@ -109,7 +143,9 @@ export function rheaTradeQuote(quote: z.infer<typeof rheaQuoteSchema>, accountId
     minOutputUnits: quote.minimumOutputUnits,
     inputMicroUsd: quote.inputMicroUsd,
     // Historical envelopes without a proceeds valuation remain unknown, never inferred from a debit.
-    outputMicroUsd: quote.output.assetId === "nep141:wrap.near" ? (quote.outputMicroUsd ?? null) : null,
+    outputMicroUsd: ["nep141:wrap.near", WALLET_SWAP_NATIVE_OUTPUT].includes(quote.output.assetId)
+      ? (quote.outputMicroUsd ?? null)
+      : null,
     slippageBps: quote.slippageBps,
     appFeeBps: 0,
     capturedAt: quote.observedAt,

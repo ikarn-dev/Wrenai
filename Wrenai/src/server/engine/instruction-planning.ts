@@ -8,9 +8,14 @@ import { privateBalanceToken } from "@/server/execution/balance-session";
 import { ExecutionError } from "@/server/execution/contracts";
 import { freshDryQuote } from "@/server/execution/oneclick-quote";
 import { synchronizePrivateInventory } from "@/server/execution/private-inventory";
+import { synchronizeNativeInventory } from "@/server/execution/rhea/inventory";
+import { quoteRhea, rheaTradeQuote } from "@/server/execution/rhea/quote";
 import { unreservedOwnedUnits } from "@/server/positions/lots";
 import { intentTokens } from "@/server/research/intents";
+import { activeTradingAccount } from "@/server/trading-accounts/vault";
+import { usesNativeNearPayout } from "@/shared/agent-instructions";
 import { policySchema } from "@/shared/agents";
+import { WALLET_SWAP_RHEA_POOL } from "@/shared/wallet-swap";
 import { instructionPrice } from "./instruction-price";
 import { applyInstructionReceipt } from "./instruction-receipt";
 import { initialInstructionState, instructionStateSchema } from "./instruction-state";
@@ -66,8 +71,20 @@ export async function planSpotInstruction(
       progress: { strategyState: state, completed: state.phase === "completed" },
     };
   }
-  const registry = await intentTokens();
-  const assets = resolvedTradeAssets(instruction, current.version.resolvedAssetsJson, registry.tokens);
+  const order = spotOrderSize(instruction, state, Date.now());
+  if (!order) {
+    const observation = observeSpotInstruction(instruction, state, null, Date.now());
+    return {
+      signal: null,
+      intervalSeconds,
+      reason: observation.reason,
+      progress: { strategyState: observation.state, completed: observation.state.phase === "completed" },
+    };
+  }
+  const native = usesNativeNearPayout(instruction);
+  const scope = native ? "native_near" : "confidential";
+  const tokens = native ? [] : (await intentTokens()).tokens;
+  const assets = resolvedTradeAssets(instruction, current.version.resolvedAssetsJson, tokens);
   const base = assets.find(
     (asset) =>
       asset.assetId ===
@@ -81,25 +98,14 @@ export async function planSpotInstruction(
   if (!base || !cash) {
     throw new ExecutionError("not_ready", "Review this instruction's exact pair before activation.");
   }
-  const order = spotOrderSize(instruction, state, Date.now());
-  if (!order) {
-    const observation = observeSpotInstruction(
-      instruction,
-      state,
-      { base, cash, baseOwned: 0n, cashOwned: 0n, price: null, quote: null },
-      Date.now(),
-    );
-    return {
-      signal: null,
-      intervalSeconds,
-      reason: observation.reason,
-      progress: { strategyState: observation.state, completed: observation.state.phase === "completed" },
-    };
+  if (native) {
+    await synchronizeNativeInventory(db, current.agent.userId, [base.assetId, cash.assetId]);
+  } else {
+    await synchronizePrivateInventory(db, current.agent.userId);
   }
-  await synchronizePrivateInventory(db, current.agent.userId);
   const [baseOwned, cashOwned] = await Promise.all([
-    unreservedOwnedUnits(db, current.agent.userId, current.agent.id, "confidential", base.assetId),
-    unreservedOwnedUnits(db, current.agent.userId, current.agent.id, "confidential", cash.assetId),
+    unreservedOwnedUnits(db, current.agent.userId, current.agent.id, scope, base.assetId),
+    unreservedOwnedUnits(db, current.agent.userId, current.agent.id, scope, cash.assetId),
   ]);
   const policy = policySchema.parse(JSON.parse(current.agent.policyJson));
   const needsPrice =
@@ -119,28 +125,34 @@ export async function planSpotInstruction(
     };
   }
   const sized = spotOrderSize(instruction, observed.state, Date.now());
-  const [owner] = await db
-    .select({ accountId: users.accountId })
-    .from(users)
-    .where(eq(users.id, current.agent.userId))
-    .limit(1);
-  const session = await privateBalanceToken(db, current.agent.userId);
-  if (!owner || !session || !sized) {
-    throw new ExecutionError(
-      "not_ready",
-      "A current private-balance session and reviewed order size are required.",
-    );
+  if (!sized) {
+    // The schedule slot can close between observation and sizing; wait for the next one instead of failing.
+    return {
+      signal: null,
+      intervalSeconds,
+      reason: "Waiting for the next reviewed schedule.",
+      progress: { strategyState: observed.state, completed: observed.state.phase === "completed" },
+    };
   }
-  const quote = await freshDryQuote(
-    owner.accountId,
-    sized.buy ? cash.assetId : base.assetId,
-    sized.buy ? base.assetId : cash.assetId,
-    sized.units.toString(),
-    policy.maxSlippageBps,
-    "confidential",
-    undefined,
-    session,
-  );
+  const input = sized.buy ? cash : base;
+  const output = sized.buy ? base : cash;
+  const quote = native
+    ? await nativeSpotQuote(
+        db,
+        current.agent.userId,
+        input,
+        output,
+        sized.units.toString(),
+        policy.maxSlippageBps,
+      )
+    : await privateSpotQuote(
+        db,
+        current.agent.userId,
+        input.assetId,
+        output.assetId,
+        sized.units.toString(),
+        policy.maxSlippageBps,
+      );
   const decision = decideSpotInstruction(
     instruction,
     policy,
@@ -149,7 +161,8 @@ export async function planSpotInstruction(
     Date.now(),
   );
   return {
-    signal: decision.signal,
+    signal:
+      decision.signal && native ? { ...decision.signal, scope: "native_near" as const } : decision.signal,
     intervalSeconds,
     reason: decision.reason,
     ...(decision.signal
@@ -163,4 +176,47 @@ export async function planSpotInstruction(
       : {}),
     progress: { strategyState: decision.state, completed: decision.state.phase === "completed" },
   };
+}
+
+async function nativeSpotQuote(
+  db: AppDatabase,
+  userId: string,
+  input: SpotSnapshot["base"],
+  output: SpotSnapshot["base"],
+  units: string,
+  slippageBps: number,
+): Promise<Awaited<ReturnType<typeof freshDryQuote>>> {
+  const root = await activeTradingAccount(db, userId);
+  if (!root?.backupConfirmedAt) {
+    throw new ExecutionError("not_ready", "Confirm the trading account recovery backup.");
+  }
+  const quote = await quoteRhea(input, output, units, slippageBps, WALLET_SWAP_RHEA_POOL);
+  return rheaTradeQuote(quote, root.nativeAccountId);
+}
+
+async function privateSpotQuote(
+  db: AppDatabase,
+  userId: string,
+  inputAssetId: string,
+  outputAssetId: string,
+  units: string,
+  slippageBps: number,
+): Promise<Awaited<ReturnType<typeof freshDryQuote>>> {
+  const [[owner], session] = await Promise.all([
+    db.select({ accountId: users.accountId }).from(users).where(eq(users.id, userId)).limit(1),
+    privateBalanceToken(db, userId),
+  ]);
+  if (!owner || !session) {
+    throw new ExecutionError("not_ready", "Connect your private balance before trading.");
+  }
+  return freshDryQuote(
+    owner.accountId,
+    inputAssetId,
+    outputAssetId,
+    units,
+    slippageBps,
+    "confidential",
+    undefined,
+    session,
+  );
 }

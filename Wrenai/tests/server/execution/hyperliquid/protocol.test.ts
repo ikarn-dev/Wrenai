@@ -9,6 +9,7 @@ import {
   tightenedPerpsStop,
 } from "@/server/execution/hyperliquid/order-plan";
 import { hlActionHash, signHlAction } from "@/server/execution/hyperliquid/signing";
+import { PERPS_TEMPLATE_ENTRY } from "@/shared/agent-templates";
 
 vi.mock("server-only", () => ({}));
 describe("Hyperliquid exact protocol and independently published signing vectors", () => {
@@ -67,6 +68,46 @@ describe("Hyperliquid exact protocol and independently published signing vectors
   });
 });
 describe("reviewed isolated entries and protection", () => {
+  it.each(["long", "short"] as const)(
+    "accepts the ETH template size for a reviewed %s at the reference mark",
+    (side) => {
+      const { suggestedOrderCapUsd, ...entry } = PERPS_TEMPLATE_ENTRY;
+      const market = marketFixture({
+        name: entry.market,
+        sizeDecimals: 4,
+        mark: "2229",
+        oracle: "2229",
+        book: {
+          coin: entry.market,
+          time: Date.now(),
+          levels: [[{ px: "2228", sz: "1", n: 1 }], [{ px: "2230", sz: "1", n: 1 }]],
+        },
+      });
+      const instruction = perpsInstruction({
+        ...entry,
+        side,
+        entry: side === "long" ? { type: "market" } : { type: "price", direction: "below", price: "2230" },
+        exits: {
+          stopLossPrice: side === "long" ? "2100" : "2350",
+          takeProfitPrice: side === "long" ? "2400" : null,
+          trailingStopBps: side === "long" ? null : 200,
+        },
+      });
+      const plan = composePerpsOrder(
+        instruction,
+        { ...perpsPolicy, maxTradeUsd: suggestedOrderCapUsd, maxProviderFeeBps: 10 },
+        market,
+        crypto.randomUUID(),
+        25_000_000n,
+      );
+      expect(plan.notionalMicroUsd).toBeGreaterThanOrEqual(10_000_000n);
+      expect(plan.notionalMicroUsd).toBeLessThan(25_000_000n);
+      expect(plan.maximumCashDebit).toBeLessThan(15_000_000n);
+      expect(plan.action).toMatchObject({
+        orders: [{ s: entry.quantity }, expect.anything(), ...(side === "long" ? [expect.anything()] : [])],
+      });
+    },
+  );
   it("binds isolated leverage, exact size and bounded native limit TP/SL with unique cloids", () => {
     const plan = composePerpsOrder(
       perpsInstruction(),

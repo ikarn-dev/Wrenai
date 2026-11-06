@@ -7,6 +7,7 @@ import { parseAttestedStrategy } from "@/server/ai/strategy-parser";
 import { strategyDrafts, strategyParseJobs } from "@/server/db/agent-schema";
 import { type AppDatabase, database } from "@/server/db/client";
 import { userTransaction } from "@/server/db/user-transaction";
+import { instructionFundingAsset } from "@/shared/agent-instructions";
 import { type parseStrategyInputSchema, type StrategyDraft, strategySchema } from "@/shared/agents";
 import { AgentError } from "./errors";
 import { auditAgent } from "./records";
@@ -16,9 +17,11 @@ const databaseNow = sql`floor(extract(epoch from clock_timestamp()) * 1000)::big
 const LEASE_MS = 120_000;
 
 function toDraft(row: typeof strategyDrafts.$inferSelect, input: ParseInput): StrategyDraft {
+  const strategy = strategySchema.parse(JSON.parse(row.configJson));
   if (
     row.pack !== input.pack ||
     row.strategyText !== input.strategyText ||
+    (input.budget && "format" in strategy && instructionFundingAsset(strategy) !== input.budget.assetId) ||
     row.consumedAt !== null ||
     row.expiresAt <= Date.now()
   ) {
@@ -27,7 +30,7 @@ function toDraft(row: typeof strategyDrafts.$inferSelect, input: ParseInput): St
   const receipt = attestationReceiptSchema.parse(JSON.parse(row.attestationJson));
   return {
     id: row.id,
-    strategy: strategySchema.parse(JSON.parse(row.configJson)),
+    strategy,
     strategyText: row.strategyText,
     model: receipt.model,
     verifiedAt: receipt.verifiedAt,
@@ -59,7 +62,9 @@ async function claimParse(
       return toDraft(existing, input);
     }
     const hash = createHash("sha256")
-      .update(JSON.stringify({ pack: input.pack, text: input.strategyText }))
+      .update(
+        JSON.stringify({ pack: input.pack, text: input.strategyText, budgetAssetId: input.budget?.assetId }),
+      )
       .digest("hex");
     const [job] = await tx
       .select()
@@ -106,7 +111,11 @@ export async function prepareStrategyDraft(userId: string, input: ParseInput): P
     return saved;
   }
   try {
-    const { strategy, receipt } = await parseAttestedStrategy(input.pack, input.strategyText);
+    const { strategy, receipt } = await parseAttestedStrategy(
+      input.pack,
+      input.strategyText,
+      input.budget?.assetId,
+    );
     return await userTransaction(database(), userId, async (tx) => {
       const [lease] = await tx
         .select()

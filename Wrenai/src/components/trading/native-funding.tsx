@@ -51,6 +51,7 @@ export function NativeFunding({
   });
   const funding = query.data,
     mine = funding && funding.snapshot.agentId === (agent?.id ?? null) ? funding : null;
+  const savedHash = mine?.state === "token_pending" ? mine.tokenHash : null;
   async function changed(view: NativeFundingView | null): Promise<void> {
     cache.setQueryData(["native-funding", accountId], view?.state === "complete" ? null : view);
     await cache.invalidateQueries({ queryKey: ["manual-account", accountId] });
@@ -87,7 +88,9 @@ export function NativeFunding({
       try {
         const command = { id: saved.id, snapshotHash: saved.snapshotHash, role };
         if (proofOnly) {
-          await changed(value(await confirmNativeFundingStep({ ...command, transactionHash: hash.trim() })));
+          await changed(
+            value(await confirmNativeFundingStep({ ...command, transactionHash: savedHash ?? hash.trim() })),
+          );
           setHash("");
           return;
         }
@@ -110,6 +113,7 @@ export function NativeFunding({
         setHash("");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Check this funding step's transaction before continuing.");
+        void query.refetch();
         await query.refetch();
       }
     });
@@ -160,7 +164,8 @@ export function NativeFunding({
                 <label className="flex flex-col gap-2 text-small text-fg-muted">
                   Transaction hash
                   <input
-                    value={hash}
+                    value={savedHash ?? hash}
+                    readOnly={savedHash !== null}
                     onChange={(e) => setHash(e.target.value)}
                     autoComplete="off"
                     className={field}
@@ -170,7 +175,7 @@ export function NativeFunding({
                   type="button"
                   variant="secondary"
                   onClick={() => continueFunding(true)}
-                  disabled={busy || !hash}
+                  disabled={busy || !(savedHash ?? hash.trim())}
                 >
                   {busy ? "Checking…" : "Verify transaction"}
                 </Button>

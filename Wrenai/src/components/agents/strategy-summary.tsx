@@ -1,6 +1,8 @@
 import type { ReactElement } from "react";
+import { agentSetupProfile } from "@/shared/agent-templates";
 import { type AgentPolicy, parseUsd, type Strategy } from "@/shared/agents";
 import { formatExactMicroUsd } from "@/shared/money";
+import type { TradeAsset } from "@/shared/trade-preview";
 import { InstructionSummary } from "./instruction-summary";
 
 export const APPROVAL_LABELS = {
@@ -24,9 +26,15 @@ function Detail({
   );
 }
 
-export function StrategySummary({ strategy }: { readonly strategy: Strategy }): ReactElement {
+export function StrategySummary({
+  strategy,
+  assets = [],
+}: {
+  readonly strategy: Strategy;
+  readonly assets?: readonly TradeAsset[] | undefined;
+}): ReactElement {
   if ("format" in strategy) {
-    return <InstructionSummary instruction={strategy} />;
+    return <InstructionSummary instruction={strategy} assets={assets} />;
   }
   return (
     <dl className="divide-y divide-line/60">
@@ -92,11 +100,19 @@ export function StrategySummary({ strategy }: { readonly strategy: Strategy }): 
   );
 }
 
-export function PolicySummary({ policy }: { readonly policy: AgentPolicy }): ReactElement {
+export function PolicySummary({
+  pack,
+  policy,
+}: {
+  readonly pack: string;
+  readonly policy: AgentPolicy;
+}): ReactElement {
+  const profile = agentSetupProfile(pack);
+  const payment = pack === "private_payments";
   return (
     <dl className="divide-y divide-line/60">
-      <Detail label="Budget">{formatExactMicroUsd(parseUsd(policy.budgetUsd))}</Detail>
-      <Detail label="Per trade">{formatExactMicroUsd(parseUsd(policy.maxTradeUsd))}</Detail>
+      <Detail label="Capital ceiling">{formatExactMicroUsd(parseUsd(policy.budgetUsd))}</Detail>
+      <Detail label={`Per ${profile.action}`}>{formatExactMicroUsd(parseUsd(policy.maxTradeUsd))}</Detail>
       <Detail label="24-hour cap">{formatExactMicroUsd(parseUsd(policy.dailyCapUsd))}</Detail>
       <Detail label="Approval">{APPROVAL_LABELS[policy.approvalMode]}</Detail>
       {policy.approvalMode === "above_size" ? (
@@ -104,11 +120,15 @@ export function PolicySummary({ policy }: { readonly policy: AgentPolicy }): Rea
           {formatExactMicroUsd(parseUsd(policy.approvalThresholdUsd))}
         </Detail>
       ) : null}
-      <Detail label="Slippage cap">{policy.maxSlippageBps / 100}%</Detail>
-      <Detail label="Partner fee cap">{policy.maxProviderFeeBps} bps</Detail>
-      <Detail label="Trades per hour">{policy.maxTradesPerHour}</Detail>
-      <Detail label="Cooldown">{policy.cooldownSeconds} seconds</Detail>
-      {policy.allowRiskReducingExits === true ? (
+      <Detail label={payment ? "Quote tolerance" : "Slippage cap"}>{policy.maxSlippageBps / 100}%</Detail>
+      <Detail label="Provider fee cap">{policy.maxProviderFeeBps} bps</Detail>
+      {payment ? null : (
+        <>
+          <Detail label={`Max ${profile.actions} per hour`}>{policy.maxTradesPerHour}</Detail>
+          <Detail label="Cooldown">{policy.cooldownSeconds} seconds</Detail>
+        </>
+      )}
+      {profile.protectiveExits && policy.allowRiskReducingExits === true ? (
         <Detail label="Protective exits">Owned position only · independent of entry spending caps</Detail>
       ) : null}
     </dl>

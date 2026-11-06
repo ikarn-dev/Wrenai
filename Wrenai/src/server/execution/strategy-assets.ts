@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { agents, strategyVersions } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
-import { instructionAssets } from "@/shared/agent-instructions";
+import { instructionAssets, isNativeNearPayoutPair, usesNativeNearPayout } from "@/shared/agent-instructions";
 import { strategySchema, strategySymbols } from "@/shared/agents";
 import { ExecutionError, type ExecutionPlan, hashSchema } from "./contracts";
 import { assertMemePair, readMemeDecision } from "./meme-binding";
@@ -27,10 +27,21 @@ const bindingsSchema = z.strictObject({
     .max(6),
 });
 
+export function allowsPublicAgentSwap(pack: string, plan: ExecutionPlan): boolean {
+  return (
+    plan.scope === "native_near" &&
+    plan.budgetMode === "per_agent" &&
+    (pack === "meme_hunter" ||
+      (["dca", "spot_trader", "buy_the_dip", "sell_the_top"].includes(pack) &&
+        isNativeNearPayoutPair(plan.inputAssetId, plan.outputAssetId)))
+  );
+}
+
 /** Canonical IDs must be resolved by the verified provider/strategy review path, never by a proposal. */
 export async function checkStrategyAssets(
   db: AppDatabase,
-  plan: Pick<ExecutionPlan, "agentId" | "strategyVersion" | "inputAssetId" | "outputAssetId" | "inputUnits">,
+  plan: Pick<ExecutionPlan, "agentId" | "strategyVersion" | "inputAssetId" | "outputAssetId" | "inputUnits"> &
+    Partial<Pick<ExecutionPlan, "scope">>,
 ): Promise<void> {
   const [version] = await db
     .select()
@@ -48,6 +59,12 @@ export async function checkStrategyAssets(
   const strategy = strategySchema.parse(JSON.parse(version.configJson));
   const bindings = bindingsSchema.parse(JSON.parse(version.resolvedAssetsJson));
   if ("format" in strategy) {
+    if (
+      usesNativeNearPayout(strategy) &&
+      (plan.scope !== "native_near" || !isNativeNearPayoutPair(plan.inputAssetId, plan.outputAssetId))
+    ) {
+      throw new ExecutionError("limit", "The reviewed USDC to NEAR swap must use the public RHEA route.");
+    }
     const expected = instructionAssets(strategy);
     if (
       bindings.strategyHash !== executionHash(strategy) ||

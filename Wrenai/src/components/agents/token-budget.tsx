@@ -12,9 +12,11 @@ import {
 } from "@/shared/agent-budget";
 import { formatUnits } from "@/shared/money";
 import { middleTruncate } from "@/shared/truncate";
+import { WALLET_SWAP_INPUT, WALLET_SWAP_NATIVE_OUTPUT } from "@/shared/wallet-swap";
 import { INPUT_CLASS, Select } from "./policy-fields";
 
 interface TokenBudgetProps {
+  readonly label?: string;
   readonly value: AgentBudgetInput | null;
   readonly onChange: (value: AgentBudgetInput | null) => void;
   readonly excludeId?: string;
@@ -27,10 +29,13 @@ const LINK =
 
 /** Available units for display: four decimals at most, rounded down, so it never reads larger than it is. */
 function shortAmount(units: string, decimals: number): string {
-  return formatUnits(BigInt(units), { decimals, fractionDigits: Math.min(decimals, 4) }).replace(
-    /\.?0+$/,
-    "",
-  );
+  const amount = BigInt(units);
+  const fractionDigits = Math.min(decimals, 4);
+  if (amount > 0n && amount < 10n ** BigInt(decimals - fractionDigits)) {
+    return "<0.0001";
+  }
+  const text = formatUnits(amount, { decimals, fractionDigits });
+  return fractionDigits === 0 ? text : text.replace(/\.?0+$/, "");
 }
 
 /**
@@ -38,7 +43,13 @@ function shortAmount(units: string, decimals: number): string {
  * full wallet and reservation note sits in the available line's tooltip. A token outside the list can be checked
  * by its contract.
  */
-export function TokenBudget({ value, onChange, excludeId, disabled }: TokenBudgetProps): ReactElement {
+export function TokenBudget({
+  label = "Budget",
+  value,
+  onChange,
+  excludeId,
+  disabled,
+}: TokenBudgetProps): ReactElement {
   const id = useId();
   const [contract, setContract] = useState("");
   const [adding, setAdding] = useState(false);
@@ -60,6 +71,8 @@ export function TokenBudget({ value, onChange, excludeId, disabled }: TokenBudge
   });
   const tokens = query.data?.tokens ?? [];
   const selected = tokens.find((token) => token.assetId === value?.assetId);
+  const symbol = (token: (typeof tokens)[number]): string =>
+    token.assetId === WALLET_SWAP_INPUT ? "wNEAR" : token.symbol;
 
   function lookup(): void {
     const parsed = nearAccountSchema.safeParse(contract.trim());
@@ -93,7 +106,7 @@ export function TokenBudget({ value, onChange, excludeId, disabled }: TokenBudge
       <span title={query.data?.note}>
         Available{" "}
         <span className="font-mono tabular-nums text-fg">
-          {shortAmount(selected.availableUnits, selected.decimals)} {selected.symbol}
+          {shortAmount(selected.availableUnits, selected.decimals)} {symbol(selected)}
         </span>
       </span>
     );
@@ -101,10 +114,10 @@ export function TokenBudget({ value, onChange, excludeId, disabled }: TokenBudge
 
   return (
     <fieldset disabled={disabled} className="flex min-w-0 flex-col gap-1.5">
-      <legend className="sr-only">Budget</legend>
+      <legend className="sr-only">{label}</legend>
       <div className="flex items-center justify-between gap-3">
         <span aria-hidden="true" className="text-small text-fg-muted">
-          Budget
+          {label}
         </span>
         <button
           type="button"
@@ -131,17 +144,23 @@ export function TokenBudget({ value, onChange, excludeId, disabled }: TokenBudge
             <option value={value.assetId}>{value.assetId.replace(/^nep141:/, "")}</option>
           ) : null}
           {tokens.map((token) => (
-            <option key={token.assetId} value={token.assetId}>
-              {token.assetId === "native:near"
-                ? token.symbol
-                : `${token.symbol} · ${middleTruncate(token.assetId.slice(7), 10, 8)}`}
+            <option
+              key={token.assetId}
+              value={token.assetId}
+              disabled={token.assetId === WALLET_SWAP_NATIVE_OUTPUT}
+            >
+              {token.assetId === WALLET_SWAP_NATIVE_OUTPUT
+                ? "NEAR · payout only"
+                : tokens.some((other) => other.assetId !== token.assetId && symbol(other) === symbol(token))
+                  ? `${symbol(token)} · ${middleTruncate(token.assetId.slice(7), 10, 8)}`
+                  : symbol(token)}
             </option>
           ))}
         </Select>
         {value ? (
           <span className="relative w-40 shrink-0">
             <input
-              aria-label={`Amount${selected ? ` in ${selected.symbol}` : ""}`}
+              aria-label={`Amount${selected ? ` in ${symbol(selected)}` : ""}`}
               type="text"
               inputMode="decimal"
               autoComplete="off"
@@ -172,11 +191,15 @@ export function TokenBudget({ value, onChange, excludeId, disabled }: TokenBudge
         <span role="status" className="min-w-0 truncate">
           {status()}
         </span>
-        {adding ? null : (
-          <button type="button" onClick={() => setAdding(true)} className={`${LINK} shrink-0`}>
-            Add a token
-          </button>
-        )}
+        <button
+          type="button"
+          aria-expanded={adding}
+          aria-controls={adding ? `${id}-token-lookup` : undefined}
+          onClick={() => setAdding(!adding)}
+          className={`${LINK} shrink-0`}
+        >
+          {adding ? "Hide token lookup" : "Look up by contract"}
+        </button>
       </div>
       {selected && selected.decimals > MAX_AGENT_BUDGET_DECIMALS ? (
         <p role="alert" className="text-caption text-warn">
@@ -189,7 +212,7 @@ export function TokenBudget({ value, onChange, excludeId, disabled }: TokenBudge
         </p>
       ) : null}
       {adding ? (
-        <div className="flex flex-col gap-1.5 pt-1">
+        <div id={`${id}-token-lookup`} className="flex flex-col gap-1.5 pt-1">
           <div className="flex gap-2">
             <input
               aria-label="NEAR token contract"

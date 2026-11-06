@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { KeyType } from "@near-js/crypto";
 import { actionCreators, createTransaction, Signature, SignedTransaction } from "@near-js/transactions";
 import { base58 } from "@scure/base";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { chatCipher } from "@/server/chat/cipher";
 import type { AppDatabase } from "@/server/db/client";
 import { nativeSubmissions } from "@/server/db/native-schema";
@@ -16,12 +16,18 @@ import { tokenUnitsSchema } from "@/shared/token-units";
 import { currentAgentStrategy } from "../asset-review";
 import { ExecutionError, executionPlanSchema } from "../contracts";
 import { requireSwapGuard } from "../guard-swap";
-import { memeSubmissionCheck } from "../meme-reference";
+import { instructionSubmissionCheck } from "../instruction-reference";
 import { commitSignedExecution, recordSubmissionStatus } from "../ownership";
 import { recheckExecution } from "../policy";
 import { databaseTime, type ExecutionAction, executionEvent, ownedExecution, requireLease } from "../records";
 import { nativeAuthority } from "./authority";
-import { DCL_SWAP_GAS, MAX_NATIVE_GAS_UNITS, type RheaPrepared, rheaSwapCall } from "./contracts";
+import {
+  DCL_SWAP_GAS,
+  MAX_NATIVE_GAS_UNITS,
+  NATIVE_GAS_ASSET,
+  type RheaPrepared,
+  rheaSwapCall,
+} from "./contracts";
 import { quoteRhea, rheaTradeQuote } from "./quote";
 import { nativeRpc, nativeSigningState } from "./rpc";
 
@@ -86,7 +92,7 @@ export async function sendNativeCall(
       ? await currentAgentStrategy(db, action.userId, action.agentId, action.agentRevision)
       : null;
   const check = current
-    ? await memeSubmissionCheck(
+    ? await instructionSubmissionCheck(
         db,
         current,
         prepared.signal,
@@ -103,17 +109,27 @@ export async function sendNativeCall(
       root = await activeTradingAccount(tx, action.userId);
     requireLease(saved, token, now);
     // Registration can quarantine the common snapshot before the token swap. Recheck actual FT inventory independently for each stage.
-    const [allocated] = await tx
-      .select({ units: sql<string>`coalesce(sum(${positionLots.remainingUnits}),0)::text` })
+    const allocations = await tx
+      .select({
+        assetId: positionLots.assetId,
+        units: sql<string>`sum(${positionLots.remainingUnits})::text`,
+      })
       .from(positionLots)
       .where(
         and(
           eq(positionLots.userId, saved.userId),
           eq(positionLots.scope, "native_near"),
-          eq(positionLots.assetId, saved.inputAssetId),
+          inArray(positionLots.assetId, [saved.inputAssetId, NATIVE_GAS_ASSET]),
         ),
-      );
-    if (inputBalance < BigInt(allocated?.units ?? "0") || inputBalance < saved.inputUnits) {
+      )
+      .groupBy(positionLots.assetId);
+    const allocated = (assetId: string): bigint =>
+      BigInt(allocations.find((row) => row.assetId === assetId)?.units ?? "0");
+    if (
+      inputBalance < allocated(saved.inputAssetId) ||
+      inputBalance < saved.inputUnits ||
+      gas.spendable < allocated(NATIVE_GAS_ASSET) + maximumRemaining
+    ) {
       throw new ExecutionError(
         "insufficient_funds",
         "The native balance no longer covers all manual and agent allocations.",

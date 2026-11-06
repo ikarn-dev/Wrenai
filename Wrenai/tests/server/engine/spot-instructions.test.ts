@@ -12,6 +12,7 @@ import { applySpotFill } from "@/server/engine/instruction-receipt";
 import { initialInstructionState } from "@/server/engine/instruction-state";
 import { decideSpotInstruction, initialSpotState, spotOrderSize } from "@/server/engine/spot-instructions";
 import { observeSpotInstruction } from "@/server/engine/spot-observation";
+import { MarketUnavailable } from "@/server/research/market-http";
 import { agentInstructionSchema } from "@/shared/agent-instructions";
 
 vi.mock("server-only", () => ({}));
@@ -42,15 +43,16 @@ describe("reviewed spot instructions", () => {
         now,
       ),
     ).toThrow(/size/);
-    expect(() =>
+    // Venue drift beyond the independent price waits for a later check instead of counting as a failure.
+    expect(
       decideSpotInstruction(
         rule,
         policy,
         state,
         snapshot(now, { quote: quote(now, { outputUnits: "500000", minOutputUnits: "500000" }) }),
         now,
-      ),
-    ).toThrow(/price/);
+      ).signal,
+    ).toBeNull();
   });
   it("requires both the observed and executable price to reach a limit", () => {
     const rule = instruction(now, { entry: { type: "price", direction: "below", price: "0.999" } }),
@@ -67,7 +69,7 @@ describe("reviewed spot instructions", () => {
         snapshot(now, { price: { ...market, observedAt: now - 5000 } }),
         now,
       ),
-    ).toThrow(/stale/);
+    ).toThrow(MarketUnavailable);
   });
   it("reduces only confirmed owned units even when the entry trade cap is exhausted", () => {
     const rule = instruction(now, {

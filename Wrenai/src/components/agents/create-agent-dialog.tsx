@@ -12,13 +12,14 @@ import { createAgentWithBudget, parseAgentStrategy } from "@/server/agents/actio
 import type { AgentBudgetInput } from "@/shared/agent-budget";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
 import { type CreateAgentRequest, createRequestKey } from "@/shared/agent-create-request";
-import { agentTemplate } from "@/shared/agent-templates";
+import { agentSetupProfile } from "@/shared/agent-templates";
 import {
   type AgentPolicy,
   type AgentSummary,
   DEFAULT_POLICY,
   policySchema,
   type StrategyDraft,
+  strategyTextSchema,
 } from "@/shared/agents";
 import { AgentAvatar } from "./avatar";
 import { CreateAgentFields } from "./create-agent-fields";
@@ -34,6 +35,17 @@ function initialPolicy(pack: AgentSummary["pack"]): AgentPolicy {
     allowRiskReducingExits: true,
     ...(pack === "perps" ? { maxProviderFeeBps: 10 } : {}),
   };
+}
+
+type Pack = AgentSummary["pack"];
+interface SetupFields {
+  readonly text: string;
+  readonly budget: AgentBudgetInput | null;
+  readonly policy: AgentPolicy;
+}
+
+function blankSetup(pack: Pack): SetupFields {
+  return { text: "", budget: null, policy: initialPolicy(pack) };
 }
 
 /**
@@ -97,10 +109,14 @@ interface CreateAgentFlowProps {
 function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps): ReactElement {
   const formId = useId();
   const [pack, setPack] = useState(request.pack);
-  // A new agent opens on its type's preset strategy; a saved setup or a brief from chat keeps its own text.
-  const [text, setText] = useState(request.brief || agentTemplate(request.pack));
-  const [budget, setBudget] = useState<AgentBudgetInput | null>(request.setup?.budget ?? null);
-  const [policy, setPolicy] = useState<AgentPolicy>(() => initialPolicy(request.pack));
+  const [setups, setSetups] = useState<Partial<Record<Pack, SetupFields>>>(() => ({
+    [request.pack]: {
+      ...blankSetup(request.pack),
+      text: request.brief,
+      budget: request.setup?.budget ?? null,
+    },
+  }));
+  const { text, budget, policy } = setups[pack] ?? blankSetup(pack);
   const [phase, setPhase] = useState<DeployPhase>({ step: "setup" });
   const [formError, setFormError] = useState<string | null>(null);
   // Retries reuse these ids, so a lost reply recovers the same review or agent instead of creating another.
@@ -108,6 +124,14 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
   const [saveId, setSaveId] = useState<string | null>(null);
   const busy = phase.step === "verifying" || phase.step === "saving";
   const item = AGENT_CATALOG[pack];
+  const setup = agentSetupProfile(pack);
+
+  function updateSetup(changes: Partial<SetupFields>): void {
+    setSetups((current) => ({
+      ...current,
+      [pack]: { ...(current[pack] ?? blankSetup(pack)), ...changes },
+    }));
+  }
 
   function invalidate(): void {
     setRequestId(null);
@@ -146,7 +170,7 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
   async function save(draft: StrategyDraft, verifyMs: number): Promise<void> {
     const limits = policySchema.safeParse(policy);
     if (!limits.success) {
-      const message = limits.error.issues[0]?.message ?? "Check your risk limits.";
+      const message = limits.error.issues[0]?.message ?? "Check your limits.";
       setPhase({ step: "save_failed", draft, verifyMs, message });
       return;
     }
@@ -179,9 +203,14 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
 
   function deploy(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
+    const instructions = strategyTextSchema.safeParse(text);
+    if (!instructions.success) {
+      setFormError(instructions.error.issues[0]?.message ?? "Check your instructions.");
+      return;
+    }
     const limits = policySchema.safeParse(policy);
     if (!limits.success) {
-      setFormError(limits.error.issues[0]?.message ?? "Check your risk limits.");
+      setFormError(limits.error.issues[0]?.message ?? "Check your limits.");
       return;
     }
     setFormError(null);
@@ -263,7 +292,7 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
   function note(): string {
     switch (phase.step) {
       case "setup":
-        return "Saved paused. Nothing trades until you fund and start it.";
+        return "Saved paused. Fund and start the agent when ready.";
       case "verifying":
       case "saving":
         return "Keep this open until it finishes.";
@@ -294,7 +323,7 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
             Model verified
           </Badge>
         </div>
-        <StrategySummary strategy={phase.draft.strategy} />
+        <StrategySummary strategy={phase.draft.strategy} assets={phase.draft.assets} />
       </div>
     ) : null;
 
@@ -324,27 +353,23 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
                 pack={pack}
                 packLocked={request.setup !== null}
                 onPackChange={(next) => {
-                  // Switching type swaps in its preset, unless the user has written their own strategy.
-                  if (text.trim() === "" || text === agentTemplate(pack)) {
-                    setText(agentTemplate(next));
-                  }
                   setPack(next);
                   invalidate();
                 }}
                 text={text}
                 onTextChange={(next) => {
-                  setText(next);
+                  updateSetup({ text: next });
                   invalidate();
                 }}
                 budget={budget}
                 onBudgetChange={(next) => {
-                  setBudget(next);
+                  updateSetup({ budget: next });
                   invalidate();
                 }}
                 setupId={request.setup?.id ?? null}
                 policy={policy}
                 onPolicyChange={(next) => {
-                  setPolicy(next);
+                  updateSetup({ policy: next });
                   setSaveId(null);
                 }}
               />
@@ -357,7 +382,7 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
               className="flex flex-col gap-6"
             >
               <div className="flex flex-col gap-1.5 rounded-md bg-sunken p-4">
-                <span className={EYEBROW}>Strategy</span>
+                <span className={EYEBROW}>{setup.instructions}</span>
                 <p className="line-clamp-3 whitespace-pre-line text-small text-fg">{text}</p>
               </div>
               <DeployTimeline phase={phase} budgeted={budget !== null} review={review} />

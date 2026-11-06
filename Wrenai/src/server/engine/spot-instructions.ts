@@ -164,15 +164,13 @@ function validateSpotQuote(
     }
   }
   if (snapshot.price) {
-    const bound = priceScale(
-      snapshot.price,
-      BigInt(10_000 + (order.buy ? policy.maxSlippageBps : -policy.maxSlippageBps)),
-    );
+    const outputFloor = BigInt(10_000 - policy.maxSlippageBps);
+    const bound = order.buy
+      ? priceScale(snapshot.price, 10_000n, outputFloor)
+      : priceScale(snapshot.price, outputFloor);
+    // Venue drift from the independent price is a market condition: wait, never count it as a failure.
     if (order.buy ? comparePrice(actual, bound) > 0 : comparePrice(actual, bound) < 0) {
-      throw new ExecutionError(
-        "not_ready",
-        "The executable price moved beyond the independently observed pair-price tolerance.",
-      );
+      return false;
     }
   }
   if (instruction.kind === "spot_trader" && state.phase === "waiting" && instruction.entry.type === "price") {

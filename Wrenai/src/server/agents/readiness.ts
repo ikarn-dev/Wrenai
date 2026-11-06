@@ -15,12 +15,16 @@ import { synchronizeNativeInventory } from "@/server/execution/rhea/inventory";
 import { assertNoWalletFunding } from "@/server/funding/records";
 import { allocationCeiling } from "@/server/positions/capital-records";
 import { activeTradingAccount } from "@/server/trading-accounts/vault";
+import { instructionFundingAsset, usesNativeNearPayout } from "@/shared/agent-instructions";
 import { isRemovedExecutablePack, REMOVED_AGENT_MESSAGE } from "@/shared/agent-scope";
 import type { AgentSummary } from "@/shared/agents";
 import { AgentError } from "./errors";
 import { assertPerpsReady } from "./perps-readiness";
 
-export function deployedRuntimeReady(): boolean {
+export function deployedRuntimeReady(publicRhea = false): boolean {
+  if (publicRhea) {
+    return z.object({ VERCEL: z.literal("1") }).safeParse(process.env).success;
+  }
   return z
     .object({ VERCEL: z.literal("1"), ONECLICK_JWT: z.string().trim().min(1).max(8000) })
     .safeParse(process.env).success;
@@ -40,7 +44,8 @@ export async function assertAgentReady(user: SessionUser, agent: AgentSummary): 
       "Live activation currently requires autonomous mode within your reviewed limits. Per-order approval is not connected yet.",
     );
   }
-  if (!deployedRuntimeReady()) {
+  const publicRhea = "format" in agent.strategy && usesNativeNearPayout(agent.strategy);
+  if (!deployedRuntimeReady(publicRhea)) {
     throw new AgentError(
       "not_ready",
       "Deploy this app with Vercel Workflows and its trading credential before activating agents.",
@@ -64,6 +69,12 @@ export async function assertAgentReady(user: SessionUser, agent: AgentSummary): 
         and(
           eq(positionLots.userId, user.id),
           eq(positionLots.agentId, agent.id),
+          ...(publicRhea && "format" in agent.strategy
+            ? [
+                eq(positionLots.scope, "native_near"),
+                eq(positionLots.assetId, instructionFundingAsset(agent.strategy) ?? ""),
+              ]
+            : []),
           gt(positionLots.remainingUnits, 0n),
         ),
       )
@@ -123,7 +134,15 @@ export async function assertAgentReady(user: SessionUser, agent: AgentSummary): 
       return;
     }
   }
-  await synchronizePrivateInventory(db, user.id);
+  if (publicRhea) {
+    await synchronizeNativeInventory(
+      db,
+      user.id,
+      assets.reviewed.map((asset) => asset.assetId),
+    );
+  } else {
+    await synchronizePrivateInventory(db, user.id);
+  }
   const instruction = agent.strategy;
   if (
     instruction.kind === "spot_trader" ||

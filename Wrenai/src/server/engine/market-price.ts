@@ -4,6 +4,7 @@ import { ExecutionError } from "@/server/execution/contracts";
 import { quoteMicroUsd } from "@/server/execution/oneclick-quote";
 import { tradingResponseJson } from "@/server/execution/trading-http";
 import { decimal } from "@/server/research/decimal";
+import { MarketUnavailable } from "@/server/research/market-http";
 import type { AssetSymbol } from "@/shared/agents";
 
 const positiveDecimal = z
@@ -39,10 +40,7 @@ async function marketBook(symbol: AssetSymbol): Promise<z.infer<typeof bookSchem
       ),
     );
   } catch {
-    throw new ExecutionError(
-      "not_ready",
-      "Fresh market data could not be validated. Trading waits for a valid market snapshot.",
-    );
+    throw new MarketUnavailable("Fresh market book");
   }
 }
 
@@ -63,7 +61,7 @@ export async function freshAssetUsdPrice(symbol: AssetSymbol): Promise<MarketPri
   const bid = book.bids[0],
     ask = book.asks[0];
   if (!bid || !ask || decimal(bid[1]).n <= 0n || decimal(ask[1]).n <= 0n) {
-    throw new ExecutionError("not_ready", "The market reference has no usable liquidity.");
+    throw new MarketUnavailable("Liquid market book");
   }
   const bidPrice = quoteMicroUsd(bid[0], false),
     askPrice = quoteMicroUsd(ask[0], true);
@@ -77,10 +75,7 @@ export async function freshAssetUsdPrice(symbol: AssetSymbol): Promise<MarketPri
     bidPrice >= askPrice ||
     (askPrice - bidPrice) * 10_000n > priceMicroUsd * 100n
   ) {
-    throw new ExecutionError(
-      "not_ready",
-      "The market reference is stale or invalid. New trigger trades are blocked.",
-    );
+    throw new MarketUnavailable("Current market reference");
   }
   return { symbol, priceMicroUsd, marketAt, capturedAt };
 }

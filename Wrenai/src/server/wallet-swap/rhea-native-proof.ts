@@ -9,6 +9,11 @@ import {
   type WalletSwapQuote,
 } from "@/shared/wallet-swap";
 
+type NativePayout = Pick<
+  WalletSwapQuote,
+  "accountId" | "rheaPoolId" | "inputUnits" | "minimumOutputUnits" | "depositKind"
+>;
+
 const successValue = z.object({ SuccessValue: z.string().max(10000) });
 const status = z.union([
   successValue,
@@ -193,7 +198,7 @@ function returnedUnits(response: Response): bigint {
 
 function transferTotals(
   outcomes: ReadonlyMap<string, Outcome>,
-  quote: WalletSwapQuote,
+  quote: NativePayout,
 ): { readonly sent: bigint; readonly refunded: bigint } {
   let sent = 0n;
   let refunded = 0n;
@@ -222,7 +227,7 @@ function transferTotals(
   return { sent, refunded };
 }
 
-function matchingSwaps(outcomes: ReadonlyMap<string, Outcome>, quote: WalletSwapQuote) {
+function matchingSwaps(outcomes: ReadonlyMap<string, Outcome>, quote: NativePayout) {
   return [...outcomes.values()]
     .filter(
       (item) => item.outcome.executor_id === WALLET_SWAP_RHEA_DCL && !("Failure" in item.outcome.status),
@@ -307,7 +312,7 @@ function provesPayout(
 /** Proves the exact USDC spend, DCL fill, wNEAR unwrap and native NEAR payout or full refund. */
 export function verifyRheaNativePayout(
   raw: unknown,
-  quote: WalletSwapQuote,
+  quote: NativePayout,
 ): {
   readonly state: "settled" | "refunded" | "failed";
   readonly spentUnits: string;

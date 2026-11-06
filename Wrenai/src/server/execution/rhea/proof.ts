@@ -1,5 +1,7 @@
 import { base64 } from "@scure/base";
 import { z } from "zod";
+import { verifyRheaNativePayout } from "@/server/wallet-swap/rhea-native-proof";
+import { isNativeNearPayoutPair } from "@/shared/agent-instructions";
 import { tokenUnitsSchema } from "@/shared/token-units";
 import { ExecutionError } from "../contracts";
 import { RHEA_DCL, type RheaPrepared, rheaSwapCall } from "./contracts";
@@ -114,6 +116,21 @@ export function verifyNativeOutcome(
   const gas = all.reduce((sum, item) => sum + BigInt(item.outcome.tokens_burnt), 0n);
   if (role === "registration") {
     return { gas, used: 0n, output: 0n, succeeded: success.safeParse(value.status).success };
+  }
+  if (isNativeNearPayoutPair(prepared.quote.input.assetId, prepared.quote.output.assetId)) {
+    const proof = verifyRheaNativePayout(raw, {
+      accountId: prepared.accountId,
+      depositKind: "rhea_native",
+      rheaPoolId: prepared.quote.poolId,
+      inputUnits: prepared.quote.inputUnits,
+      minimumOutputUnits: prepared.quote.minimumOutputUnits,
+    });
+    return {
+      used: BigInt(proof.spentUnits),
+      output: BigInt(proof.receivedUnits),
+      gas,
+      succeeded: proof.state !== "failed",
+    };
   }
   let sent = 0n,
     refunded = 0n,

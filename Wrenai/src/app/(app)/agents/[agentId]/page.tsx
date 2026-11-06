@@ -23,6 +23,8 @@ import { database } from "@/server/db/client";
 import { agentRuntimeStatus } from "@/server/engine/status";
 import { readAgentTradingAccount } from "@/server/trading-accounts/agent-account";
 import { tradingAccountSummary } from "@/server/trading-accounts/vault";
+import { usesNativeNearPayout } from "@/shared/agent-instructions";
+import { agentSetupProfile } from "@/shared/agent-templates";
 import { type AgentSummary, PACKS } from "@/shared/agents";
 
 function timestamp(value: number): string {
@@ -56,6 +58,7 @@ export default async function AgentPage({
     agent.pack === "perps" ? readAgentTradingAccount(database(), user.id, agent.id) : Promise.resolve(null),
     agent.pack === "perps" ? tradingAccountSummary(database(), user.id) : Promise.resolve(null),
   ]);
+  const publicRhea = "format" in agent.strategy && usesNativeNearPayout(agent.strategy);
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <Link
@@ -144,7 +147,7 @@ export default async function AgentPage({
           unrelated, stale and unexecutable activity is skipped. This is not a complete wallet-history feed.
         </p>
       ) : null}
-      {"format" in agent.strategy ? (
+      {"format" in agent.strategy && !publicRhea ? (
         <AgentWalletFunding
           key={`${agent.id}:${agent.revision}`}
           agent={agent}
@@ -157,18 +160,20 @@ export default async function AgentPage({
         agent={agent}
         ownerId={user.id}
         initial={runtime}
-        executionAvailable={deployedRuntimeReady()}
+        executionAvailable={deployedRuntimeReady(publicRhea)}
       />
       <div className="grid min-w-0 items-start gap-stack xl:grid-cols-2">
         <PortfolioPanel id="strategy" title="Your strategy">
           <StrategySummary strategy={agent.strategy} />
         </PortfolioPanel>
-        <PortfolioPanel id="limits" title="Trading limits">
-          <PolicySummary policy={agent.policy} />
+        <PortfolioPanel id="limits" title={agentSetupProfile(agent.pack).limits}>
+          <PolicySummary pack={agent.pack} policy={agent.policy} />
         </PortfolioPanel>
       </div>
       <AgentAdvancedOptions>
-        <AgentTradePreview key={`${agent.id}:${agent.revision}`} agent={agent} accountId={user.accountId} />
+        {!publicRhea ? (
+          <AgentTradePreview key={`${agent.id}:${agent.revision}`} agent={agent} accountId={user.accountId} />
+        ) : null}
         <AgentAllocations agentId={agent.id} ownerId={user.id} />
         <div className="grid min-w-0 gap-stack xl:grid-cols-2">
           <PortfolioPanel id="versions" title="Strategy versions">

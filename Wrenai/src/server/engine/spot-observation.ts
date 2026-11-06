@@ -1,5 +1,6 @@
 import { ExecutionError } from "@/server/execution/contracts";
 import { type Decimal, decimal } from "@/server/research/decimal";
+import { MarketUnavailable } from "@/server/research/market-http";
 import { dcaScheduleSlot } from "./dca-schedule";
 import { comparePrice, priceCondition, priceScale } from "./instruction-price";
 import type { InstructionState } from "./instruction-state";
@@ -91,7 +92,7 @@ function dipObservation(
 export function observeSpotInstruction(
   instruction: SpotInstruction,
   previous: InstructionState,
-  snapshot: SpotSnapshot,
+  snapshot: SpotSnapshot | null,
   now: number,
 ): Observation {
   let state = previous;
@@ -126,6 +127,9 @@ export function observeSpotInstruction(
     state = { ...state, phase: "completed" };
     return result(false, "All reviewed profit targets are complete; remaining holdings are retained.");
   }
+  if (!snapshot) {
+    return result(false, "Waiting for a reviewed order size.");
+  }
   const needsPrice = !(
     instruction.kind === "spot_trader" &&
     state.phase === "waiting" &&
@@ -133,7 +137,7 @@ export function observeSpotInstruction(
   );
   const price = snapshot.price;
   if (needsPrice && (!price || price.observedAt > now + 1000 || now - price.observedAt >= 5000)) {
-    throw new ExecutionError("not_ready", "The exact pair's independent price is stale or unavailable.");
+    throw new MarketUnavailable("Fresh price for the reviewed pair");
   }
   if (price && state.phase === "holding") {
     state = { ...state, peakPrice: peak(state, price) };

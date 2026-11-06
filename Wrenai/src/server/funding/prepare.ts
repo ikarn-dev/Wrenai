@@ -13,7 +13,7 @@ import { dryQuoteRequest, oneClickJson, verifiedDryQuote } from "@/server/execut
 import { databaseTime, executionHash } from "@/server/execution/records";
 import { walletTokenHolding } from "@/server/portfolio/wallet-tokens";
 import { intentTokens } from "@/server/research/intents";
-import { instructionFundingAsset } from "@/shared/agent-instructions";
+import { instructionFundingAsset, usesNativeNearPayout } from "@/shared/agent-instructions";
 import { parseUsd, policySchema } from "@/shared/agents";
 import { type WalletFundingView, walletFundingSnapshotSchema } from "@/shared/wallet-funding";
 import { linkedAgentBudget, walletFundingView } from "./records";
@@ -68,6 +68,9 @@ export async function prepareWalletFunding(
     registry = await intentTokens();
   const assetId = budget.assetId === "native:near" ? "nep141:wrap.near" : budget.assetId;
   const summary = await agentSummary(db, agent);
+  if ("format" in summary.strategy && usesNativeNearPayout(summary.strategy)) {
+    throw new ExecutionError("not_ready", "Fund this agent's public RHEA trading balance.");
+  }
   if (!("format" in summary.strategy) || instructionFundingAsset(summary.strategy) !== assetId) {
     throw new ExecutionError(
       "conflict",

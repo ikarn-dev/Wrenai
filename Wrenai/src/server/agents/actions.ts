@@ -7,9 +7,13 @@ import { currentUser, type SessionUser } from "@/server/auth/session";
 import { strategyDrafts } from "@/server/db/agent-schema";
 import { database } from "@/server/db/client";
 import { startAgentRuntime } from "@/server/engine/start";
+import { instructionTradeAssets } from "@/server/execution/asset-review";
 import { ExecutionError } from "@/server/execution/contracts";
 import { consumeRateLimit } from "@/server/http/rate-limit";
+import { NearRpcError } from "@/server/near/rpc";
 import { intentTokens } from "@/server/research/intents";
+import { MarketUnavailable } from "@/server/research/market-http";
+import { usesNativeNearPayout } from "@/shared/agent-instructions";
 import { isActiveAgentTool, REMOVED_AGENT_MESSAGE } from "@/shared/agent-scope";
 import {
   type AgentResult,
@@ -19,13 +23,11 @@ import {
   saveAgentSchema,
   saveAgentWithBudgetSchema,
 } from "@/shared/agents";
-import { parseTokenAmount } from "@/shared/token-units";
 import { prepareStrategyDraft } from "./drafts";
 import { AgentError, agentFailure } from "./errors";
 import { commandAgent, readAgent, saveAgent, setGlobalStop } from "./mutations";
 import { assertAgentReady } from "./readiness";
 import { recoverCreatedAgent, saveAgentWithBudget } from "./simple-setup";
-import { prepareAgentBudget } from "./token-budgets";
 
 async function agentUser(kind: "parse" | "manage" | "stop"): Promise<SessionUser> {
   const user = await currentUser();
@@ -56,6 +58,14 @@ async function agentAction<T>(run: () => Promise<T>): Promise<AgentResult<T>> {
     if (error instanceof ExecutionError) {
       return agentFailure(new AgentError("not_ready", error.message));
     }
+    if (error instanceof MarketUnavailable || error instanceof NearRpcError) {
+      return agentFailure(
+        new AgentError(
+          "unavailable",
+          "Live market or NEAR data is temporarily unavailable. Try again shortly.",
+        ),
+      );
+    }
     if (error instanceof z.ZodError) {
       return agentFailure(
         new AgentError("invalid_input", error.issues[0]?.message ?? "Check the form and try again."),
@@ -72,14 +82,24 @@ export async function parseAgentStrategy(raw: unknown): Promise<AgentResult<Stra
     if (!isActiveAgentTool(input.pack)) {
       throw new AgentError("not_ready", REMOVED_AGENT_MESSAGE);
     }
-    if (input.budget) {
-      const prepared = await prepareAgentBudget(database(), user.id, input.budget),
-        holding = prepared.holding;
-      const units = parseTokenAmount(input.budget.amount, holding.decimals).toString();
-      const text = `${input.strategyText}\nSpending budget: ${input.budget.amount} ${holding.symbol}; exact wallet asset ${holding.assetId}; decimals ${holding.decimals}; smallest units ${units}. Native NEAR maps to nep141:wrap.near. This identifies the spending token only; do not invent the receiving token or other strategy conditions.`;
-      return prepareStrategyDraft(user.id, parseStrategyInputSchema.parse({ ...input, strategyText: text }));
+    const draft = await prepareStrategyDraft(user.id, input);
+    if ("format" in draft.strategy) {
+      try {
+        const tokens = usesNativeNearPayout(draft.strategy) ? [] : (await intentTokens()).tokens;
+        return { ...draft, assets: instructionTradeAssets(draft.strategy, tokens) };
+      } catch (error) {
+        if (
+          !(
+            error instanceof MarketUnavailable ||
+            error instanceof z.ZodError ||
+            error instanceof ExecutionError
+          )
+        ) {
+          throw error;
+        }
+      }
     }
-    return prepareStrategyDraft(user.id, input);
+    return draft;
   });
 }
 

@@ -11,6 +11,7 @@ import { useToastState } from "@/components/ui/toast";
 import { parseAgentStrategy, saveAgentStrategy } from "@/server/agents/actions";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
 import { isActiveAgentTool } from "@/shared/agent-scope";
+import { agentSetupProfile } from "@/shared/agent-templates";
 import {
   type AgentPolicy,
   type AgentSummary,
@@ -18,9 +19,11 @@ import {
   packSchema,
   policySchema,
   type StrategyDraft,
+  strategyTextSchema,
 } from "@/shared/agents";
 import { Field, INPUT_CLASS, PolicyFields } from "./policy-fields";
 import { StrategySummary } from "./strategy-summary";
+import { StrategyTemplates } from "./strategy-templates";
 
 /** Edits a saved agent's strategy. New agents are created in the Agents page's dialog (CreateAgentDialog). */
 export function AgentEditor({ agent }: { readonly agent: AgentSummary }): ReactElement {
@@ -33,6 +36,7 @@ export function AgentEditor({ agent }: { readonly agent: AgentSummary }): ReactE
   const [busy, startTransition] = useTransition();
   const [requestId, setRequestId] = useState<string | null>(null);
   const [saveId, setSaveId] = useState<string | null>(null);
+  const setup = agentSetupProfile(pack);
 
   function invalidate(): void {
     setDraft(null);
@@ -43,6 +47,11 @@ export function AgentEditor({ agent }: { readonly agent: AgentSummary }): ReactE
 
   function parse(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
+    const instructions = strategyTextSchema.safeParse(text);
+    if (!instructions.success) {
+      setError(instructions.error.issues[0]?.message ?? "Check your instructions.");
+      return;
+    }
     setError(null);
     const id = requestId ?? crypto.randomUUID();
     setRequestId(id);
@@ -140,13 +149,16 @@ export function AgentEditor({ agent }: { readonly agent: AgentSummary }): ReactE
               </select>
             </Field>
             <p className="text-small text-fg-muted">{PACKS[pack].description}</p>
-            <p className="text-caption text-fg-subtle">
-              Use the exact tokens and amounts you want this agent to use.
-            </p>
-            <Field
-              label="What should this agent do?"
-              hint="Include exact assets, amounts and price levels. No name needed."
-            >
+            <StrategyTemplates
+              key={pack}
+              templates={setup.templates}
+              hasInstructions={Boolean(text.trim())}
+              onApply={(next) => {
+                setText(next);
+                invalidate();
+              }}
+            />
+            <Field label={setup.instructions} hint={setup.guidance}>
               <textarea
                 minLength={20}
                 maxLength={4000}
@@ -157,7 +169,7 @@ export function AgentEditor({ agent }: { readonly agent: AgentSummary }): ReactE
                   setText(event.target.value);
                   invalidate();
                 }}
-                placeholder={AGENT_CATALOG[pack].prompt}
+                placeholder="Write your instructions or apply a template."
                 className="w-full resize-y rounded-sm border border-line bg-surface-2 p-3 text-body leading-relaxed text-fg-strong placeholder:text-fg-subtle"
               />
             </Field>
@@ -203,8 +215,9 @@ export function AgentEditor({ agent }: { readonly agent: AgentSummary }): ReactE
                 Model verified
               </Badge>
             </div>
-            <StrategySummary strategy={draft.strategy} />
+            <StrategySummary strategy={draft.strategy} assets={draft.assets} />
             <PolicyFields
+              pack={draft.strategy.kind}
               policy={policy}
               onChange={(next) => {
                 setPolicy(next);

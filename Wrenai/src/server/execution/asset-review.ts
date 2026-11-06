@@ -7,7 +7,8 @@ import type { AppDatabase } from "@/server/db/client";
 import { positionLots } from "@/server/db/position-schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import { type IntentToken, intentTokens } from "@/server/research/intents";
-import { instructionAssets } from "@/shared/agent-instructions";
+import { nativeNearAsset, usdcAsset } from "@/server/wallet-swap/rhea-native";
+import { instructionAssets, usesNativeNearPayout } from "@/shared/agent-instructions";
 import { type AssetSymbol, type Strategy, strategySchema, strategySymbols } from "@/shared/agents";
 import {
   type AgentTradeAssets,
@@ -15,6 +16,7 @@ import {
   type TradeAsset,
   tradeAssetSchema,
 } from "@/shared/trade-preview";
+import { WALLET_SWAP_NATIVE_OUTPUT } from "@/shared/wallet-swap";
 import { ExecutionError } from "./contracts";
 import { databaseTime, executionHash } from "./records";
 import { nativeTokenAsset } from "./rhea/inventory";
@@ -41,10 +43,16 @@ export function registryTradeAsset(token: IntentToken): TradeAsset {
     contractAddress: token.contractAddress ?? null,
   });
 }
-function instructionTradeAssets(
+export function instructionTradeAssets(
   strategy: Extract<Strategy, { format: 2 }>,
   tokens: readonly IntentToken[],
 ): readonly TradeAsset[] {
+  if (usesNativeNearPayout(strategy)) {
+    return instructionAssets(strategy).map((assetId) => ({
+      ...(assetId === WALLET_SWAP_NATIVE_OUTPUT ? nativeNearAsset : usdcAsset()),
+      symbol: assetId,
+    }));
+  }
   return instructionAssets(strategy).map((assetId) => {
     const token = tokens.find((candidate) => candidate.assetId === assetId);
     if (!token) {
@@ -212,7 +220,10 @@ export async function readAgentTradeAssets(
       };
     }
   }
-  const { tokens } = await intentTokens();
+  const tokens =
+    "format" in current.strategy && usesNativeNearPayout(current.strategy)
+      ? []
+      : (await intentTokens()).tokens;
   if ("format" in current.strategy) {
     const ids = instructionAssets(current.strategy);
     const reference =

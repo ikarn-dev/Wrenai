@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { positiveTokenUnitsSchema } from "@/shared/token-units";
 import { tradeAssetSchema } from "@/shared/trade-preview";
+import { WALLET_SWAP_RHEA_WRAP } from "@/shared/wallet-swap";
 import { hashSchema } from "../contracts";
 import { swapSignalSchema } from "../intents-record";
 
@@ -43,6 +44,7 @@ export function rheaSwapCall(prepared: RheaPrepared): {
   deposit: string;
 } {
   const q = prepared.quote;
+  const nativeOutput = q.output.assetId === NATIVE_GAS_ASSET;
   return {
     receiverId: q.input.assetId.slice(7),
     methodName: "ft_transfer_call",
@@ -52,8 +54,9 @@ export function rheaSwapCall(prepared: RheaPrepared): {
       msg: JSON.stringify({
         Swap: {
           pool_ids: [q.poolId],
-          output_token: q.output.assetId.slice(7),
+          output_token: nativeOutput ? WALLET_SWAP_RHEA_WRAP : q.output.assetId.slice(7),
           min_output_amount: q.minimumOutputUnits,
+          ...(nativeOutput ? { skip_unwrap_near: false } : {}),
         },
       }),
     },

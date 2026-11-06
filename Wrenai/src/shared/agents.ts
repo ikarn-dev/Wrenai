@@ -207,7 +207,11 @@ export const strategyTextSchema = z
   .string()
   .trim()
   .min(20, "Describe the assets, targets and conditions in at least 20 characters.")
-  .max(4000);
+  .max(4000)
+  .refine(
+    (text) => !/\{\{[^{}]+\}\}/.test(text),
+    "Fill in the template fields marked with {{...}} before review.",
+  );
 export const parseStrategyInputSchema = z.strictObject({
   requestId: z.uuid(),
   pack: packSchema,
@@ -271,4 +275,5 @@ export interface StrategyDraft {
   readonly model: string;
   readonly verifiedAt: number;
   readonly expiresAt: number;
+  readonly assets?: readonly import("./trade-preview").TradeAsset[];
 }

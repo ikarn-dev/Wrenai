@@ -10,15 +10,15 @@ import { ExecutionError } from "../contracts";
 import { claimExecution, releaseExecutionLease } from "../ownership";
 import { databaseTime, executionEvent, ownedExecution, requireLease } from "../records";
 import { cancelReservedExecution } from "../reservations";
-import { MAX_NATIVE_GAS_UNITS, type RheaPrepared } from "./contracts";
+import { MAX_NATIVE_GAS_UNITS, NATIVE_GAS_ASSET, type RheaPrepared } from "./contracts";
 import { synchronizeNativeInventory } from "./inventory";
 import { readNativeSubmission, sendNativeCall } from "./journal";
 import { readRheaPrepared } from "./order";
 import { verifyNativeOutcome } from "./proof";
 
-async function readFinal(hash: string, account: string): Promise<unknown | null> {
+async function readFinal(hash: string, account: string, includeReceipts = false): Promise<unknown | null> {
   try {
-    return await readFinalTransaction(hash, account);
+    return await readFinalTransaction(hash, account, includeReceipts);
   } catch (error) {
     if (error instanceof NearRpcError) {
       return null;
@@ -137,9 +137,17 @@ export async function advanceRheaAction(
   try {
     const swap = await readNativeSubmission(db, id, "swap");
     if (swap) {
-      const raw = await readFinal(swap.transactionHash, prepared.accountId);
+      const nativePayout = prepared.quote.output.assetId === NATIVE_GAS_ASSET;
+      const raw = await readFinal(swap.transactionHash, prepared.accountId, nativePayout);
       if (raw) {
-        await settleNative(db, userId, id, worker.token, prepared, raw);
+        try {
+          await settleNative(db, userId, id, worker.token, prepared, raw);
+        } catch (error) {
+          if (!nativePayout || !(error instanceof ExecutionError) || error.code !== "not_ready") {
+            throw error;
+          }
+          // The stored hash remains the sole reconciliation target while final payout evidence is incomplete.
+        }
       }
       return 5;
     }

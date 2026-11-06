@@ -1,13 +1,13 @@
 import { z } from "zod";
 import { nearAccountSchema, walletAssetSchema } from "./agent-budget";
+import { WALLET_SWAP_NATIVE_OUTPUT, WALLET_SWAP_USDC } from "./swap-assets";
 import { positiveTokenUnitsSchema, tokenUnitsSchema } from "./token-units";
 import { tradeAssetSchema } from "./trade-preview";
 import { tradeSizeSchema } from "./trade-size";
 
 /** 1Click's asset ID for NEAR, including native deposits. */
 export const WALLET_SWAP_INPUT = "nep141:wrap.near";
-export const WALLET_SWAP_USDC = "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1";
-export const WALLET_SWAP_NATIVE_OUTPUT = "native:near";
+export { WALLET_SWAP_NATIVE_OUTPUT, WALLET_SWAP_USDC };
 export const WALLET_SWAP_RHEA_POOL =
   "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1|wrap.near|100";
 export const WALLET_SWAP_RHEA_DCL = "dclv2.ref-labs.near";

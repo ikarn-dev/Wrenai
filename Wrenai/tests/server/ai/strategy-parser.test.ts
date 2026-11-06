@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { parseAttestedStrategy } from "@/server/ai/strategy-parser";
+import { WALLET_SWAP_NATIVE_OUTPUT, WALLET_SWAP_USDC } from "@/shared/wallet-swap";
 
 const cloud = vi.hoisted(() => ({ create: vi.fn(), verify: vi.fn(), options: vi.fn(), keys: vi.fn() }));
 vi.mock("server-only", () => ({}));
@@ -8,6 +9,7 @@ vi.mock("@/server/research/intents", () => ({
   intentTokens: async () => ({
     tokens: [
       { assetId: "nep141:usdc.near", symbol: "USDC", blockchain: "near", decimals: 6 },
+      { assetId: WALLET_SWAP_USDC, symbol: "USDC", blockchain: "near", decimals: 6 },
       { assetId: "nep141:wrap.near", symbol: "wNEAR", blockchain: "near", decimals: 24 },
     ],
   }),
@@ -101,12 +103,40 @@ describe("attested strategy parsing", () => {
         exits: { takeProfitPrice: null, stopLossPrice: null, trailingStopBps: null },
       }),
     );
-    await expect(parseAttestedStrategy("spot_trader", "Spend 1 USDC to buy native NEAR")).rejects.toThrow(
-      "Name each token explicitly",
-    );
-    await expect(parseAttestedStrategy("spot_trader", "Spend 1 USDC to buy wNEAR")).resolves.toMatchObject({
+    await expect(
+      parseAttestedStrategy("spot_trader", "Spend 1 USDC to buy native NEAR", "nep141:usdc.near"),
+    ).rejects.toThrow("NEAR means native NEAR");
+    await expect(
+      parseAttestedStrategy("spot_trader", "Spend 1 USDC to buy wNEAR", "nep141:usdc.near"),
+    ).resolves.toMatchObject({
       strategy: { buyAssetId: "nep141:wrap.near" },
     });
+  });
+  it("preserves native NEAR in a supported strategy and rejects reverse exits", async () => {
+    const native = {
+      kind: "spot_trader",
+      format: 2,
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      payAssetId: WALLET_SWAP_USDC,
+      buyAssetId: WALLET_SWAP_NATIVE_OUTPUT,
+      amountUnits: "1000000",
+      priceUnit: "quote_token",
+      side: "buy",
+      entry: { type: "market" },
+      exits: { takeProfitPrice: null, stopLossPrice: null, trailingStopBps: null },
+    };
+    cloud.create.mockResolvedValue(completion(native));
+    await expect(
+      parseAttestedStrategy("spot_trader", "Spend 1 USDC to buy NEAR once.", WALLET_SWAP_USDC),
+    ).resolves.toMatchObject({ strategy: { buyAssetId: WALLET_SWAP_NATIVE_OUTPUT } });
+    cloud.create.mockResolvedValue(completion({ ...native, exits: { ...native.exits, stopLossPrice: "2" } }));
+    await expect(
+      parseAttestedStrategy(
+        "spot_trader",
+        "Spend 1 USDC to buy NEAR with a stop at 2 USDC.",
+        WALLET_SWAP_USDC,
+      ),
+    ).rejects.toThrow("Remove exit rules");
   });
 
   it("refuses gateway-only signatures even for otherwise valid strategy JSON", async () => {

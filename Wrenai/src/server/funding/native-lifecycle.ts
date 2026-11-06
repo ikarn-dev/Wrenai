@@ -1,6 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
+import { ownedAgent } from "@/server/agents/records";
 import { fulfilSetupBudget } from "@/server/agents/setup-binding";
 import type { SessionUser } from "@/server/auth/session";
 import type { AppDatabase } from "@/server/db/client";
@@ -14,8 +15,11 @@ import { databaseTime } from "@/server/execution/records";
 import { synchronizeNativeInventory } from "@/server/execution/rhea/inventory";
 import { finalBlockTime, readFinalTransaction } from "@/server/near/rpc";
 import { assignInventory } from "@/server/positions/attribution";
+import { setAgentCapitalLimit } from "@/server/positions/capital-limits";
 import { activeTradingAccount } from "@/server/trading-accounts/vault";
+import { parseUsd, policySchema } from "@/shared/agents";
 import { type NativeFundingView, nativeFundingCommandSchema } from "@/shared/native-funding";
+import { fundingRequestPart } from "./deposit";
 import { verifyNativeFunding } from "./native-proof";
 import { nativeFundingView, ownedNativeFunding } from "./native-records";
 
@@ -71,10 +75,15 @@ export async function proveNativeFunding(
   if (!input.transactionHash || input.snapshotHash !== row.snapshotHash) {
     throw new ExecutionError("conflict", "Supply this funding step's transaction hash.");
   }
-  if ((input.role === "gas" ? row.gasHash : row.tokenHash) === input.transactionHash) {
+  const pendingState = input.role === "gas" ? "gas_pending" : "token_pending";
+  const knownHash = input.role === "gas" ? row.gasHash : row.tokenHash;
+  if (knownHash && knownHash !== input.transactionHash) {
+    throw new ExecutionError("conflict", "This funding step already has a different transaction.");
+  }
+  if (knownHash && row.state !== pendingState) {
     return view;
   }
-  if (input.role === "gas" ? row.state !== "gas_pending" : row.state !== "token_pending") {
+  if (row.state !== pendingState) {
     throw new ExecutionError("conflict", "This transaction does not belong to the pending funding step.");
   }
   const rawReceipt = await readFinalTransaction(input.transactionHash, user.accountId),
@@ -83,8 +92,11 @@ export async function proveNativeFunding(
   if (row.attemptedAt === null || at < row.attemptedAt - 1000) {
     throw new ExecutionError("conflict", "This transaction predates the reviewed funding step.");
   }
-  const price =
-    input.role === "token" && view.snapshot.agentId ? await assetUsdPrice(view.snapshot.assetId) : null;
+  if (input.role === "token" && knownHash === null) {
+    await recordVerifiedTokenHash(db, user.id, row.id, input.transactionHash);
+  }
+  const fundingValue =
+    input.role === "token" && view.snapshot.agentId ? await nativeFundingValue(view.snapshot) : null;
   if (input.role === "token") {
     await synchronizeNativeInventory(db, user.id, [view.snapshot.assetId]);
   }
@@ -92,7 +104,10 @@ export async function proveNativeFunding(
     const current = await ownedNativeFunding(tx, user.id, input.id),
       snapshot = nativeFundingView(current).snapshot,
       now = await databaseTime(tx);
-    if ((input.role === "gas" ? current.gasHash : current.tokenHash) === input.transactionHash) {
+    if (
+      current.state !== pendingState &&
+      (input.role === "gas" ? current.gasHash : current.tokenHash) === input.transactionHash
+    ) {
       return nativeFundingView(current);
     }
     if (current.state !== row.state || current.snapshotHash !== input.snapshotHash) {
@@ -100,15 +115,19 @@ export async function proveNativeFunding(
     }
     if (input.role === "token") {
       if (snapshot.agentId) {
-        if (!price || now - price.observedAt >= 15000) {
+        if (!fundingValue || (fundingValue.observedAt !== null && now - fundingValue.observedAt >= 15000)) {
           throw new ExecutionError(
             "not_ready",
             "Refresh the funding valuation before assigning the native budget.",
           );
         }
-        const principal =
-          (BigInt(snapshot.units) * price.n * 1000000n + 10n ** BigInt(snapshot.decimals) * price.d - 1n) /
-          (10n ** BigInt(snapshot.decimals) * price.d);
+        const agent = await ownedAgent(tx, user.id, snapshot.agentId);
+        const policy = policySchema.parse(JSON.parse(agent.policyJson));
+        await setAgentCapitalLimit(tx, user.id, {
+          requestId: fundingRequestPart(snapshot.id, "native-limit"),
+          agentId: snapshot.agentId,
+          amountMicroUsd: parseUsd(policy.budgetUsd).toString(),
+        });
         await assignInventory(tx, user.id, {
           requestId: snapshot.id,
           agentId: snapshot.agentId,
@@ -116,7 +135,7 @@ export async function proveNativeFunding(
           assetId: snapshot.assetId,
           quantityUnits: snapshot.units,
           costBasisMicroUsd: null,
-          capitalMicroUsd: principal.toString(),
+          capitalMicroUsd: fundingValue.microUsd,
           evidenceHash: current.snapshotHash,
           sourceReference: `near:${input.transactionHash}`,
         });
@@ -171,4 +190,34 @@ export async function proveNativeFunding(
     }
     return nativeFundingView(saved);
   });
+}
+
+async function recordVerifiedTokenHash(
+  db: AppDatabase,
+  owner: string,
+  id: string,
+  hash: string,
+): Promise<void> {
+  await userTransaction(db, owner, async (tx) => {
+    const row = await ownedNativeFunding(tx, owner, id);
+    if (row.tokenHash === hash) {
+      return;
+    }
+    if (row.state !== "token_pending" || row.tokenHash !== null) {
+      throw new ExecutionError("conflict", "The pending token transfer changed.");
+    }
+    await tx.update(nativeDeposits).set({ tokenHash: hash }).where(eq(nativeDeposits.id, id));
+  });
+}
+
+async function nativeFundingValue(
+  snapshot: NativeFundingView["snapshot"],
+): Promise<{ microUsd: string; observedAt: number | null }> {
+  if (snapshot.principalMicroUsd) {
+    return { microUsd: snapshot.principalMicroUsd, observedAt: null };
+  }
+  const price = await assetUsdPrice(snapshot.assetId);
+  const denominator = 10n ** BigInt(snapshot.decimals) * price.d;
+  const principal = (BigInt(snapshot.units) * price.n * 1_000_000n + denominator - 1n) / denominator;
+  return { microUsd: principal.toString(), observedAt: price.observedAt };
 }

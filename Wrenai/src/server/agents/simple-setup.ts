@@ -156,6 +156,7 @@ export async function saveAgentWithBudget(
         { ...saved, setupId: setup.id, setupHash: setupBindingHash(setup) },
         cipher,
         tokens,
+        prepared.holding.assetId,
       );
       await tx.insert(agentEvents).values({
         id: input.requestId,

@@ -4,6 +4,8 @@ import { ExecutionError } from "@/server/execution/contracts";
 import { callViewFunction } from "@/server/near/rpc";
 import { type Decimal, decimal } from "@/server/research/decimal";
 import { rheaPools, rheaQuote } from "@/server/research/rhea";
+import { quoteRheaNative } from "@/server/wallet-swap/rhea-native";
+import { isNativeNearPayoutPair } from "@/shared/agent-instructions";
 import type { TradeAsset } from "@/shared/trade-preview";
 import { freshAssetUsdPrice } from "./market-price";
 
@@ -45,6 +47,26 @@ export async function instructionPrice(
 ): Promise<InstructionPrice> {
   if (unit === "usd") {
     return assetUsdPrice(base.assetId);
+  }
+  if (
+    isNativeNearPayoutPair(
+      inputIsQuote ? quote.assetId : base.assetId,
+      inputIsQuote ? base.assetId : quote.assetId,
+    )
+  ) {
+    const observed = await quoteRheaNative(inputUnits.toString(), 1, 1);
+    const output = BigInt(observed.outputUnits);
+    return inputIsQuote
+      ? {
+          n: inputUnits * 10n ** BigInt(base.decimals),
+          d: output * 10n ** BigInt(quote.decimals),
+          observedAt: Date.now(),
+        }
+      : {
+          n: output * 10n ** BigInt(base.decimals),
+          d: inputUnits * 10n ** BigInt(quote.decimals),
+          observedAt: Date.now(),
+        };
   }
   const baseContract = base.assetId.slice(7),
     quoteContract = quote.assetId.slice(7);

@@ -8,6 +8,7 @@ import { instructionStateSchema } from "@/server/engine/instruction-state";
 import { decideSpotInstruction } from "@/server/engine/spot-instructions";
 import { unreservedOwnedUnits } from "@/server/positions/lots";
 import { intentTokens } from "@/server/research/intents";
+import { usesNativeNearPayout } from "@/shared/agent-instructions";
 import { policySchema } from "@/shared/agents";
 import type { TradeQuote } from "@/shared/trade-preview";
 import { type currentAgentStrategy, resolvedTradeAssets } from "./asset-review";
@@ -67,7 +68,11 @@ export async function instructionSubmissionCheck(
   ) {
     throw new ExecutionError("conflict", "This order does not own the persisted instruction slot.");
   }
-  const { tokens } = await intentTokens();
+  const scope = usesNativeNearPayout(instruction) ? "native_near" : "confidential";
+  if (quote.scope !== scope) {
+    throw new ExecutionError("conflict", "The quote uses a different route from the reviewed instruction.");
+  }
+  const tokens = scope === "native_near" ? [] : (await intentTokens()).tokens;
   const assets = resolvedTradeAssets(instruction, current.version.resolvedAssetsJson, tokens);
   const base = assets.find(
     (asset) =>
@@ -90,8 +95,8 @@ export async function instructionSubmissionCheck(
     ? await instructionPrice(base, cash, BigInt(signal.inputUnits), buy, instruction.priceUnit)
     : null;
   const [baseOwned, cashOwned] = await Promise.all([
-    unreservedOwnedUnits(db, current.agent.userId, current.agent.id, "confidential", base.assetId, actionId),
-    unreservedOwnedUnits(db, current.agent.userId, current.agent.id, "confidential", cash.assetId, actionId),
+    unreservedOwnedUnits(db, current.agent.userId, current.agent.id, scope, base.assetId, actionId),
+    unreservedOwnedUnits(db, current.agent.userId, current.agent.id, scope, cash.assetId, actionId),
   ]);
   const decision = decideSpotInstruction(
     instruction,

@@ -4,6 +4,8 @@ import { currentUser } from "@/server/auth/session";
 import { ExecutionError } from "@/server/execution/contracts";
 import { consumeRateLimit } from "@/server/http/rate-limit";
 import { reportUnexpectedError } from "@/server/http/unexpected-error";
+import { NearRpcError } from "@/server/near/rpc";
+import { MarketUnavailable } from "@/server/research/market-http";
 import type { TradingResult } from "@/shared/manual-trading";
 
 /** Signed in, rate-limited and mapped to a stable code: shared by the trading Server Actions and GET routes. */
@@ -33,6 +35,13 @@ export async function tradingAction<T>(
         ok: false,
         code: "invalid_input",
         message: error.issues[0]?.message ?? "Check the trade details.",
+      };
+    }
+    if (error instanceof MarketUnavailable || error instanceof NearRpcError) {
+      return {
+        ok: false,
+        code: "unavailable",
+        message: "Live market or NEAR data is temporarily unavailable. Try again shortly.",
       };
     }
     reportUnexpectedError("trading", error);

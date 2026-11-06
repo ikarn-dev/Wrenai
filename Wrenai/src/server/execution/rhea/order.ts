@@ -9,7 +9,13 @@ import { positiveTokenUnitsSchema } from "@/shared/token-units";
 import type { TradeAsset } from "@/shared/trade-preview";
 import { ExecutionError, executionPlanSchema } from "../contracts";
 import { executionHash, type LedgerAction } from "../records";
-import { MAX_NATIVE_GAS_UNITS, type RheaPrepared, rheaPreparedSchema, rheaSwapCall } from "./contracts";
+import {
+  MAX_NATIVE_GAS_UNITS,
+  NATIVE_GAS_ASSET,
+  type RheaPrepared,
+  rheaPreparedSchema,
+  rheaSwapCall,
+} from "./contracts";
 import { quoteRhea } from "./quote";
 
 export async function prepareRheaOrder(
@@ -26,18 +32,21 @@ export async function prepareRheaOrder(
     throw new ExecutionError("not_ready", "Save your encrypted recovery backup before native trading.");
   }
   const quote = await quoteRhea(input, output, units, slippageBps, poolId);
-  const storage = await callViewFunction(output.assetId.slice(7), "storage_balance_of", {
-    account_id: root.nativeAccountId,
-  });
   let registrationDeposit: string | null = null;
-  if (storage.value === null) {
+  const storage =
+    output.assetId === NATIVE_GAS_ASSET
+      ? null
+      : await callViewFunction(output.assetId.slice(7), "storage_balance_of", {
+          account_id: root.nativeAccountId,
+        });
+  if (storage?.value === null) {
     registrationDeposit = z
       .object({ min: positiveTokenUnitsSchema })
       .parse((await callViewFunction(output.assetId.slice(7), "storage_balance_bounds", {})).value).min;
     if (BigInt(registrationDeposit) > MAX_NATIVE_GAS_UNITS / 2n) {
       throw new ExecutionError("limit", "Token registration exceeds the native fee allowance.");
     }
-  } else {
+  } else if (storage) {
     z.object({ total: positiveTokenUnitsSchema }).parse(storage.value);
   }
   const prepared = rheaPreparedSchema.parse({
