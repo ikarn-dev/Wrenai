@@ -12,6 +12,7 @@ import { createAgentWithBudget, parseAgentStrategy } from "@/server/agents/actio
 import type { AgentBudgetInput } from "@/shared/agent-budget";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
 import { type CreateAgentRequest, createRequestKey } from "@/shared/agent-create-request";
+import { agentTemplate } from "@/shared/agent-templates";
 import {
   type AgentPolicy,
   type AgentSummary,
@@ -96,7 +97,8 @@ interface CreateAgentFlowProps {
 function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps): ReactElement {
   const formId = useId();
   const [pack, setPack] = useState(request.pack);
-  const [text, setText] = useState(request.brief);
+  // A new agent opens on its type's preset strategy; a saved setup or a brief from chat keeps its own text.
+  const [text, setText] = useState(request.brief || agentTemplate(request.pack));
   const [budget, setBudget] = useState<AgentBudgetInput | null>(request.setup?.budget ?? null);
   const [policy, setPolicy] = useState<AgentPolicy>(() => initialPolicy(request.pack));
   const [phase, setPhase] = useState<DeployPhase>({ step: "setup" });
@@ -315,13 +317,17 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
             <Dialog.Description className="text-caption text-fg-muted">{item.description}</Dialog.Description>
           </div>
         </header>
-        <div data-lenis-prevent className="min-h-0 flex-1 overflow-y-auto px-card pt-6 pb-card">
+        <div data-lenis-prevent className="min-h-0 flex-1 overflow-y-auto px-card pt-5 pb-card">
           {phase.step === "setup" ? (
             <form id={formId} onSubmit={deploy}>
               <CreateAgentFields
                 pack={pack}
                 packLocked={request.setup !== null}
                 onPackChange={(next) => {
+                  // Switching type swaps in its preset, unless the user has written their own strategy.
+                  if (text.trim() === "" || text === agentTemplate(pack)) {
+                    setText(agentTemplate(next));
+                  }
                   setPack(next);
                   invalidate();
                 }}

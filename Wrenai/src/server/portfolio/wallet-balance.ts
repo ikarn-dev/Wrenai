@@ -1,5 +1,7 @@
 import "server-only";
+import { ExecutionError } from "@/server/execution/contracts";
 import { NearRpcError, viewNearBalance } from "@/server/near/rpc";
+import type { WalletBalanceView } from "@/shared/portfolio-wallet";
 
 export type WalletBalanceReading =
   | { readonly kind: "balance"; readonly yocto: bigint; readonly readAt: number }
@@ -21,4 +23,15 @@ export async function readWalletBalance(
     }
     throw error;
   }
+}
+
+export async function readWalletBalanceView(
+  accountId: string,
+  signal: AbortSignal,
+): Promise<WalletBalanceView> {
+  const balance = await readWalletBalance(accountId, signal);
+  if (balance.kind === "unavailable") {
+    throw new ExecutionError("not_ready", "The NEAR balance could not be refreshed.");
+  }
+  return { yocto: balance.kind === "balance" ? balance.yocto.toString() : null, readAt: balance.readAt };
 }

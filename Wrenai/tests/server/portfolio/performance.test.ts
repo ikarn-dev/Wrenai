@@ -5,7 +5,9 @@ import {
   observeInventory,
   startTestSubmission,
 } from "@tests/server/execution/test-context";
+import { rheaHash, rheaNativeQuote } from "@tests/server/wallet-swap/rhea-native-fixture";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { walletSwaps } from "@/server/db/wallet-swap-schema";
 import { recordExecutionFill, settleExecution } from "@/server/execution/accounting";
 import { readProofReport } from "@/server/execution/proof-report";
 import { reserveExecution } from "@/server/execution/reservations";
@@ -51,5 +53,25 @@ describe("owner-scoped portfolio evidence", () => {
     expect(own.strategies[0]?.receipt).toBeNull();
     expect(other.actions).toEqual([]);
     expect(other.strategies).toEqual([]);
+  });
+  it("shows only the owner's wallet swaps with recorded transactions", async () => {
+    const quote = rheaNativeQuote();
+    const now = Date.now();
+    const fields = {
+      userId: "owner",
+      accountId: "owner.near",
+      quoteJson: JSON.stringify(quote),
+      createdAt: now,
+      updatedAt: now,
+      expiresAt: now + 60_000,
+    };
+    await context.db.insert(walletSwaps).values([
+      { ...fields, id: quote.request.requestId, state: "submitted", transactionHash: rheaHash },
+      { ...fields, id: crypto.randomUUID(), state: "quoted" },
+    ]);
+    expect((await readProofReport(context.db, "owner")).walletSwaps).toMatchObject([
+      { id: quote.request.requestId, directRhea: true, state: "submitted", transactionHash: rheaHash },
+    ]);
+    expect((await readProofReport(context.db, "other")).walletSwaps).toEqual([]);
   });
 });

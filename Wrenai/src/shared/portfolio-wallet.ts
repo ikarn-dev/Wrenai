@@ -12,3 +12,8 @@ export const walletValueViewSchema = z.strictObject({
 });
 
 export const PORTFOLIO_WALLET_KEY = ["portfolio-wallet"] as const;
+export const PORTFOLIO_WALLET_BALANCE_KEY = [...PORTFOLIO_WALLET_KEY, "balance"] as const;
+export const PORTFOLIO_WALLET_VALUE_KEY = [...PORTFOLIO_WALLET_KEY, "value"] as const;
+
+export type WalletBalanceView = z.infer<typeof walletBalanceViewSchema>;
+export type WalletValueView = z.infer<typeof walletValueViewSchema>;

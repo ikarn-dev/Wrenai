@@ -12,8 +12,12 @@ interface AgentCounts {
   readonly total: number;
 }
 
-/** How many agents are live, under the page title. A placeholder of the same height while the page loads. */
-async function LiveCount({ data }: { readonly data: Promise<AgentCounts> }): Promise<ReactElement> {
+/** The live count's placeholder: the badge's own 24 px height, so the "Your agents" row never changes height. */
+export const LIVE_COUNT_PLACEHOLDER = (
+  <span aria-hidden="true" className="block h-6 w-36 rounded-full bg-surface-2 motion-safe:animate-pulse" />
+);
+
+async function LiveCountValue({ data }: { readonly data: Promise<AgentCounts> }): Promise<ReactElement> {
   const counts = await data;
   return (
     <p className="flex items-center gap-2 text-small text-fg-muted">
@@ -28,23 +32,20 @@ async function LiveCount({ data }: { readonly data: Promise<AgentCounts> }): Pro
   );
 }
 
-/** The Agents page title, live count and actions. Without counts (the loading screen) the count is a placeholder. */
-export function AgentsHeader({ counts }: { readonly counts?: Promise<AgentCounts> }): ReactElement {
-  const placeholder = (
-    <span aria-hidden="true" className="block h-6 w-40 rounded-full bg-surface-2 motion-safe:animate-pulse" />
+/** How many agents are live, for the "Your agents" row. Streams in behind a placeholder of the same height. */
+export function LiveCount({ data }: { readonly data: Promise<AgentCounts> }): ReactElement {
+  return (
+    <Suspense fallback={LIVE_COUNT_PLACEHOLDER}>
+      <LiveCountValue data={data} />
+    </Suspense>
   );
+}
+
+/** The Agents page title and actions. Needs no data, so the loading screen renders the same header. */
+export function AgentsHeader(): ReactElement {
   return (
     <header className="flex flex-wrap items-center justify-between gap-4">
-      <div className="flex flex-col gap-2">
-        <h1 className="font-display text-page-title">Agents</h1>
-        {counts ? (
-          <Suspense fallback={placeholder}>
-            <LiveCount data={counts} />
-          </Suspense>
-        ) : (
-          placeholder
-        )}
-      </div>
+      <h1 className="font-display text-page-title">Agents</h1>
       <div className="flex items-center gap-3">
         <AgentsInfo />
         <RefreshPortfolioButton />

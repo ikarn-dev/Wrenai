@@ -11,6 +11,7 @@ import { hlUnits } from "@/server/execution/hyperliquid/decimal";
 import { readPrivateBalances } from "@/server/execution/private-inventory";
 import { decimal } from "@/server/research/decimal";
 import { type IntentToken, intentTokens } from "@/server/research/intents";
+import type { WalletValueView } from "@/shared/portfolio-wallet";
 import { readPublicIntentsInventory } from "./public-intents";
 import { WALLET_SCAN_TIMEOUT_MS, walletTokenHoldings } from "./wallet-tokens";
 
@@ -179,6 +180,16 @@ export async function readConnectedWalletValue(
   ]);
   return valueWalletHoldings("wallet", "NEAR wallet", holdings, registry?.tokens ?? []);
 }
+
+export async function readWalletValueView(accountId: string, signal: AbortSignal): Promise<WalletValueView> {
+  const value = await readConnectedWalletValue(accountId, signal);
+  return {
+    knownMicroUsd: value.knownMicroUsd.toString(),
+    complete: value.complete,
+    otherTokens: value.holdings.filter((holding) => holding.assetId !== "native:near").length,
+  };
+}
+
 async function privateValue(
   db: AppDatabase,
   userId: string,

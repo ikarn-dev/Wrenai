@@ -5,6 +5,7 @@ import { TradingAccessSkeleton } from "@/components/portfolio/access-card";
 import { MarketInsightsSkeleton } from "@/components/portfolio/market-insights";
 import { MarketTickerSkeleton } from "@/components/portfolio/market-ticker";
 import { PortfolioSection, StatTile } from "@/components/portfolio/panel";
+import { WalletValueSkeleton } from "@/components/portfolio/wallet-cards";
 
 // The same components and grid as page.tsx with line-tall placeholders (`h-lh` in each value's own text style), so
 // nothing shifts when the real page replaces this one.
@@ -35,17 +36,17 @@ export default function PortfolioLoading(): ReactElement {
       </span>
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <h1 className="font-display text-page-title">Portfolio</h1>
-        <div aria-hidden="true" className={`${BLOCK} h-10 w-32 pointer-coarse:h-11`} />
+        <div
+          aria-hidden="true"
+          className="size-8 rounded-full bg-surface-2 motion-safe:animate-pulse pointer-coarse:size-11"
+        />
       </header>
       <div aria-hidden="true" className="flex min-w-0 flex-col gap-12">
         <div className="grid min-w-0 gap-stack lg:grid-cols-2">
           <div className="grid gap-stack sm:grid-cols-2">
             <div className="grid sm:col-span-2">
               <StatTile icon={Wallet} label="NEAR wallet">
-                <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                  <span className={`${LINE} w-24 font-mono text-num-xl`} />
-                  <span className={`${LINE} w-28 text-small`} />
-                </span>
+                <WalletValueSkeleton />
               </StatTile>
             </div>
             {TILES.map((tile) => (

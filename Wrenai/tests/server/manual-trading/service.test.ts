@@ -16,6 +16,7 @@ import { delegatedKeys } from "@/server/db/schema";
 import { executionSubjects } from "@/server/db/subject-schema";
 import { recordExecutionFill, settleExecution } from "@/server/execution/accounting";
 import { beginSubmission, claimExecution } from "@/server/execution/ownership";
+import { readProofReport } from "@/server/execution/proof-report";
 import { ownedExecution } from "@/server/execution/records";
 import {
   confirmManualTrade,
@@ -114,6 +115,7 @@ describe("manual trades in the common ledger", () => {
     expect(p.status).toBe("quoted");
     expect(await context.db.select().from(agents)).toHaveLength(0);
     expect(await context.db.select().from(executionActions)).toHaveLength(0);
+    expect((await readProofReport(context.db, "owner")).actions).toEqual([]);
     expect(await context.db.select().from(executionSubjects)).toMatchObject([
       { kind: "manual", agentId: null },
     ]);
@@ -126,6 +128,10 @@ describe("manual trades in the common ledger", () => {
     expect(await context.db.select().from(executionActions)).toMatchObject([
       { origin: "manual", status: "reserved", approvedAt: expect.any(Number) },
     ]);
+    expect((await readProofReport(context.db, "owner")).actions).toMatchObject([
+      { id: a.actionId, origin: "manual", name: null, status: "reserved" },
+    ]);
+    expect((await readProofReport(context.db, "stranger")).actions).toEqual([]);
     expect(await context.db.select().from(agents)).toHaveLength(0);
     expect(await context.db.select().from(positionLots)).toHaveLength(1);
   });

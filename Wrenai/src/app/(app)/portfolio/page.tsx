@@ -1,3 +1,9 @@
+import {
+  defaultShouldDehydrateQuery,
+  dehydrate,
+  HydrationBoundary,
+  QueryClient,
+} from "@tanstack/react-query";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AccountActivity } from "@/components/activity/account-activity";
@@ -14,7 +20,10 @@ import { requireUser } from "@/server/auth/session";
 import { database } from "@/server/db/client";
 import { readDelegatedKey } from "@/server/delegation/delegated-key";
 import { readPortfolioPerformance } from "@/server/portfolio/performance";
+import { readWalletValueView } from "@/server/portfolio/valuation";
+import { readWalletBalanceView } from "@/server/portfolio/wallet-balance";
 import { readTelegramLinkState } from "@/server/telegram/linking";
+import { PORTFOLIO_WALLET_BALANCE_KEY, PORTFOLIO_WALLET_VALUE_KEY } from "@/shared/portfolio-wallet";
 
 export const metadata: Metadata = { title: "Portfolio" };
 
@@ -46,10 +55,27 @@ async function AgentResults({
 
 const PANEL_PLACEHOLDER = "min-h-72 card-shine rounded-lg motion-safe:animate-pulse";
 
+function prefetchWallet(accountId: string) {
+  const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  void cache.prefetchQuery({
+    queryKey: PORTFOLIO_WALLET_BALANCE_KEY,
+    queryFn: ({ signal }) => readWalletBalanceView(accountId, signal),
+  });
+  void cache.prefetchQuery({
+    queryKey: PORTFOLIO_WALLET_VALUE_KEY,
+    queryFn: ({ signal }) => readWalletValueView(accountId, signal),
+  });
+  // Stream each result into the browser cache without waiting to render the dashboard shell.
+  return dehydrate(cache, {
+    shouldDehydrateQuery: (query) => defaultShouldDehydrateQuery(query) || query.state.status === "pending",
+  });
+}
+
 // Docs/DESIGN.md → Screens → Portfolio: an overview (facts left, the trading-access pane right), then titled
 // sections of neutral cards. Mint marks only status and actions.
 export default async function PortfolioPage() {
   const user = await requireUser();
+  const wallet = prefetchWallet(user.accountId);
   const db = database();
   const agentKey = readDelegatedKey(user);
   const agents = listAgents(db, user.id);
@@ -63,7 +89,9 @@ export default async function PortfolioPage() {
       </header>
       {/* One gap token between and inside the columns; the pane stretches to the overview's height. */}
       <div className="grid min-w-0 gap-stack lg:grid-cols-2">
-        <PortfolioOverview agents={agents} telegram={telegram} performance={performance} />
+        <HydrationBoundary state={wallet}>
+          <PortfolioOverview agents={agents} telegram={telegram} performance={performance} />
+        </HydrationBoundary>
         <Suspense fallback={<TradingAccessSkeleton />}>
           <Access accountId={user.accountId} keyReading={agentKey} />
         </Suspense>

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { type ReactElement, Suspense } from "react";
 import { AgentCard } from "@/components/agents/agent-card";
 import { AgentListSkeleton } from "@/components/agents/agent-list-skeleton";
-import { AgentsHeader, EMPTY_AGENTS_CARD } from "@/components/agents/agents-header";
+import { AgentsHeader, EMPTY_AGENTS_CARD, LiveCount } from "@/components/agents/agents-header";
 import { AgentCatalog } from "@/components/agents/catalog";
 import { GlobalStop } from "@/components/agents/controls";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
@@ -113,14 +113,17 @@ export default async function AgentsPage({
   }));
   return (
     <div className="flex min-w-0 flex-col gap-12">
-      <AgentsHeader counts={counts} />
+      <AgentsHeader />
       <PortfolioSection
         id="your-agents"
         title="Your agents"
         aside={
-          <Suspense fallback={null}>
-            <StopControl agents={agents} controls={controls} />
-          </Suspense>
+          <div className="flex items-center gap-4">
+            <LiveCount data={counts} />
+            <Suspense fallback={null}>
+              <StopControl agents={agents} controls={controls} />
+            </Suspense>
+          </div>
         }
       >
         <Suspense fallback={<AgentListSkeleton />}>

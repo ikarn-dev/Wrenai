@@ -1,10 +1,11 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { readTrading } from "@/components/trading/trading-api";
-import { formatCompactMicroUsd, formatUnits } from "@/shared/money";
+import { formatCompactMicroUsd, formatExactMicroUsd, formatUnits } from "@/shared/money";
 import {
-  PORTFOLIO_WALLET_KEY,
+  PORTFOLIO_WALLET_BALANCE_KEY,
+  PORTFOLIO_WALLET_VALUE_KEY,
   walletBalanceViewSchema,
   walletValueViewSchema,
 } from "@/shared/portfolio-wallet";
@@ -74,64 +75,112 @@ const walletRead = {
   retry: false,
 } as const;
 
+function WalletPlaceholder({ label }: { readonly label: string }): ReactElement {
+  return (
+    <span className="relative block">
+      <span aria-hidden="true" className="invisible">
+        0
+      </span>
+      <span
+        role="status"
+        aria-label={label}
+        className="absolute inset-y-0 left-0 w-20 max-w-full rounded-xs bg-surface-2 motion-safe:animate-pulse"
+      />
+    </span>
+  );
+}
+
+function WalletValueLayout({
+  usd,
+  near,
+  detail = "",
+}: {
+  readonly usd: ReactNode;
+  readonly near: ReactNode;
+  readonly detail?: string;
+}): ReactElement {
+  return (
+    <span className="@container block">
+      <span className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1 @min-[24rem]:grid-cols-[auto_6rem_minmax(0,1fr)]">
+        <span className="block w-[7ch] truncate font-mono text-num-xl text-fg-strong tabular-nums">
+          {usd}
+        </span>
+        <span className="block truncate text-small text-fg-muted">{near}</span>
+        <span
+          className="col-span-full truncate text-small text-fg-subtle @min-[24rem]:col-span-1"
+          title={detail || undefined}
+        >
+          {detail || (
+            <span aria-hidden="true" className="invisible">
+              0
+            </span>
+          )}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+export function WalletValueSkeleton(): ReactElement {
+  return (
+    <WalletValueLayout
+      usd={<WalletPlaceholder label="Loading wallet value" />}
+      near={<WalletPlaceholder label="Loading NEAR balance" />}
+    />
+  );
+}
+
+function UnavailableValue({ label }: { readonly label: string }): ReactElement {
+  return (
+    <span className="text-fg-subtle">
+      <span aria-hidden="true">—</span>
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
 /** Native balance renders independently of token discovery and keeps its last successful value during refresh. */
 export function WalletValue(): ReactElement {
   const balance = useQuery({
     ...walletRead,
-    queryKey: [...PORTFOLIO_WALLET_KEY, "balance"],
+    queryKey: PORTFOLIO_WALLET_BALANCE_KEY,
     queryFn: ({ signal }) =>
       readTrading("/api/portfolio/wallet?view=balance", walletBalanceViewSchema, signal),
   });
   const valuation = useQuery({
     ...walletRead,
-    queryKey: [...PORTFOLIO_WALLET_KEY, "value"],
+    queryKey: PORTFOLIO_WALLET_VALUE_KEY,
     queryFn: ({ signal }) => readTrading("/api/portfolio/wallet?view=value", walletValueViewSchema, signal),
   });
   const value = valuation.data;
-  const hasEstimate = value && (value.complete || value.knownMicroUsd !== "0");
-  const note =
-    balance.isError || valuation.isError
-      ? "Refresh unavailable"
-      : value && !value.complete
-        ? "Partial value"
-        : null;
-  // One line: the USD figure, then the NEAR balance and the other-token count on the figure's baseline. Each part
-  // holds exactly one line of its own text while loading, so the tile never changes height.
+  const estimate =
+    value && (value.complete || value.knownMicroUsd !== "0") ? BigInt(value.knownMicroUsd) : null;
+  const details = [
+    value && !value.complete ? "Partial value" : null,
+    balance.isError || valuation.isError ? "Refresh unavailable" : null,
+    value?.otherTokens ? `+ ${value.otherTokens} more` : null,
+  ].filter(Boolean);
   return (
-    <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-      <span className="flex h-lh items-baseline font-mono text-num-xl text-fg-strong tabular-nums">
-        {valuation.isPending ? (
-          <span
-            role="status"
-            aria-label="Loading wallet value"
-            className="block h-lh w-24 rounded-xs bg-surface-2 motion-safe:animate-pulse"
-          />
-        ) : hasEstimate ? (
-          formatCompactMicroUsd(BigInt(value.knownMicroUsd))
+    <WalletValueLayout
+      usd={
+        valuation.isPending ? (
+          <WalletPlaceholder label="Loading wallet value" />
+        ) : estimate !== null ? (
+          <span title={formatExactMicroUsd(estimate)}>{formatCompactMicroUsd(estimate)}</span>
         ) : (
-          <>
-            <span aria-hidden="true" className="text-fg-subtle">
-              —
-            </span>
-            <span className="sr-only">Wallet value unavailable</span>
-          </>
-        )}
-      </span>
-      <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-small text-fg-muted">
-        {balance.data ? (
-          <NearAmount amount={BigInt(balance.data.yocto ?? "0")} />
+          <UnavailableValue label="Wallet value unavailable" />
+        )
+      }
+      near={
+        balance.data ? (
+          <NearAmount amount={BigInt(balance.data.yocto ?? "0")} compact />
         ) : balance.isPending ? (
-          <span
-            role="status"
-            aria-label="Loading NEAR balance"
-            className="inline-block h-lh w-24 rounded-xs bg-surface-2 align-bottom motion-safe:animate-pulse"
-          />
+          <WalletPlaceholder label="Loading NEAR balance" />
         ) : (
-          <span className="text-fg-muted">NEAR balance unavailable</span>
-        )}
-        {value?.otherTokens ? <span>+ {value.otherTokens} more</span> : null}
-        {note ? <span className="text-fg-subtle">· {note}</span> : null}
-      </span>
-    </span>
+          <UnavailableValue label="NEAR balance unavailable" />
+        )
+      }
+      detail={details.join(" · ")}
+    />
   );
 }

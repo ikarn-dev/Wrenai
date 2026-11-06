@@ -1,7 +1,6 @@
 import { ArrowUpRight, KeyRound } from "lucide-react";
 import Link from "next/link";
 import type { ReactElement, ReactNode } from "react";
-import { AccountLabel } from "@/components/ui/account-label";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { AgentKeyDialog } from "@/components/wallet/agent-key-dialog";
 import type { DelegatedKeyReading } from "@/server/delegation/delegated-key";
@@ -25,7 +24,9 @@ interface TradingAccessPaneProps {
 // Rows share the space the card gets from the overview's height (flex-1), so the list fills the card evenly
 // instead of leaving an empty band above the action; each row is at least 40 px.
 const FACT_ROW = "flex min-h-10 min-w-0 flex-1 items-center justify-between gap-4";
-const FACT_TERM = "shrink-0 font-mono text-eyebrow uppercase text-fg-subtle";
+// Label role (Docs/DESIGN.md → Typography → Roles), sentence case. fg-muted rather than fg-subtle, which is never
+// used on surface-3 (7.23:1 here).
+const FACT_TERM = "shrink-0 text-small text-fg-muted";
 const ACTIVE_SINCE = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
   month: "short",
@@ -49,36 +50,79 @@ function FactList({ values }: { readonly values: Readonly<Record<FactTerm, React
   );
 }
 
+// Every value sits in one badge of a fixed size, so the right column reads as one even stack: a faint mint tint
+// with the badges' lit edge (badge-tint, badge-shine in styles/surfaces.css). Long values are cut to fit; the full
+// value stays in the tooltip and for screen readers.
+const FACT_BADGE =
+  "inline-flex h-6 w-36 min-w-0 items-center justify-center rounded-full px-2.5 text-small badge-tint badge-shine";
+const MAX_BADGE_CHARS = 16;
+
+function FactBadge({
+  children,
+  full,
+  mono = false,
+  quiet = false,
+}: {
+  readonly children: ReactNode;
+  /** The untruncated value, when the badge shows a shortened one. */
+  readonly full?: string;
+  readonly mono?: boolean;
+  readonly quiet?: boolean;
+}): ReactElement {
+  return (
+    <dd
+      title={full}
+      className={`${FACT_BADGE} ${mono ? "font-mono tabular-nums" : ""} ${quiet ? "text-fg-muted" : "text-fg"}`}
+    >
+      {full === undefined ? (
+        <span className="truncate">{children}</span>
+      ) : (
+        <>
+          <span aria-hidden="true" className="truncate">
+            {children}
+          </span>
+          <span className="sr-only">{full}</span>
+        </>
+      )}
+    </dd>
+  );
+}
+
+function fitted(value: string): string {
+  return value.length <= MAX_BADGE_CHARS ? value : middleTruncate(value, 7, 6);
+}
+
 function KeyFacts({ accountId, reading }: TradingAccessPaneProps): ReactElement {
+  // The curve prefix is the same for every key, so the badge shows only the key's own characters.
+  const key = reading.state.kind === "none" ? null : reading.state.publicKey;
   return (
     <FactList
       values={{
         Account: (
-          <dd className="min-w-0 text-right">
-            <AccountLabel accountId={accountId} />
-          </dd>
+          <FactBadge mono {...(accountId.length > MAX_BADGE_CHARS ? { full: accountId } : {})}>
+            {fitted(accountId)}
+          </FactBadge>
         ),
         "Agent key":
-          reading.state.kind === "none" ? (
-            <dd className="text-fg-muted">Not set up</dd>
+          key === null ? (
+            <FactBadge quiet>Not set up</FactBadge>
           ) : (
-            <dd className="font-mono text-fg" title={reading.state.publicKey}>
-              <span aria-hidden="true">{middleTruncate(reading.state.publicKey, 12, 6)}</span>
-              <span className="sr-only">{reading.state.publicKey}</span>
-            </dd>
+            <FactBadge mono full={key}>
+              {middleTruncate(key.replace(/^ed25519:/, ""), 5, 5)}
+            </FactBadge>
           ),
         "Active since":
           reading.state.kind === "active" ? (
-            <dd className="text-fg">
+            <FactBadge>
               <time dateTime={new Date(reading.state.activatedAt).toISOString()}>
                 {ACTIVE_SINCE.format(reading.state.activatedAt)}
               </time>
-            </dd>
+            </FactBadge>
           ) : (
-            <dd className="text-fg-muted">—</dd>
+            <FactBadge quiet>—</FactBadge>
           ),
-        "Signs for": <dd className="text-fg">Intents account only</dd>,
-        Network: <dd className="text-fg">NEAR mainnet</dd>,
+        "Signs for": <FactBadge full="Intents account only">Intents only</FactBadge>,
+        Network: <FactBadge>NEAR mainnet</FactBadge>,
       }}
     />
   );
@@ -135,7 +179,7 @@ const PULSE = "block rounded-xs bg-surface-4 motion-safe:animate-pulse";
 
 /** The pane while the key is read: the same frame, rows and action height, with line-tall placeholders. */
 export function TradingAccessSkeleton(): ReactElement {
-  const value = <dd aria-hidden="true" className={`${PULSE} h-lh w-28`} />;
+  const value = <dd aria-hidden="true" className={`${PULSE} h-6 w-36 rounded-full`} />;
   return (
     <div role="status" aria-label="Loading trading access" className="grid h-full">
       <PaneFrame

@@ -1,8 +1,8 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
+import { RefreshCw } from "lucide-react";
 import { type ReactElement, useId, useState } from "react";
 import { readTrading } from "@/components/trading/trading-api";
-import { Button } from "@/components/ui/button";
 import {
   type AgentBudgetInput,
   budgetTokenAmount,
@@ -10,6 +10,9 @@ import {
   nearAccountSchema,
   walletBudgetViewSchema,
 } from "@/shared/agent-budget";
+import { formatUnits } from "@/shared/money";
+import { middleTruncate } from "@/shared/truncate";
+import { INPUT_CLASS, Select } from "./policy-fields";
 
 interface TokenBudgetProps {
   readonly value: AgentBudgetInput | null;
@@ -18,9 +21,27 @@ interface TokenBudgetProps {
   readonly disabled: boolean;
 }
 
+const ICON = { size: 14, strokeWidth: 1.75, absoluteStrokeWidth: true, "aria-hidden": true } as const;
+const LINK =
+  "cursor-pointer rounded-xs text-caption text-fg-muted underline-offset-4 transition-colors duration-200 ease-ios hover:text-fg-strong hover:underline disabled:cursor-not-allowed disabled:text-fg-disabled";
+
+/** Available units for display: four decimals at most, rounded down, so it never reads larger than it is. */
+function shortAmount(units: string, decimals: number): string {
+  return formatUnits(BigInt(units), { decimals, fractionDigits: Math.min(decimals, 4) }).replace(
+    /\.?0+$/,
+    "",
+  );
+}
+
+/**
+ * The agent's budget on one row: a held token and an exact amount, with what is still available under it. The
+ * full wallet and reservation note sits in the available line's tooltip. A token outside the list can be checked
+ * by its contract.
+ */
 export function TokenBudget({ value, onChange, excludeId, disabled }: TokenBudgetProps): ReactElement {
   const id = useId();
   const [contract, setContract] = useState("");
+  const [adding, setAdding] = useState(false);
   const [extra, setExtra] = useState<string | undefined>(value?.assetId);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const query = useQuery({
@@ -39,10 +60,11 @@ export function TokenBudget({ value, onChange, excludeId, disabled }: TokenBudge
   });
   const tokens = query.data?.tokens ?? [];
   const selected = tokens.find((token) => token.assetId === value?.assetId);
+
   function lookup(): void {
     const parsed = nearAccountSchema.safeParse(contract.trim());
     if (!parsed.success) {
-      setLookupError("Enter the token's NEAR contract account.");
+      setLookupError("Enter the token's NEAR contract, such as usdt.tether-token.near.");
       return;
     }
     setLookupError(null);
@@ -53,110 +75,125 @@ export function TokenBudget({ value, onChange, excludeId, disabled }: TokenBudge
       setExtra(asset);
     }
   }
+
+  function status(): ReactElement | string {
+    if (query.isPending) {
+      return "Loading wallet tokens…";
+    }
+    if (query.error) {
+      return <span className="text-warn">{query.error.message}</span>;
+    }
+    if (tokens.length === 0) {
+      return "No tokens found in this wallet.";
+    }
+    if (!selected) {
+      return value ? "Balance not verified. Refresh to check it." : "No budget. You can allocate one later.";
+    }
+    return (
+      <span title={query.data?.note}>
+        Available{" "}
+        <span className="font-mono tabular-nums text-fg">
+          {shortAmount(selected.availableUnits, selected.decimals)} {selected.symbol}
+        </span>
+      </span>
+    );
+  }
+
   return (
-    <fieldset disabled={disabled} className="min-w-0 space-y-4 rounded-sm border border-line p-4">
-      <legend className="px-1 text-small font-medium">Agent budget</legend>
+    <fieldset disabled={disabled} className="flex min-w-0 flex-col gap-1.5">
+      <legend className="sr-only">Budget</legend>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-caption text-fg-muted">
-          Choose a held token and amount. No transfer or permission is requested.
-        </p>
-        <Button
+        <span aria-hidden="true" className="text-small text-fg-muted">
+          Budget
+        </span>
+        <button
           type="button"
-          disabled={query.isFetching || disabled}
-          onClick={() => {
-            void query.refetch();
-          }}
+          onClick={() => void query.refetch()}
+          disabled={query.isFetching}
+          aria-label="Refresh wallet balances"
+          title="Refresh wallet balances"
+          className="inline-flex size-7 cursor-pointer items-center justify-center rounded-full text-fg-muted transition-colors duration-200 ease-ios hover:bg-surface-3 hover:text-fg-strong disabled:cursor-default pointer-coarse:size-11"
         >
-          {query.isFetching ? "Refreshing…" : "Refresh"}
-        </Button>
+          <RefreshCw {...ICON} className={query.isFetching ? "motion-safe:animate-spin" : ""} />
+        </button>
       </div>
-      {query.isPending ? (
-        <p role="status" className="text-small text-fg-muted">
-          Loading wallet tokens…
-        </p>
-      ) : null}
-      {query.error ? (
-        <p role="alert" className="text-small text-warn">
-          {query.error.message}
-        </p>
-      ) : null}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="flex min-w-0 flex-col gap-2 text-small">
-          Budget token
-          <select
-            value={value?.assetId ?? ""}
-            onChange={(event) =>
-              onChange(event.target.value ? { assetId: event.target.value, amount: "" } : null)
-            }
-            className="min-h-11 w-full rounded-sm border border-line bg-surface-1 px-3 text-small"
-          >
-            <option value="">Allocate later</option>
-            {value && !selected ? (
-              <option value={value.assetId}>{value.assetId} · balance not verified</option>
-            ) : null}
-            {tokens.map((token) => (
-              <option key={token.assetId} value={token.assetId}>
-                {token.symbol} · {token.assetId === "native:near" ? "Native NEAR" : token.assetId.slice(7)}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="flex min-w-0 gap-2">
+        <Select
+          aria-label="Budget token"
+          className="flex-1"
+          value={value?.assetId ?? ""}
+          onChange={(event) =>
+            onChange(event.target.value ? { assetId: event.target.value, amount: "" } : null)
+          }
+        >
+          <option value="">No budget yet</option>
+          {value && !selected ? (
+            <option value={value.assetId}>{value.assetId.replace(/^nep141:/, "")}</option>
+          ) : null}
+          {tokens.map((token) => (
+            <option key={token.assetId} value={token.assetId}>
+              {token.assetId === "native:near"
+                ? token.symbol
+                : `${token.symbol} · ${middleTruncate(token.assetId.slice(7), 10, 8)}`}
+            </option>
+          ))}
+        </Select>
         {value ? (
-          <label className="flex min-w-0 flex-col gap-2 text-small">
-            Amount {selected ? `· ${selected.symbol}` : ""}
+          <span className="relative w-40 shrink-0">
             <input
+              aria-label={`Amount${selected ? ` in ${selected.symbol}` : ""}`}
               type="text"
               inputMode="decimal"
               autoComplete="off"
+              placeholder="0.00"
               required
               value={value.amount}
               onChange={(event) => onChange({ assetId: value.assetId, amount: event.target.value })}
-              className="min-h-11 w-full rounded-sm border border-line bg-surface-1 px-3 font-mono text-small tabular-nums"
+              className={`${INPUT_CLASS} font-mono tabular-nums ${selected ? "pr-12" : ""}`}
             />
-          </label>
+            {selected && selected.availableUnits !== "0" ? (
+              <button
+                type="button"
+                onClick={() =>
+                  onChange({
+                    assetId: value.assetId,
+                    amount: budgetTokenAmount(selected.availableUnits, selected.decimals),
+                  })
+                }
+                className="absolute top-1/2 right-1.5 h-7 -translate-y-1/2 cursor-pointer rounded-xs px-2 text-caption font-medium text-accent-text transition-colors duration-200 ease-ios hover:bg-surface-3"
+              >
+                Max
+              </button>
+            ) : null}
+          </span>
         ) : null}
       </div>
-      {selected ? (
-        <dl className="grid gap-3 text-caption sm:grid-cols-3">
-          {(
-            [
-              { label: "In wallet", units: selected.balanceUnits },
-              { label: "Allocated elsewhere", units: selected.allocatedUnits },
-              { label: "Available", units: selected.availableUnits },
-            ] as const
-          ).map((item) => (
-            <div key={item.label} className="min-w-0 space-y-1">
-              <dt className="text-fg-muted">{item.label}</dt>
-              <dd className="break-all font-mono tabular-nums">
-                {budgetTokenAmount(item.units, selected.decimals)} {selected.symbol}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
+      <div className="flex min-h-lh items-baseline justify-between gap-3 text-caption text-fg-subtle">
+        <span role="status" className="min-w-0 truncate">
+          {status()}
+        </span>
+        {adding ? null : (
+          <button type="button" onClick={() => setAdding(true)} className={`${LINK} shrink-0`}>
+            Add a token
+          </button>
+        )}
+      </div>
       {selected && selected.decimals > MAX_AGENT_BUDGET_DECIMALS ? (
-        <p role="alert" className="text-small text-warn">
-          This token has more decimal places than agent budgets support.
+        <p role="alert" className="text-caption text-warn">
+          This token has more decimals than agent budgets support.
         </p>
       ) : null}
-      {selected?.deficitUnits !== undefined && selected.deficitUnits !== "0" ? (
-        <p role="alert" className="text-small text-warn">
-          Existing allocations exceed this wallet balance. Reduce them or add funds before allocating more.
+      {selected && selected.deficitUnits !== "0" ? (
+        <p role="alert" className="text-caption text-warn">
+          Existing budgets exceed this balance. Reduce them or add funds first.
         </p>
       ) : null}
-      {query.data ? <p className="text-caption text-fg-subtle">{query.data.note}</p> : null}
-      {query.data && tokens.length === 0 ? (
-        <p className="text-small text-fg-muted">
-          No held tokens were found. Fund the wallet or check a token contract.
-        </p>
-      ) : null}
-      <details className="text-caption text-fg-muted">
-        <summary className="cursor-pointer py-2">Missing a token?</summary>
-        <div className="flex flex-wrap items-end gap-2 pt-2">
-          <label className="flex min-w-0 flex-1 flex-col gap-2" htmlFor={`${id}-contract`}>
-            NEAR token contract
+      {adding ? (
+        <div className="flex flex-col gap-1.5 pt-1">
+          <div className="flex gap-2">
             <input
-              id={`${id}-contract`}
+              aria-label="NEAR token contract"
+              placeholder="Token contract, such as usdt.tether-token.near"
               value={contract}
               onChange={(event) => setContract(event.target.value)}
               type="text"
@@ -167,29 +204,24 @@ export function TokenBudget({ value, onChange, excludeId, disabled }: TokenBudge
                   lookup();
                 }
               }}
-              className="min-h-11 rounded-sm border border-line bg-surface-1 px-3 text-small"
+              className={`${INPUT_CLASS} flex-1 font-mono text-small`}
             />
-          </label>
-          <Button type="button" onClick={lookup} disabled={query.isFetching || disabled}>
-            Check token
-          </Button>
+            <button
+              type="button"
+              onClick={lookup}
+              disabled={query.isFetching}
+              className="h-10 shrink-0 cursor-pointer rounded-sm border border-line bg-surface-3 px-3 text-small font-medium text-fg-strong transition-colors duration-200 ease-ios hover:bg-surface-4 disabled:cursor-not-allowed disabled:text-fg-disabled pointer-coarse:h-11"
+            >
+              Check
+            </button>
+          </div>
+          {lookupError ? (
+            <p role="alert" className="text-caption text-warn">
+              {lookupError}
+            </p>
+          ) : null}
         </div>
-        {lookupError ? (
-          <p role="alert" className="pt-2 text-warn">
-            {lookupError}
-          </p>
-        ) : null}
-      </details>
-      {query.data?.funded.length ? (
-        <p className="text-caption text-fg-muted">
-          {query.data.funded.length} funded token balance{query.data.funded.length === 1 ? " is" : "s are"}{" "}
-          held in trading venues separately from this wallet.
-        </p>
       ) : null}
-      <p className="text-caption text-fg-subtle">
-        Reservations stay until changed or discarded. Wallet spending outside Wrenai can reduce availability.
-        Token selection does not guarantee an execution route.
-      </p>
     </fieldset>
   );
 }
