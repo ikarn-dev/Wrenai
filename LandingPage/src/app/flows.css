@@ -1,0 +1,182 @@
+/* Workflow diagrams (components/flows): hub-and-spoke, after the user's reference. Service chips feed a larger hub
+   tile on right-angled hairlines with rounded elbows. Each part moves its own way, all slow and quiet (one GSAP
+   timeline per card): a plain line fires a beam, a bright head with a dim tail; a striped line (background work)
+   keeps drifting and warms to mint while work runs through it; the hub answers with one widening ring; a chip's
+   edge and icon warm as work reaches it (--lit, 0 → 1). Flat and dark, no glow (DESIGN.md: keep it dark). Only
+   transforms, opacity, dash offsets and two color variables move; reduced motion leaves the still diagram.
+   Measured on void-800: chip text void-200 11.68:1, icon void-300 8.37:1, lit icon mint-300 11.18:1; hub label
+   void-50 on void-900 16.25:1. */
+
+/* The cell's dot grid, faded toward the edges so the diagram sits in a soft field. */
+@utility flow-art-grid {
+  mask-image: radial-gradient(ellipse 60% 70% at 50% 45%, #000 20%, transparent 75%);
+}
+
+/* React Flow's own canvas stays transparent so the cell and its dot grid show through. */
+@utility flow-canvas {
+  & .react-flow {
+    --xy-background-color: transparent;
+    background: transparent;
+  }
+  & .react-flow__pane,
+  & .react-flow__node {
+    cursor: default;
+  }
+}
+
+/* A chip: a service's name (its logo slot, `data-service`) or a Wrenai step with its icon. 34 px tall. */
+@utility flow-chip {
+  --lit: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background-color: var(--void-800);
+  box-shadow:
+    inset 0 0 0 1px var(--color-line-card),
+    inset 0 1px 0 color-mix(in oklab, var(--void-100) 8%, transparent);
+  color: var(--color-fg);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: -0.006em;
+  white-space: nowrap;
+  /* The mint edge, faded in by --lit. */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 1px var(--mint-400);
+    opacity: var(--lit);
+  }
+}
+
+/* The hub: a 76 px tile with a raised inner face (concentric: 20 px outer, 14 px inner on an 8 px inset). Its quiet
+   mint edge marks it as the step the flow turns on, at rest too. */
+@utility flow-hub {
+  --lit: 0;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 20px;
+  background-color: var(--void-900);
+  box-shadow: inset 0 0 0 1px var(--mint-800);
+  /* The mint edge, faded in by --lit. */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 1px var(--mint-400);
+    opacity: var(--lit);
+  }
+}
+
+/* The hub's answer: a ring on its edge that widens and fades (scale and opacity, set by the timeline). */
+@utility flow-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px var(--mint-500);
+  opacity: 0;
+  visibility: hidden;
+}
+
+@utility flow-hub-face {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 14px;
+  background-color: var(--void-800);
+  box-shadow:
+    inset 0 0 0 1px var(--color-line-card),
+    inset 0 1px 0 color-mix(in oklab, var(--void-100) 10%, transparent);
+  & .flow-icon {
+    color: var(--mint-300);
+  }
+}
+
+@utility flow-icon {
+  flex-shrink: 0;
+  color: color-mix(in oklab, var(--mint-300) calc(var(--lit) * 100%), var(--void-300));
+}
+
+/* The hub's name sits under it and never changes its box, so lines always meet the hub's sides. */
+@utility flow-hub-label {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  translate: -50% 0;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--color-fg-strong);
+}
+
+/* Connection points exist for the layout only. */
+@utility flow-handle {
+  &.react-flow__handle {
+    width: 1px;
+    height: 1px;
+    min-width: 0;
+    min-height: 0;
+    border: 0;
+    background: transparent;
+  }
+}
+
+@utility flow-link {
+  stroke: var(--void-600);
+  stroke-width: 1.25;
+}
+
+/* Background work: dashes that drift slowly and warm toward mint while work runs through (--flow, 0 → 1). */
+@utility flow-link-striped {
+  --flow: 0;
+  stroke: color-mix(in oklab, var(--mint-400) calc(var(--flow) * 100%), var(--void-500));
+  stroke-dasharray: 3 5;
+  @media (prefers-reduced-motion: no-preference) {
+    animation: flow-dash 2.6s linear infinite;
+    :where([data-paused]) & {
+      animation-play-state: paused;
+    }
+  }
+}
+
+/* The beam on a plain line: a short bright head and a longer dim tail, on the path's normalized length of 100.
+   Both start just off the line and are swept along it by their dash offsets. */
+@utility flow-beam {
+  stroke: var(--mint-300);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-dasharray: 10 200;
+  stroke-dashoffset: 10;
+  opacity: 0;
+  visibility: hidden;
+}
+
+@utility flow-beam-trail {
+  stroke: var(--mint-600);
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-dasharray: 36 200;
+  stroke-dashoffset: 36;
+  opacity: 0;
+  visibility: hidden;
+}
+
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -16;
+  }
+}

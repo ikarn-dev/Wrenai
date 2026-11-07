@@ -1,17 +1,19 @@
 import type { ReactElement } from "react";
 
-// What Wrenai actually runs on (Docs/tech-stack.md, Docs/wrenai-spec.md), shown as plain wordmarks until logo
-// files arrive. Real names only: the design rules forbid fake logos, and "Powered by" must be true.
+// The NEAR ecosystem services Wrenai runs on today, shown as plain wordmarks until logo files arrive. Real names
+// only, and only NEAR projects: hosting, storage, off-chain venues and data feeds stay out of "Powered by". Meta
+// Pool and LiNEAR were removed (no active integration).
 const NAMES = [
   "NEAR Protocol",
   "NEAR AI Cloud",
   "NEAR Intents",
   "1Click",
-  "Hyperliquid",
+  "HOT Labs",
   "RHEA Finance",
-  "Meta Pool",
-  "LiNEAR",
+  "FastNear",
   "NearBlocks",
+  "Squint",
+  "Nearly",
 ] as const;
 
 function NameList({ hidden = false }: { readonly hidden?: boolean }): ReactElement {

@@ -2,12 +2,13 @@ import type { ReactElement } from "react";
 import { appHref } from "@/app-url";
 import { Brand } from "./brand";
 
-// In-page sections (Docs/DESIGN.md → Screens → Landing). Lenis scrolls to them smoothly.
+// In-page sections, in page order, the same as the footer's Links (Docs/DESIGN.md → Screens → Landing). Lenis
+// scrolls to them smoothly.
 const SECTIONS = [
   { href: "#how-it-works", label: "How it works" },
+  { href: "#agents", label: "Agents" },
   { href: "#privacy", label: "Privacy" },
-  { href: "#guard", label: "Guard" },
-  { href: "#jarvis", label: "Jarvis" },
+  { href: "#faq", label: "FAQ" },
 ] as const;
 
 const LINK =

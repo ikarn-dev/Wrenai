@@ -5,7 +5,8 @@ import { roundedFont, sansFont } from "./fonts";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Wrenai: private AI for your DeFi",
+  // The tab shows the name alone; the icon is app/icon.png (Next's file convention), the cropped logo mark.
+  title: "Wrenai",
   description:
     "Research NEAR markets with Jarvis, then turn a plan into an agent. Every trade passes a Guard the model can't override.",
 };

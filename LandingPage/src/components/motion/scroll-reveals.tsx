@@ -70,11 +70,13 @@ export function ScrollReveals(): null {
         gsap.to(node, {
           y: distance,
           ease: "none",
+          // scrub: true follows the scroll position exactly: Lenis already smooths it, so a scrub delay on top
+          // would make the light lag behind the page.
           scrollTrigger: {
             trigger: node.parentElement ?? node,
             start: "top top",
             end: "bottom top",
-            scrub: 0.6,
+            scrub: true,
           },
         });
       }

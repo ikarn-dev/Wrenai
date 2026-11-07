@@ -1,0 +1,116 @@
+/* Back to top (components/site/scroll-to-top.tsx): fixed bottom-right above the safe area, hidden until the hero
+   has scrolled away. It rises 8 px and fades in on ease-ios (opacity and transform only); reduced motion only
+   switches. This is the wrapper; the button inside keeps launch-shine's fill and press transitions. */
+@utility scroll-top {
+  position: fixed;
+  right: var(--spacing-gutter);
+  bottom: calc(env(safe-area-inset-bottom) + 20px);
+  z-index: 40;
+  opacity: 0;
+  translate: 0 8px;
+  visibility: hidden;
+  transition:
+    opacity 400ms var(--ease-ios),
+    translate 500ms var(--ease-ios),
+    visibility 0s linear 500ms;
+  &[data-shown] {
+    opacity: 1;
+    translate: 0 0;
+    visibility: visible;
+    transition-delay: 0s;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    translate: 0 0;
+    transition:
+      visibility 0s,
+      opacity 0s;
+  }
+}
+
+/* The footer (components/site/site-footer.tsx), after the user's reference: edge to edge on the black ground,
+   one top row of links, then the wordmark across the full column. contain: paint keeps the light inside it. */
+@utility footer-frame {
+  background-color: var(--color-sunken);
+  overflow: hidden;
+  isolation: isolate;
+  contain: paint;
+}
+
+/* The patches' grid: 72 px hairlines anchored at the bottom center (footer-patches.tsx places the patches on the
+   same cells), barely above the ground. Grid and patches live in the lowest rows, behind the wordmark, and are
+   gone well before the link row. */
+@utility footer-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--void-50) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(to top, color-mix(in oklab, var(--void-50) 4%, transparent) 1px, transparent 1px);
+  background-size: 72px 72px;
+  background-position: center bottom;
+  mask-image: linear-gradient(to top, #000 0%, #000 20%, transparent 55%);
+}
+
+/* A patch only lifts its cell a few percent, so it reads as a quiet tile behind the wordmark and never competes
+   with it (estimated, not measured: the wordmark's void-50 stays near 7:1 and mint-300 near 4.5:1 on the
+   lightest patch over the brightest light). One accent cell a step stronger, like the reference's odd square. */
+@utility footer-patch {
+  position: absolute;
+  background-color: color-mix(in oklab, var(--mint-400) 2%, transparent);
+  &[data-tone="mint"] {
+    background-color: color-mix(in oklab, var(--mint-400) 3.5%, transparent);
+  }
+  &[data-tone="grey"] {
+    background-color: color-mix(in oklab, var(--void-50) 1.5%, transparent);
+  }
+  &[data-tone="accent"] {
+    background-color: color-mix(in oklab, var(--mint-400) 6%, transparent);
+  }
+}
+
+/* Black and green only: deep mint light rising from the bottom center and the two lower corners, each fading on
+   an eased curve into the black. No pale mint, so the top row stays on near-black (fg-muted void-300 9.97:1,
+   heading void-50 17.49:1 on void-950) and the wordmark keeps its contrast on the light (void-50 on mint-800
+   about 8:1, mint-300 on mint-800 about 5:1). Painted once. */
+@utility footer-glow {
+  background:
+    radial-gradient(
+      ellipse 85% 70% at 50% 118%,
+      var(--mint-800) 0%,
+      color-mix(in oklab, var(--mint-800) 80%, transparent) 22%,
+      color-mix(in oklab, var(--mint-900) 60%, transparent) 42%,
+      color-mix(in oklab, var(--mint-900) 30%, transparent) 62%,
+      color-mix(in oklab, var(--mint-950) 12%, transparent) 80%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse 55% 75% at 0% 112%,
+      color-mix(in oklab, var(--mint-700) 45%, transparent) 0%,
+      color-mix(in oklab, var(--mint-800) 28%, transparent) 35%,
+      color-mix(in oklab, var(--mint-900) 12%, transparent) 65%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse 50% 70% at 100% 110%,
+      color-mix(in oklab, var(--mint-700) 38%, transparent) 0%,
+      color-mix(in oklab, var(--mint-800) 22%, transparent) 38%,
+      color-mix(in oklab, var(--mint-900) 9%, transparent) 68%,
+      transparent 100%
+    );
+}
+
+/* The wordmark across the column: sized from the column's width (container query units), so "Wrenai" spans it
+   at every screen size; line height trimmed to the letters, since the word has no descenders. */
+@utility footer-wordmark-box {
+  container-type: inline-size;
+}
+
+@utility footer-wordmark {
+  display: block;
+  font-family: var(--font-rounded);
+  font-weight: 700;
+  /* "Wrenai" in Quicksand 700 runs about 3.2 em at this tracking: 29 cqi spans roughly 93% of the column. */
+  font-size: 29cqi;
+  line-height: 0.8;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+  color: var(--color-fg-strong);
+  user-select: none;
+}

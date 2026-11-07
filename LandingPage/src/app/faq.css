@@ -1,0 +1,65 @@
+/* Frequently asked questions (components/faq), after the user's reference: questions in a single column split by
+   dashed line-card rules, a chevron on the right. Question void-50 on void-900 16.25:1; answer fg-muted void-300
+   9.26:1; chevron fg-subtle void-400 5.81:1. The panel's height is animated by faq-list.tsx; the CSS holds only
+   the resting states. */
+@utility faq-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px dashed var(--color-line-card);
+}
+
+@utility faq-item {
+  border-bottom: 1px dashed var(--color-line-card);
+}
+
+/* The control: the whole row, at least 44 px tall, its text on one baseline with the chevron. */
+@utility faq-question {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 3.5rem;
+  padding-block: 14px;
+  color: var(--color-fg-strong);
+  font-size: var(--text-hero-lead);
+  line-height: 1.45;
+  letter-spacing: -0.011em;
+  text-wrap: pretty;
+  cursor: pointer;
+  list-style: none;
+  &::-webkit-details-marker {
+    display: none;
+  }
+  &:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+}
+
+/* Turns as the item opens; turns back the moment a close starts (data-closing), not when the motion ends. */
+@utility faq-chevron {
+  flex-shrink: 0;
+  color: var(--color-fg-subtle);
+  transition: rotate 450ms var(--ease-ios);
+  :where([open]:not([data-closing])) > summary > & {
+    rotate: 180deg;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+/* Clips the answer while its height moves. */
+@utility faq-panel {
+  overflow: hidden;
+}
+
+@utility faq-answer {
+  max-width: 36rem;
+  padding-bottom: 20px;
+  color: var(--color-fg-muted);
+  font-size: var(--text-body);
+  line-height: 1.6;
+  text-wrap: pretty;
+}

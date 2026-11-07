@@ -1,0 +1,261 @@
+/* The privacy flow (components/privacy): source pills, service cards, the Wrenai hub (flows.css) and two outcome
+   stacks, after the user's references. Every node is a void-800 face with a line-card edge whose mint edge fades
+   in with --lit (0 → 1, set by the timeline), like the "How it runs" chips. Icons are mint throughout (user
+   choice, Nov 2026). Measured on void-800: name void-50 14.67:1, pill name void-200 11.68:1, detail void-400
+   5.25:1, icon mint-300 11.18:1; on the void-900 well, mint-300 12.38:1. */
+
+/* An icon: mint at rest, brighter while its step runs. */
+@utility privacy-icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  color: color-mix(in oklab, var(--mint-200) calc(var(--lit, 0) * 100%), var(--mint-300));
+}
+
+/* A source: a 36 px pill with its icon and name, after the reference's chips. All three share one width (the
+   widest name, "Strategy", plus its padding), with icon and name from the left, so they line up as one stack. */
+@utility privacy-pill {
+  --lit: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 112px;
+  height: 36px;
+  padding: 0 14px 0 12px;
+  border-radius: var(--radius-full);
+  background-color: var(--void-800);
+  box-shadow:
+    inset 0 0 0 1px var(--color-line-card),
+    inset 0 1px 0 color-mix(in oklab, var(--void-100) 8%, transparent);
+  color: var(--color-fg);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: -0.006em;
+  white-space: nowrap;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 1px var(--mint-400);
+    opacity: var(--lit);
+  }
+}
+
+/* A beam: five dashes sharing one front (privacy-links.tsx → BEAM). A small bright head, then a tail that widens
+   softly and fades, so it reads as light travelling rather than a moving segment. Strength comes from
+   stroke-opacity, so the timeline's fade on the group never fights it. Hidden until sent. */
+@utility privacy-beam {
+  opacity: 0;
+  visibility: hidden;
+  & > path {
+    stroke-linecap: round;
+  }
+  & > [data-layer="head"] {
+    stroke: var(--mint-100);
+    stroke-width: 2.5;
+  }
+  & > [data-layer="near"] {
+    stroke: var(--mint-300);
+    stroke-width: 2;
+    stroke-opacity: 0.7;
+  }
+  & > [data-layer="mid"] {
+    stroke: var(--mint-400);
+    stroke-width: 1.75;
+    stroke-opacity: 0.35;
+  }
+  & > [data-layer="spread"] {
+    stroke: var(--mint-400);
+    stroke-width: 6;
+    stroke-opacity: 0.08;
+  }
+  & > [data-layer="far"] {
+    stroke: var(--mint-500);
+    stroke-width: 1.25;
+    stroke-opacity: 0.15;
+  }
+}
+
+/* A packet: its shape names the operation (privacy-links.tsx). Data and signed packets are mint; the private
+   transfer a brighter mint dot; the public leg's rings neutral and hollow, matching the Public stack. A void-900
+   outline keeps each shape clear of the line it rides. */
+@utility privacy-packet {
+  opacity: 0;
+  visibility: hidden;
+  fill: var(--mint-300);
+  stroke: var(--void-900);
+  stroke-width: 2;
+  paint-order: stroke;
+  &[data-packet="private"] {
+    fill: var(--mint-200);
+  }
+  &[data-packet="public"] {
+    fill: var(--void-900);
+    stroke: var(--void-300);
+    stroke-width: 1.5;
+  }
+}
+
+/* A service: its icon in a darker well (8 px inset, so 14 − 6 = 8 px well corners), then its name and one word. */
+@utility privacy-card {
+  --lit: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px 6px 6px;
+  border-radius: 14px;
+  background-color: var(--void-800);
+  box-shadow:
+    inset 0 0 0 1px var(--color-line-card),
+    inset 0 1px 0 color-mix(in oklab, var(--void-100) 8%, transparent);
+  white-space: nowrap;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 1px var(--mint-400);
+    opacity: var(--lit);
+  }
+}
+
+@utility privacy-card-well {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  /* 36 px around a 22 px icon: 7 px each side, so the icon fills the well. */
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background-color: var(--void-900);
+  box-shadow: inset 0 0 0 1px var(--color-line-card);
+}
+
+@utility privacy-card-name {
+  color: var(--color-fg-strong);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.006em;
+}
+
+@utility privacy-card-detail {
+  color: var(--color-fg-subtle);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+/* An outcome: a 168 px card in front of two empty layers stepping down behind it, like a stack of results. The
+   layers hold no text, so fading them is decoration only (DESIGN.md → Opacity). */
+@utility privacy-stack {
+  --lit: 0;
+  position: relative;
+  width: 168px;
+  padding-bottom: 10px;
+}
+
+@utility privacy-stack-front {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 8px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background-color: var(--void-800);
+  box-shadow:
+    inset 0 0 0 1px var(--color-line-card),
+    inset 0 1px 0 color-mix(in oklab, var(--void-100) 8%, transparent);
+  white-space: nowrap;
+  & > .privacy-card-detail {
+    grid-column: 2;
+  }
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 1px var(--mint-400);
+    opacity: var(--lit);
+  }
+  :where([data-tone="public"]) > &::after {
+    box-shadow: inset 0 0 0 1px var(--void-400);
+  }
+  :where([data-tone="private"]) > & .privacy-card-name {
+    color: var(--mint-300);
+  }
+}
+
+/* The outcome's icon spans its name and detail; its color comes from privacy-icon. */
+@utility privacy-stack-icon {
+  grid-row: span 2;
+}
+
+@utility privacy-stack-layer {
+  position: absolute;
+  inset: 0 0 10px;
+  border-radius: 12px;
+  background-color: var(--void-800);
+  box-shadow: inset 0 0 0 1px var(--color-line-card);
+  &[data-depth="1"] {
+    translate: 0 5px;
+    scale: 0.95 1;
+    opacity: 0.7;
+  }
+  &[data-depth="2"] {
+    translate: 0 10px;
+    scale: 0.9 1;
+    opacity: 0.4;
+  }
+  :where([data-tone="private"]) > & {
+    box-shadow: inset 0 0 0 1px var(--mint-800);
+  }
+}
+
+/* Twinkling stars on the section's dot grid (components/sections/star-field.tsx), faded at the edges with the dot
+   grid's own mask so they belong to it. */
+@utility star-field {
+  mask-image: radial-gradient(ellipse 70% 100% at 50% 0%, #000 10%, transparent 75%);
+}
+
+/* One star: a 2 px point on a grid dot that brightens and fades, void-200, or mint-300 for a few. Under reduced
+   motion it holds at a low, steady strength. */
+@utility star {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  translate: -50% -50%;
+  border-radius: var(--radius-full);
+  background-color: var(--void-200);
+  opacity: 0;
+  &[data-tone="mint"] {
+    width: 3px;
+    height: 3px;
+    background-color: var(--mint-300);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    animation: star-twinkle var(--duration) ease-in-out var(--delay) infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    opacity: 0.4;
+  }
+}
+
+@keyframes star-twinkle {
+  0%,
+  100% {
+    opacity: 0;
+    scale: 0.5;
+  }
+  50% {
+    opacity: 0.9;
+    scale: 1;
+  }
+}

@@ -3,7 +3,7 @@ import { AgentsArt, ConversationArt, KnightArt, LayersArt, ShieldArt } from "./f
 import { FramedSection } from "./section-frame";
 
 interface Feature {
-  /** An in-page anchor for the nav (Privacy, Guard, Jarvis). */
+  /** An in-page anchor for the nav (Guard, Jarvis; Privacy has its own section). */
   readonly id?: string;
   readonly title: string;
   readonly text: string;
@@ -33,7 +33,6 @@ const ROWS: readonly (readonly Feature[])[] = [
   ],
   [
     {
-      id: "privacy",
       title: "Private inference",
       text: "Models run in secure enclaves on NEAR AI Cloud, and each reply's signature is checked.",
       art: <LayersArt />,

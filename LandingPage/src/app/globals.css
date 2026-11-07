@@ -1,9 +1,18 @@
 @import "tailwindcss";
+/* React Flow's own styles in the components layer, below the utilities: imported unlayered (from JS), they beat
+   every utility regardless of specificity, so the diagrams' handles showed at React Flow's default size. */
+@import "@xyflow/react/dist/base.css" layer(components);
 @import "lenis/dist/lenis.css";
 @import "./hero.css";
 @import "./marquee.css";
 @import "./features.css";
 @import "./frame.css";
+@import "./flows.css";
+@import "./agents.css";
+@import "./agent-lifecycle.css";
+@import "./privacy.css";
+@import "./faq.css";
+@import "./footer.css";
 
 /* Palette: Docs/DESIGN.md → Color, the same values as the app. Components use the semantic tokens below. */
 :root {
@@ -29,6 +38,9 @@
   --void-800: #232323;
   --void-900: #1a1a1a;
   --void-950: #121212;
+  /* Status (DESIGN.md → Status): loss only for negative results, here the agents' stop-loss and losing P/L. */
+  --loss: #f07a72;
+  --loss-soft: #2a1412;
   color-scheme: dark;
 }
 
@@ -68,6 +80,10 @@
   --text-h2: clamp(1.125rem, 1.083rem + 0.185vw, 1.25rem);
   --text-h2--line-height: 1.3;
   --text-h2--letter-spacing: -0.017em;
+  /* The footer's wordmark beside its mark: 24 → 32 px. */
+  --text-brand-lg: clamp(1.5rem, 1.333rem + 0.741vw, 2rem);
+  --text-brand-lg--line-height: 1.2;
+  --text-brand-lg--letter-spacing: -0.021em;
 
   --radius-sm: 10px;
   --radius-md: 14px;
@@ -89,6 +105,8 @@
   /* A framed section's inner padding (48 → 80 px; the strip dividers already separate sections), and a section
      title block to its content (28 → 36 px). */
   --spacing-section: clamp(3rem, 2.333rem + 2.963vw, 5rem);
+  /* A framed section's top when its content follows the title closely (40 → 56 px). */
+  --spacing-section-tight: clamp(2.5rem, 2.167rem + 1.481vw, 3.5rem);
   --spacing-head: clamp(1.75rem, 1.583rem + 0.741vw, 2.25rem);
   --spacing-stack: clamp(0.75rem, 0.625rem + 0.556vw, 1.125rem);
   /* Inside the section frame: the content inset from the rails (16 → 40 px) and the striped divider's height
@@ -99,8 +117,9 @@
   --spacing-band: clamp(3rem, 2.333rem + 2.963vw, 5rem);
   /* Space between names in the marquee: 32 → 56 px. */
   --spacing-marquee: clamp(2rem, 1.5rem + 2.222vw, 3.5rem);
-  /* The logo mark's height in the nav: 22 → 28 px. */
+  /* The logo mark's height in the nav: 22 → 28 px; in the footer 28 → 36 px. */
   --spacing-brand: clamp(1.375rem, 1.25rem + 0.556vw, 1.75rem);
+  --spacing-brand-lg: clamp(1.75rem, 1.583rem + 0.741vw, 2.25rem);
   --container-reading: 42rem;
   --container-landing: 75rem;
 }

@@ -5,7 +5,8 @@ export function HeroBackdrop(): ReactElement {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
       {/* The light sinks a little as the hero scrolls away (ScrollReveals → data-parallax), so it reads as depth. */}
-      <div data-parallax="120" className="absolute inset-0">
+      {/* Its own compositor layer (will-change), so moving the large gradient never repaints it per frame. */}
+      <div data-parallax="120" className="absolute inset-0 will-change-transform">
         <div className="hero-glow absolute inset-0 motion-safe:animate-glow-breathe" />
       </div>
       <div className="hero-columns absolute inset-0" />

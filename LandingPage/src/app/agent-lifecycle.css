@@ -1,0 +1,195 @@
+/* Lifecycles of the agents section (components/agents/agent-lifecycle.tsx). A step warms as the agent reaches it
+   (--lit, 0 → 1): its text goes from fg-subtle to fg-strong (5.81:1 → 16.25:1 on void-900, every mix in between
+   passes) and its mark to mint. The default is lit, so the still state under reduced motion is the finished run.
+   Only transforms and --lit move. */
+@utility agent-step {
+  --lit: 1;
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  color: color-mix(in oklab, var(--color-fg-strong) calc(var(--lit) * 100%), var(--color-fg-subtle));
+}
+
+/* A step's detail lights with its step, one tone below the name: fg-subtle → fg (5.81:1 → 12.94:1 on void-900,
+   6.25:1 → 13.92:1 on void-950). It reads the step's --lit, so both change on the same frame. */
+@utility agent-step-detail {
+  color: color-mix(in oklab, var(--color-fg) calc(var(--lit, 1) * 100%), var(--color-fg-subtle));
+}
+
+/* A step's mark: a ring that fills with mint when reached. Void-500 ring 3.27:1 on void-900. */
+@utility agent-step-dot {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background-color: color-mix(in oklab, var(--mint-400) calc(var(--lit) * 100%), var(--void-900));
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--mint-400) calc(var(--lit) * 100%), var(--void-500));
+}
+
+/* The rail from a step's mark down to the next one's (steps share the height, so 100% reaches it); its mint fill
+   grows from the top as the step completes. */
+@utility agent-step-line {
+  position: absolute;
+  top: 50%;
+  left: 4.5px;
+  width: 1px;
+  height: 100%;
+  background-color: var(--void-600);
+  & > span {
+    display: block;
+    height: 100%;
+    background-color: var(--mint-400);
+    transform-origin: 50% 0;
+  }
+}
+
+/* A step node in a pipeline (agent-phase-flow.tsx): a sunken tile (void-950 well in the void-900 card, radius-sm)
+   filling its React Flow node, icon and name on one line over the detail. When reached, its edge goes from
+   line-card to accent-line (mint-600, 5.04:1 on void-950), its icon from fg-subtle to accent-text and its name to
+   fg-strong. */
+@utility agent-phase {
+  --lit: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-sunken);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--mint-600) calc(var(--lit) * 100%), var(--void-700));
+  color: color-mix(in oklab, var(--color-fg-strong) calc(var(--lit) * 100%), var(--color-fg-subtle));
+  & svg {
+    flex-shrink: 0;
+    color: color-mix(in oklab, var(--color-accent-text) calc(var(--lit) * 100%), var(--color-fg-subtle));
+  }
+}
+
+/* The beam between two step nodes: a mint head 40 of the line's 100 units long (the lines are short), swept from
+   the step it leaves to the one it lights. Hidden until the timeline fires it. */
+@utility agent-beam {
+  stroke: var(--mint-300);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-dasharray: 40 200;
+  stroke-dashoffset: 40;
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* DCA's schedule: four slots, their marks on one track whose mint fill moves from slot to slot. The track runs
+   between the first and last mark's centers (columns are quarters, so 12.5% in from each side). */
+@utility agent-slots {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@utility agent-slots-track {
+  position: absolute;
+  top: 4.5px;
+  right: 12.5%;
+  left: 12.5%;
+  height: 1px;
+  background-color: var(--void-600);
+  & > span {
+    display: block;
+    height: 100%;
+    background-color: var(--mint-400);
+    transform-origin: 0 50%;
+  }
+}
+
+@utility agent-slot {
+  --lit: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: color-mix(in oklab, var(--color-fg-strong) calc(var(--lit) * 100%), var(--color-fg-subtle));
+}
+
+/* Spot's armed exits: a 6 px strip, its left half red toward the stop loss and its right half mint toward the take
+   profit, split at the buy by a light tick. Two flat halves, not a gradient. The price is a light dot on a
+   full-width mover translated by a share of its own width, so it moves on transforms only. */
+@utility agent-range {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(
+    to right,
+    color-mix(in oklab, var(--loss) 70%, var(--void-900)) 0 50%,
+    color-mix(in oklab, var(--mint-400) 70%, var(--void-900)) 50% 100%
+  );
+  &::before {
+    content: "";
+    position: absolute;
+    top: -3px;
+    bottom: -3px;
+    left: 50%;
+    width: 2px;
+    translate: -50% 0;
+    border-radius: 1px;
+    background-color: var(--void-200);
+  }
+  & > span {
+    position: absolute;
+    inset: 0;
+  }
+  & > span::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 12px;
+    height: 12px;
+    translate: -50% -50%;
+    border-radius: var(--radius-full);
+    background-color: var(--void-50);
+    box-shadow: 0 0 0 3px var(--void-900);
+  }
+}
+
+/* A signed result or level: mint for a gain, loss red for a loss, neutral at zero, always with its + or − sign
+   (DESIGN.md → Meaning never relies on color alone). Measured: mint-300 on mint-950 11.61:1, loss on loss-soft
+   6.40:1, fg on void-800 11.68:1. */
+@utility agent-badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  height: 1.5rem;
+  padding: 0 8px;
+  border-radius: var(--radius-full);
+  background-color: var(--mint-950);
+  box-shadow: inset 0 0 0 1px var(--mint-800);
+  color: var(--mint-300);
+  font-size: var(--text-small);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  &[data-sign="loss"] {
+    background-color: var(--loss-soft);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--loss) 35%, var(--loss-soft));
+    color: var(--loss);
+  }
+  &[data-sign="flat"] {
+    background-color: var(--void-800);
+    box-shadow: inset 0 0 0 1px var(--void-600);
+    color: var(--color-fg);
+  }
+}
+
+/* The live result rides above the price dot, centered on it. */
+@utility agent-result {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 50%;
+  translate: -50% 0;
+}

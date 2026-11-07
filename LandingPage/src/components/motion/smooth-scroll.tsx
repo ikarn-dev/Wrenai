@@ -6,17 +6,31 @@ import { type ReactElement, type ReactNode, useEffect, useMemo, useRef } from "r
 import { gsap, ScrollTrigger } from "./gsap";
 import { usePrefersReducedMotion } from "./use-prefers-reduced-motion";
 
-// The app's tuned feel (Wrenai/src/components/motion/smooth-scroll.tsx). lerp 0.2: each frame closes 20% of the
-// distance, so the page settles in about a quarter second; the default 0.1 trails the wheel and feels heavy on a
-// trackpad the OS already smooths. Lenis runs on GSAP's ticker (Docs/tech-stack.md → Lenis), so scroll-linked
-// animations read the same position on the same frame. Touch keeps native scrolling, and anchors scroll smoothly.
+// The landing page's glide (user request, Nov 2026: smoother than the app's snappier 0.2). Lenis 1.3 damps wheel
+// scrolling by time, not by frame: each frame moves 1 − e^(−60·lerp·dt) of the way (lenis.mjs → damp), so the
+// feel is the same at 60, 120 or 144 Hz. lerp 0.08 gives a time constant of about 0.21 s: a small wheel step
+// eases out over roughly 0.6 s instead of stopping dry in 0.25 s, without trailing so far that it feels
+// detached. Lenis runs on GSAP's ticker (Docs/tech-stack.md → Lenis), which follows the display's refresh rate,
+// so scroll-linked animations read the same position on the same frame. Touch keeps native scrolling, the
+// platform's own momentum.
+
+/**
+ * Long jumps (anchors, Back to top): a 1.2 s expo ease-out, so the page leaves quickly and settles softly. Passed
+ * per call, never as a global `duration`: Lenis prefers duration over lerp whenever both are set, which would
+ * restart a fixed easing on every wheel event and make small scrolls stutter.
+ */
+export const GLIDE = {
+  duration: 1.2,
+  easing: (t: number): number => Math.min(1, 1.001 - 2 ** (-10 * t)),
+} as const;
+
 const BASE_OPTIONS: LenisOptions = {
   autoRaf: false,
   syncTouch: false,
-  lerp: 0.2,
+  lerp: 0.08,
   wheelMultiplier: 1,
   allowNestedScroll: true,
-  anchors: true,
+  anchors: GLIDE,
 };
 
 /** Tells ScrollTrigger about every Lenis scroll. Inside ReactLenis, so it subscribes once the instance exists. */

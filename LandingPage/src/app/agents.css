@@ -1,0 +1,415 @@
+/* The agents section (components/agents): a list on the left, one agent's profile and scene on a grey panel on the
+   right, after the user's reference. Each name has its own drawn icon in a quiet tile (user request, Nov 7 2026:
+   the reference's list); mint marks only the user's values and the price paths. Panel void-800 with diagonal
+   hairlines fading from its top-right corner; scene cards are void-900 wells on it. Measured: on void-800, name
+   void-50 14.67:1; on void-900, value void-200 12.94:1, label void-400 5.81:1; tag mint-300 on mint-950 11.61:1;
+   list active void-50 on void-900 16.25:1, idle void-400 5.81:1. */
+
+/* The list: a tile and the name on one line, at 18 → 24 px in the regular weight, like the reference. */
+@utility agent-list {
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+@utility agent-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: fit-content;
+  padding: 0.25rem 0.5rem 0.25rem 0;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  font-size: clamp(1.125rem, 1rem + 0.556vw, 1.5rem);
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  color: var(--color-fg-subtle);
+  cursor: pointer;
+  transition: color 400ms var(--ease-ios);
+  @media (hover: hover) {
+    &:hover {
+      color: var(--color-fg);
+    }
+  }
+  &[aria-selected="true"] {
+    color: var(--color-fg-strong);
+  }
+}
+
+/* A 40 px tile with a hairline ring; the active tile lifts onto a raised face with a brighter edge. The icon takes
+   the name's color. The face is a pre-painted layer faded by opacity, so switching agents never repaints. */
+@utility agent-item-tile {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px var(--color-line-card);
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background-color: var(--void-800);
+    box-shadow:
+      inset 0 0 0 1px var(--void-600),
+      inset 0 1px 0 color-mix(in oklab, var(--void-100) 10%, transparent);
+    opacity: 0;
+    transition: opacity 400ms var(--ease-ios);
+  }
+  transition: color 400ms var(--ease-ios);
+  /* DESIGN.md → Icons: the active item's icon in accent-text (mint-300, 11.18:1 on the void-800 face). */
+  :where([aria-selected="true"]) > & {
+    color: var(--color-accent-text);
+  }
+  :where([aria-selected="true"]) > &::before {
+    opacity: 1;
+  }
+}
+
+/* The list and the panel. The panel keeps a reading width (30 rem): DESIGN.md caps landing lines at about 66
+   characters, and a row's label and value stay close enough to read as a pair. The list takes the rest. */
+@utility agent-layout {
+  display: grid;
+  gap: 2rem;
+  @media (width >= 64rem) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 30rem);
+    column-gap: 3rem;
+  }
+}
+
+/* Round arrow buttons, the reference's prev and next: a hairline ring that lifts to fg on hover. */
+@utility agent-arrow {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-full);
+  color: var(--color-fg-muted);
+  box-shadow: inset 0 0 0 1px var(--color-line-card);
+  cursor: pointer;
+  transition:
+    color 300ms var(--ease-ios),
+    scale 300ms var(--ease-ios);
+  @media (hover: hover) {
+    &:hover {
+      color: var(--color-fg-strong);
+    }
+  }
+  &:active {
+    scale: 0.92;
+    transition-duration: 120ms;
+  }
+  @media (pointer: coarse) {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}
+
+/* The panel: a raised grey card (void-800) with a hairline edge and a lit top. One spacing step, 12 px, on every
+   side and between the profile and the scene, so the gaps read as one rhythm (DESIGN.md → Spacing rhythm, 8–12 px
+   between rows of a group). The scene cards inside use 28 − 12 = 16 px corners (Corners → Concentric) and the same
+   12 px inside, never more than the panel's own inset. */
+@utility agent-panel {
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--radius-xl);
+  background-color: var(--void-800);
+  box-shadow:
+    inset 0 0 0 1px var(--color-line-card),
+    inset 0 1px 0 color-mix(in oklab, var(--void-100) 7%, transparent);
+}
+
+/* Its texture: diagonal hairlines every 10 px, the frame's strip pattern, fading out from the top-right corner so
+   the scene and text sit on plain grey. Decoration, painted once. */
+@utility agent-panel-pattern {
+  background-image: repeating-linear-gradient(-45deg, var(--void-700) 0 1px, transparent 1px 10px);
+  mask-image: radial-gradient(ellipse 70% 80% at 100% 0%, #000 0%, transparent 70%);
+}
+
+/* The scene's area takes all the panel's free height (the panel matches the list beside it), and every scene
+   fills it: charts and the composer grow, so there's no empty band above the description. 15 rem at least on
+   phones, where the panel stands alone. */
+@utility agent-stage {
+  display: flex;
+  flex: 1;
+  min-height: 15rem;
+}
+
+/* Opens this agent's setup in the app; sits at the end of the profile row. */
+@utility agent-open {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-full);
+  color: var(--color-fg-muted);
+  box-shadow: inset 0 0 0 1px var(--void-600);
+  transition: color 300ms var(--ease-ios);
+  @media (hover: hover) {
+    &:hover {
+      color: var(--color-fg-strong);
+    }
+  }
+}
+
+/* A scene card: a darker well (void-900) on the panel, 12 px inside. A card ending in a row drops its bottom
+   padding: the 44 px row already centers its text, which leaves about 11 px below it, matching the top. */
+@utility agent-scene {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  border-radius: 16px;
+  background-color: var(--void-900);
+  box-shadow: inset 0 0 0 1px var(--color-line-card);
+  &:has(> .agent-row:last-child) {
+    padding-bottom: 0;
+  }
+  /* A card of rows only (no chart to grow) shares its height between its rows, so it fills the stage evenly. */
+  &:not(:has(.agent-chart)) > .agent-row {
+    flex: 1;
+  }
+}
+
+/* Label left, value right, hairlines between rows. */
+@utility agent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 2.75rem;
+  box-shadow: inset 0 1px 0 var(--color-line-card);
+}
+
+/* A value the user fills in. */
+@utility agent-tag {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background-color: var(--mint-950);
+  color: var(--mint-300);
+  font-size: inherit;
+  white-space: nowrap;
+}
+
+/* The chat composer (DCA, Spot Trader): selector pills over a well holding the plain-words instruction, a send
+   control in its corner, after the user's reference. Pill text void-200 on void-900 12.94:1. */
+@utility agent-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 2rem;
+  padding: 0 10px 0 14px;
+  border-radius: var(--radius-full);
+  background-color: var(--void-900);
+  box-shadow: inset 0 0 0 1px var(--color-line-card);
+  color: var(--color-fg);
+  font-size: var(--text-small);
+  white-space: nowrap;
+  & > svg {
+    color: var(--color-fg-subtle);
+  }
+}
+
+/* Takes its text's height. The bottom 44 px clears the 32 px send control and its 8 px inset. */
+@utility agent-composer {
+  position: relative;
+  padding: 12px 12px 44px;
+  border-radius: 16px;
+  background-color: var(--void-900);
+  box-shadow: inset 0 0 0 1px var(--color-line-card);
+}
+
+/* The instruction at body size (14 → 15 px), with room for the tags between lines, so the longest example fits
+   the stage without growing the panel. */
+@utility agent-composer-text {
+  font-size: var(--text-body);
+  line-height: 1.75;
+  letter-spacing: -0.006em;
+}
+
+@utility agent-send {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-full);
+  background-color: var(--void-700);
+  color: var(--color-fg-strong);
+}
+
+/* Candle charts (agent-charts.tsx). Up candles mint, down candles grey; striped lines are the levels the agent acts
+   on, plain lines references, the thin line a moving average. Strokes keep their width as the chart stretches. */
+@utility agent-chart {
+  margin: 2px 0 8px;
+}
+
+@utility agent-candle-up {
+  & line {
+    stroke: var(--mint-500);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+  & rect {
+    fill: var(--mint-400);
+  }
+}
+
+@utility agent-candle-down {
+  & line {
+    stroke: var(--void-500);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+  & rect {
+    fill: var(--void-600);
+    stroke: var(--void-500);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+}
+
+@utility agent-average {
+  fill: none;
+  stroke: var(--void-300);
+  stroke-width: 1;
+  stroke-dasharray: 1;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+@utility agent-level {
+  stroke: var(--mint-600);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  vector-effect: non-scaling-stroke;
+}
+
+@utility agent-ref {
+  stroke: var(--void-600);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+/* A level's name on the chart's right edge; it warms to mint when the price reaches it (--lit). Text void-200 on
+   void-800 11.68:1; lit mint-300 11.18:1. */
+@utility agent-level-label {
+  --lit: 0;
+  position: absolute;
+  right: 0;
+  translate: 0 -50%;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background-color: var(--void-800);
+  box-shadow: inset 0 0 0 1px var(--color-line-card);
+  color: color-mix(in oklab, var(--mint-300) calc(var(--lit) * 100%), var(--void-200));
+  font-size: var(--text-small);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* Where the agent acts: a mint ring on the candle, its action above it. */
+@utility agent-marker {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  translate: -50% -50%;
+  border-radius: var(--radius-full);
+  background-color: var(--void-900);
+  box-shadow:
+    inset 0 0 0 2px var(--mint-400),
+    0 0 0 3px var(--void-900);
+}
+
+@utility agent-marker-label {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  translate: -50% 0;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background-color: var(--mint-950);
+  color: var(--mint-300);
+  font-size: var(--text-small);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* Meme Hunter's live scan (agent-meme.tsx). */
+@utility agent-feed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 1.75rem;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+  box-shadow: inset 0 0 0 1px var(--color-line-card);
+  color: var(--color-fg);
+  font-size: var(--text-small);
+  white-space: nowrap;
+  &[data-current] {
+    background-color: var(--void-900);
+    box-shadow: inset 0 0 0 1px var(--void-600);
+  }
+}
+
+/* The example coin's mark: a letter on a mint disc, no image. Void-950 on mint-400 10.38:1. */
+@utility agent-coin {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-full);
+  background-color: var(--mint-400);
+  color: var(--void-950);
+  font-size: var(--text-small);
+  font-weight: 500;
+}
+
+@utility agent-verdict {
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  background-color: var(--mint-950);
+  box-shadow: inset 0 0 0 1px var(--mint-800);
+  color: var(--mint-300);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* The scan line: a soft mint band sweeping down the checks (transform and opacity only). */
+@utility agent-scan {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 25%;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, color-mix(in oklab, var(--mint-400) 10%, transparent));
+  box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--mint-400) 45%, transparent);
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* A rule warms as the scan passes and it resolves (--lit). */
+@utility agent-check-row {
+  --lit: 0;
+  flex: 1;
+  & .agent-check {
+    background-color: color-mix(in oklab, var(--mint-400) calc(var(--lit) * 100%), transparent);
+  }
+}
+
+/* A required check: a small mint ring before the rule. */
+@utility agent-check {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  box-shadow: inset 0 0 0 1.5px var(--mint-400);
+}
