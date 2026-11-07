@@ -7,7 +7,8 @@ import { useSceneLoop } from "./agent-loop";
 import { type Phase, PhaseFlow, runPhases } from "./agent-phase-flow";
 
 // How three agents run, played as loops. The steps follow the app: a payment is reserved, signed with the agent
-// key, submitted through 1Click and closed only on 1Click's final status (server/execution); DCA slots start at
+// key, submitted through NEAR Intents' 1Click API and closed only on its final status (server/execution); DCA
+// slots start at
 // the start time and repeat every interval, a slot over a minute late is skipped (engine/dca-schedule.ts); every
 // order gets a fresh quote and the Guard's check before signing. Each step warms as it is reached (--lit); the
 // still state, shown under reduced motion, is the finished run.
@@ -21,8 +22,8 @@ interface Step {
 const PAYMENT_STEPS: readonly Step[] = [
   { id: "reserved", label: "Reserved", detail: "The exact amount is held for it" },
   { id: "signed", label: "Signed", detail: "With your agent key" },
-  { id: "sent", label: "Sent", detail: "Submitted through 1Click" },
-  { id: "delivered", label: "Delivered", detail: "Final status read from 1Click" },
+  { id: "sent", label: "Sent", detail: "Submitted through NEAR Intents" },
+  { id: "delivered", label: "Delivered", detail: "Final status from NEAR Intents" },
 ];
 
 const DCA_SLOTS = ["Start", "12 h", "24 h", "36 h"] as const;

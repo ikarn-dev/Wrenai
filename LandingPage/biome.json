@@ -1,7 +1,15 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "files": {
-    "includes": ["**", "!**/.next", "!**/out", "!**/node_modules", "!**/next-env.d.ts", "!**/pnpm-lock.yaml"]
+    "includes": [
+      "**",
+      "!**/.next",
+      "!**/out",
+      "!**/node_modules",
+      "!**/next-env.d.ts",
+      "!**/pnpm-lock.yaml",
+      "!**/public/assets/brand-logos"
+    ]
   },
   "formatter": {
     "enabled": true,

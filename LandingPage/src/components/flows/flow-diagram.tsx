@@ -142,7 +142,7 @@ function flowNodes(flow: Flow): (HubNode | SpokeNode)[] {
       // Chips differ in width: inputs hang from their right edge and outputs from their left, so every line has
       // the same reach to the hub.
       origin: side === "input" ? [1, 0.5] : [0, 0.5],
-      data: { label: spoke.label, icon: spoke.icon ?? null, service: spoke.service === true, side },
+      data: { label: spoke.label, icon: spoke.icon ?? null, brand: spoke.brand ?? null, side },
     }));
   return [
     {
@@ -153,7 +153,7 @@ function flowNodes(flow: Flow): (HubNode | SpokeNode)[] {
       data: {
         label: flow.hub.label,
         icon: flow.hub.icon,
-        service: flow.hub.service === true,
+        brand: flow.hub.brand ?? null,
         inputs: flow.inputs.length,
         outputs: flow.outputs.length,
       },

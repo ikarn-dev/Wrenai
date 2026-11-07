@@ -87,7 +87,7 @@ function privacyNodes(layout: "row" | "column"): PrivacyNode[] {
       type: "service",
       position: at("ai"),
       origin: center,
-      data: { glyph: "enclave", label: "NEAR AI Cloud", detail: "TEE, verified", enter, leave },
+      data: { brand: "near-ai", detail: "TEE, verified", enter, leave },
     },
     { id: "wrenai", type: "hub", position: at("wrenai"), origin: center, data: { enter, leave } },
     {
@@ -95,7 +95,7 @@ function privacyNodes(layout: "row" | "column"): PrivacyNode[] {
       type: "service",
       position: at("intents"),
       origin: center,
-      data: { glyph: "intents", label: "NEAR Intents", detail: "Confidential", enter, leave },
+      data: { brand: "near-intents", detail: "Confidential", enter, leave },
     },
     {
       id: "private",

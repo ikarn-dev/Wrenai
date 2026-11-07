@@ -3,6 +3,7 @@
 import { Handle, type Node, type NodeProps, type Position } from "@xyflow/react";
 import Image from "next/image";
 import type { ReactElement } from "react";
+import { type BrandId, BrandLogo } from "@/components/brands/brand-logo";
 import logo from "../../../public/assets/nobg_logo.png";
 import { type PrivacyGlyph, PrivacyIcon } from "./privacy-icons";
 
@@ -48,21 +49,19 @@ export function SourcePill({ data }: NodeProps<TileNode>): ReactElement {
 }
 
 export interface ServiceData extends Record<string, unknown>, Sides {
-  readonly glyph: PrivacyGlyph;
-  readonly label: string;
+  readonly brand: BrandId;
   readonly detail: string;
 }
 export type ServiceNode = Node<ServiceData, "service">;
 
-/** A service on the path: its icon in a well (`data-service`, where its logo goes later), its name and one word. */
+/** A service on the path: its logo over one word. */
 export function ServiceCard({ data }: NodeProps<ServiceNode>): ReactElement {
   return (
     <div data-step="" className="privacy-card">
-      <span className="privacy-card-well privacy-icon" data-service={data.label}>
-        <PrivacyIcon glyph={data.glyph} size={22} />
-      </span>
-      <span className="flex min-w-0 flex-col">
-        <span className="privacy-card-name">{data.label}</span>
+      <span className="flex min-w-0 flex-col items-start gap-1">
+        <span className="privacy-card-name">
+          <BrandLogo brand={data.brand} size="chip" />
+        </span>
         <span className="privacy-card-detail">{data.detail}</span>
       </span>
       <Points enter={data.enter} leave={data.leave} />

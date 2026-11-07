@@ -1,27 +1,28 @@
 import type { ReactElement } from "react";
+import { type BrandId, BrandLogo } from "@/components/brands/brand-logo";
 
-// The NEAR ecosystem services Wrenai runs on today, shown as plain wordmarks until logo files arrive. Real names
-// only, and only NEAR projects: hosting, storage, off-chain venues and data feeds stay out of "Powered by". Meta
-// Pool and LiNEAR were removed (no active integration).
-const NAMES = [
-  "NEAR Protocol",
-  "NEAR AI Cloud",
-  "NEAR Intents",
-  "1Click",
-  "HOT Labs",
-  "RHEA Finance",
-  "FastNear",
-  "NearBlocks",
-  "Squint",
-  "Nearly",
-] as const;
+// The NEAR ecosystem services Wrenai runs on today, by their logos. Real names only, and only NEAR projects:
+// hosting, storage, off-chain venues and data feeds stay out of "Powered by". 1Click is NEAR Intents' API, so it
+// isn't listed twice. Meta Pool and LiNEAR were removed (no active integration).
+const BRANDS: readonly BrandId[] = [
+  "near",
+  "near-ai",
+  "near-intents",
+  "hot",
+  "rhea",
+  "fastnear",
+  "nearblocks",
+  "squint",
+  "nearly",
+  "meme-cooking",
+];
 
 function NameList({ hidden = false }: { readonly hidden?: boolean }): ReactElement {
   return (
     <ul aria-hidden={hidden ? true : undefined} className="marquee-list">
-      {NAMES.map((name) => (
-        <li key={name} className="text-marquee font-medium whitespace-nowrap text-fg-muted">
-          {name}
+      {BRANDS.map((brand) => (
+        <li key={brand} className="flex items-center whitespace-nowrap">
+          <BrandLogo brand={brand} size="band" />
         </li>
       ))}
     </ul>

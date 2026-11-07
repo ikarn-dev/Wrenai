@@ -1,6 +1,8 @@
 // The flows Wrenai runs today, hub-and-spoke: what feeds a step on the left, the step itself in the middle, where
-// it goes on the right. Every service named is the one the app actually calls (Docs/wrenai-spec.md, tech-stack.md).
-// Service names are text for now; each carries `service` so its logo can replace the name later.
+// it goes on the right. Every service named is the one the app actually calls (Docs/wrenai-spec.md, tech-stack.md),
+// shown by its logo (`brand`). 1Click calls show as NEAR Intents, the product they belong to.
+
+import type { BrandId } from "@/components/brands/brand-logo";
 
 export type StepIcon =
   | "wallet"
@@ -16,8 +18,8 @@ export type StepIcon =
 export interface FlowSpoke {
   readonly id: string;
   readonly label: string;
-  /** A third-party service, shown by name (logo later). Otherwise a Wrenai step with its icon. */
-  readonly service?: true;
+  /** A third-party service, shown by its logo. Otherwise a Wrenai step with its icon. */
+  readonly brand?: BrandId;
   readonly icon?: StepIcon;
   /** Striped: work that keeps running in the background until it's final (polling, settlement, streaming). */
   readonly striped?: true;
@@ -29,7 +31,7 @@ export interface Flow {
   readonly text: string;
   /** Wide cards spread their spokes further. */
   readonly wide: boolean;
-  readonly hub: { readonly label: string; readonly icon: StepIcon; readonly service?: true };
+  readonly hub: { readonly label: string; readonly icon: StepIcon; readonly brand?: BrandId };
   readonly inputs: readonly FlowSpoke[];
   readonly outputs: readonly FlowSpoke[];
 }
@@ -43,16 +45,16 @@ export const FLOWS: readonly Flow[] = [
     hub: { label: "Guard", icon: "shield" },
     inputs: [
       // NEAR AI Cloud turns the plain-words strategy into reviewed rules.
-      { id: "rules", label: "NEAR AI Cloud", service: true },
+      { id: "rules", label: "NEAR AI Cloud", brand: "near-ai" },
       // The deposit is one approval in the wallet connected through HOT Labs' NEAR Connect.
-      { id: "deposit", label: "HOT Labs", service: true },
+      { id: "deposit", label: "HOT Labs", brand: "hot" },
       // The workflow keeps reading prices and the schedule between checks.
       { id: "market", label: "Market data", icon: "chart", striped: true },
     ],
     outputs: [
-      { id: "intents", label: "1Click", service: true, striped: true },
-      { id: "rhea", label: "RHEA Finance", service: true, striped: true },
-      { id: "perps", label: "Hyperliquid", service: true, striped: true },
+      { id: "intents", label: "NEAR Intents", brand: "near-intents", striped: true },
+      { id: "rhea", label: "RHEA Finance", brand: "rhea", striped: true },
+      { id: "perps", label: "Hyperliquid", brand: "hyperliquid", striped: true },
     ],
   },
   {
@@ -60,14 +62,14 @@ export const FLOWS: readonly Flow[] = [
     title: "Research you can verify",
     text: "Answers come from a model in a secure enclave. Each reply’s signature is checked.",
     wide: false,
-    hub: { label: "NEAR AI Cloud", icon: "cpu", service: true },
+    hub: { label: "NEAR AI Cloud", icon: "cpu", brand: "near-ai" },
     inputs: [
       { id: "question", label: "Your question", icon: "message" },
-      { id: "squint", label: "Squint", service: true, striped: true },
+      { id: "squint", label: "Squint", brand: "squint", striped: true },
     ],
     outputs: [
       { id: "verified", label: "Verified reply", icon: "shield-check", striped: true },
-      { id: "quote", label: "1Click", service: true },
+      { id: "quote", label: "NEAR Intents", brand: "near-intents" },
     ],
   },
   {
@@ -77,13 +79,13 @@ export const FLOWS: readonly Flow[] = [
     wide: false,
     hub: { label: "You confirm", icon: "pointer" },
     inputs: [
-      { id: "wallet", label: "HOT Labs", service: true },
+      { id: "wallet", label: "HOT Labs", brand: "hot" },
       { id: "balance", label: "Funded balance", icon: "server" },
     ],
     outputs: [
-      { id: "oneclick", label: "1Click", service: true, striped: true },
-      { id: "rhea", label: "RHEA Finance", service: true, striped: true },
-      { id: "perps", label: "Hyperliquid", service: true, striped: true },
+      { id: "oneclick", label: "NEAR Intents", brand: "near-intents", striped: true },
+      { id: "rhea", label: "RHEA Finance", brand: "rhea", striped: true },
+      { id: "perps", label: "Hyperliquid", brand: "hyperliquid", striped: true },
     ],
   },
   {
@@ -92,9 +94,9 @@ export const FLOWS: readonly Flow[] = [
     text: "Fund an agent in one transfer. Deleting it returns everything it holds.",
     wide: true,
     hub: { label: "Agent", icon: "waypoints" },
-    inputs: [{ id: "deposit", label: "HOT Labs", service: true }],
+    inputs: [{ id: "deposit", label: "HOT Labs", brand: "hot" }],
     outputs: [
-      { id: "private", label: "NEAR Intents", service: true },
+      { id: "private", label: "NEAR Intents", brand: "near-intents" },
       { id: "returned", label: "Your wallet", icon: "wallet", striped: true },
     ],
   },

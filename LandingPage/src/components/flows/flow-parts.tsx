@@ -22,6 +22,7 @@ import {
   Waypoints,
 } from "lucide-react";
 import type { ReactElement } from "react";
+import { type BrandId, BrandLogo } from "@/components/brands/brand-logo";
 import type { StepIcon } from "./flow-data";
 
 const ICONS: Readonly<Record<StepIcon, LucideIcon>> = {
@@ -72,21 +73,24 @@ function Points({
 export interface SpokeData extends Record<string, unknown> {
   readonly label: string;
   readonly icon: StepIcon | null;
-  readonly service: boolean;
+  readonly brand: BrandId | null;
   readonly side: "input" | "output";
 }
 export type SpokeNode = Node<SpokeData, "spoke">;
 
-/**
- * A chip on one side of the hub. A service chip holds only its name (`data-service`, where its logo goes later);
- * a Wrenai step adds its icon.
- */
+/** A chip on one side of the hub: a service's logo, or a Wrenai step's icon and name. */
 export function SpokeChip({ data }: NodeProps<SpokeNode>): ReactElement {
   const Icon = data.icon ? ICONS[data.icon] : null;
   return (
-    <div className="flow-chip" data-step="" data-service={data.service ? data.label : undefined}>
-      {Icon ? <Icon size={14} {...STROKE} className="flow-icon" /> : null}
-      <span>{data.label}</span>
+    <div className="flow-chip" data-step="">
+      {data.brand ? (
+        <BrandLogo brand={data.brand} size="chip" />
+      ) : (
+        <>
+          {Icon ? <Icon size={14} {...STROKE} className="flow-icon" /> : null}
+          <span>{data.label}</span>
+        </>
+      )}
       <Points
         side={data.side === "input" ? Position.Right : Position.Left}
         type={data.side === "input" ? "source" : "target"}
@@ -99,7 +103,7 @@ export function SpokeChip({ data }: NodeProps<SpokeNode>): ReactElement {
 export interface HubData extends Record<string, unknown> {
   readonly label: string;
   readonly icon: StepIcon;
-  readonly service: boolean;
+  readonly brand: BrandId | null;
   readonly inputs: number;
   readonly outputs: number;
 }
@@ -114,8 +118,8 @@ export function HubTile({ data }: NodeProps<HubNode>): ReactElement {
       <div className="flow-hub-face">
         <Icon size={26} {...STROKE} className="flow-icon" />
       </div>
-      <span className="flow-hub-label" data-service={data.service ? data.label : undefined}>
-        {data.label}
+      <span className="flow-hub-label">
+        {data.brand ? <BrandLogo brand={data.brand} size="chip" /> : data.label}
       </span>
       <Points side={Position.Left} type="target" count={data.inputs} />
       <Points side={Position.Right} type="source" count={data.outputs} />
