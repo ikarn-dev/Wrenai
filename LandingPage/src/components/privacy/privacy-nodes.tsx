@@ -32,13 +32,15 @@ function Points({ enter, leave }: Sides): ReactElement {
 export interface TileData extends Record<string, unknown>, Sides {
   readonly glyph: PrivacyGlyph;
   readonly label: string;
+  /** The narrower phone size. */
+  readonly compact: boolean;
 }
 export type TileNode = Node<TileData, "tile">;
 
 /** Something you send: a pill with its icon and name, like the reference's source chips. */
 export function SourcePill({ data }: NodeProps<TileNode>): ReactElement {
   return (
-    <div data-step="" className="privacy-pill">
+    <div data-step="" data-compact={data.compact ? "" : undefined} className="privacy-pill">
       <span className="privacy-icon">
         <PrivacyIcon glyph={data.glyph} />
       </span>
@@ -88,13 +90,20 @@ export interface StackData extends Record<string, unknown>, Sides {
   readonly tone: "private" | "public";
   readonly label: string;
   readonly detail: string;
+  /** The narrower phone size. */
+  readonly compact: boolean;
 }
 export type StackNode = Node<StackData, "stack">;
 
 /** An outcome, drawn as a stack of results like the reference's verdicts: one card in front, empty ones behind. */
 export function OutcomeStack({ data }: NodeProps<StackNode>): ReactElement {
   return (
-    <div data-step="" data-tone={data.tone} className="privacy-stack">
+    <div
+      data-step=""
+      data-tone={data.tone}
+      data-compact={data.compact ? "" : undefined}
+      className="privacy-stack"
+    >
       <span aria-hidden="true" className="privacy-stack-layer" data-depth="2" />
       <span aria-hidden="true" className="privacy-stack-layer" data-depth="1" />
       <div className="privacy-stack-front">

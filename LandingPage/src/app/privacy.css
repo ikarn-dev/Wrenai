@@ -23,6 +23,12 @@
   width: 112px;
   height: 36px;
   padding: 0 14px 0 12px;
+  /* Phones: three across in 304 px. */
+  &[data-compact] {
+    width: 96px;
+    gap: 6px;
+    padding: 0 10px;
+  }
   border-radius: var(--radius-full);
   background-color: var(--void-800);
   box-shadow:
@@ -144,6 +150,13 @@
   position: relative;
   width: 168px;
   padding-bottom: 10px;
+  /* Phones: two across in 304 px, with a tighter front padding so "Deposits, payouts" still fits. */
+  &[data-compact] {
+    width: 148px;
+    & > .privacy-stack-front {
+      padding-inline: 10px;
+    }
+  }
 }
 
 @utility privacy-stack-front {
@@ -209,6 +222,9 @@
 /* Twinkling stars on the section's dot grid (components/sections/star-field.tsx), faded at the edges with the dot
    grid's own mask so they belong to it. */
 @utility star-field {
+  /* The stars reach 544 px either side of center. A mask hides them but doesn't remove them from layout, so
+     without this clip they widened the page past a phone's screen and the browser zoomed the site out. */
+  overflow: hidden;
   mask-image: radial-gradient(ellipse 70% 100% at 50% 0%, #000 10%, transparent 75%);
 }
 

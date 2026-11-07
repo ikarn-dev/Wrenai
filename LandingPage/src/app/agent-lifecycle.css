@@ -69,6 +69,13 @@
     flex-shrink: 0;
     color: color-mix(in oklab, var(--color-accent-text) calc(var(--lit) * 100%), var(--color-fg-subtle));
   }
+  /* Phones: the icon over the name, centered, in the same 64 px height. */
+  &[data-compact] {
+    align-items: center;
+    gap: 6px;
+    padding: 0 4px;
+    text-align: center;
+  }
 }
 
 /* The beam between two step nodes: a mint head 40 of the line's 100 units long (the lines are short), swept from
@@ -83,36 +90,88 @@
   visibility: hidden;
 }
 
-/* DCA's schedule: four slots, their marks on one track whose mint fill moves from slot to slot. The track runs
-   between the first and last mark's centers (columns are quarters, so 12.5% in from each side). */
-@utility agent-slots {
-  position: relative;
+/* DCA's schedule (agent-lifecycle.tsx → Schedule): four buys in quarter columns, each with its name above and
+   its time below, on one rail between the first and last mark (12.5% in from each side). The rail fills and a
+   playhead glides along it; a buy lights as the playhead reaches it. */
+@utility agent-schedule-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  text-align: center;
 }
 
-@utility agent-slots-track {
-  position: absolute;
-  top: 4.5px;
-  right: 12.5%;
-  left: 12.5%;
-  height: 1px;
-  background-color: var(--void-600);
+/* A buy's name or time, lit with its slot: fg-subtle to fg-strong (5.81:1 → 16.25:1 on void-900). */
+@utility agent-slot-text {
+  --lit: 1;
+  color: color-mix(in oklab, var(--color-fg-strong) calc(var(--lit) * 100%), var(--color-fg-subtle));
+  font-variant-numeric: tabular-nums;
+}
+
+/* The rail's row: 16 px tall, the rail centered in it. */
+@utility agent-schedule-track {
+  position: relative;
+  height: 16px;
+  & > .agent-schedule-rail,
+  & > .agent-schedule-head {
+    position: absolute;
+    top: 50%;
+    right: 12.5%;
+    left: 12.5%;
+  }
+}
+
+/* A 4 px rounded rail; its mint fill grows from the left by scaleX. */
+@utility agent-schedule-rail {
+  height: 4px;
+  translate: 0 -50%;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background-color: var(--void-700);
   & > span {
     display: block;
     height: 100%;
-    background-color: var(--mint-400);
+    background-color: var(--mint-500);
     transform-origin: 0 50%;
   }
 }
 
-@utility agent-slot {
+/* A buy's mark on the rail: a void-900 ring that fills with mint when its buy runs (--lit). */
+@utility agent-slot-mark {
   --lit: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  color: color-mix(in oklab, var(--color-fg-strong) calc(var(--lit) * 100%), var(--color-fg-subtle));
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  translate: -50% -50%;
+  border-radius: var(--radius-full);
+  background-color: color-mix(in oklab, var(--mint-400) calc(var(--lit) * 100%), var(--void-900));
+  box-shadow:
+    inset 0 0 0 2px color-mix(in oklab, var(--mint-400) calc(var(--lit) * 100%), var(--void-600)),
+    0 0 0 3px var(--void-900);
+}
+
+/* The playhead: a full-rail mover translated by a share of its own width (0 → 100%), carrying a light 16 px
+   ring, so it glides on transforms only and sits above the marks. */
+@utility agent-schedule-head {
+  z-index: 1;
+  height: 0;
+  /* The still, finished state (every buy lit, the rail full) has no playhead. */
+  @media (prefers-reduced-motion: reduce) {
+    display: none;
+  }
+  &::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 16px;
+    height: 16px;
+    translate: -50% -50%;
+    border-radius: var(--radius-full);
+    background-color: var(--void-900);
+    box-shadow:
+      inset 0 0 0 3px var(--mint-300),
+      0 0 0 3px var(--void-900);
+  }
 }
 
 /* Spot's armed exits: a 6 px strip, its left half red toward the stop loss and its right half mint toward the take

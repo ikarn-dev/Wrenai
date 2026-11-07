@@ -145,8 +145,10 @@ export function AgentSlides({
   }
   return (
     <div ref={layout} className="agent-layout">
-      {/* The list and its arrows sit together at the top, level with the panel. */}
-      <div className="flex flex-col gap-8">
+      {/* From lg the list and its arrows sit together at the top, level with the panel. Below lg the list is
+          hidden and this wrapper dissolves (contents), so the arrows become their own grid item, centered under
+          the panel (agent-arrows). */}
+      <div className="max-lg:contents lg:flex lg:flex-col lg:gap-8">
         <div
           role="tablist"
           aria-label="Agents"
@@ -176,7 +178,7 @@ export function AgentSlides({
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="agent-arrows flex items-center gap-3">
           <button
             type="button"
             aria-label="Previous agent"

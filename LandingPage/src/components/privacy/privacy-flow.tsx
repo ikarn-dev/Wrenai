@@ -1,10 +1,11 @@
 "use client";
 
-import { Position, ReactFlow } from "@xyflow/react";
+import { type FitViewOptions, Position, ReactFlow } from "@xyflow/react";
 import { type ReactElement, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useSceneLoop } from "@/components/agents/agent-loop";
 import { light, ripple } from "@/components/flows/flow-diagram";
 import { FlowDrawn } from "@/components/flows/flow-drawn";
+import { FlowFit } from "@/components/flows/flow-fit";
 import type { PrivacyGlyph } from "./privacy-icons";
 import { type Packet, type PacketEdge, PacketLink, send } from "./privacy-links";
 import {
@@ -52,17 +53,17 @@ const PLACES: Readonly<Record<"row" | "column", Readonly<Record<string, Placemen
     private: { x: 890, y: -62 },
     public: { x: 890, y: 62 },
   },
+  // Phones: compact pills (96 px) and stacks (148 px), 8 px apart, so each row is 304 px and the whole column
+  // fits a 360 px screen at about full size; every node is centered on one axis.
   column: {
-    // Pills side by side, all 112 px wide, 12 px apart.
-    chat: { x: -124, y: 0 },
+    chat: { x: -104, y: 0 },
     strategy: { x: 0, y: 0 },
-    account: { x: 124, y: 0 },
+    account: { x: 104, y: 0 },
     ai: { x: 0, y: 104 },
     wrenai: { x: 0, y: 228 },
     intents: { x: 0, y: 352 },
-    // Stacks are 168 px wide: 92 px either side of center leaves 16 px between them.
-    private: { x: -92, y: 468 },
-    public: { x: 92, y: 468 },
+    private: { x: -78, y: 468 },
+    public: { x: 78, y: 468 },
   },
 };
 
@@ -79,7 +80,7 @@ function privacyNodes(layout: "row" | "column"): PrivacyNode[] {
         type: "tile",
         position: at(source.id),
         origin: row ? [1, 0.5] : center,
-        data: { glyph: source.glyph, label: source.label, enter: null, leave },
+        data: { glyph: source.glyph, label: source.label, compact: !row, enter: null, leave },
       }),
     ),
     {
@@ -102,14 +103,28 @@ function privacyNodes(layout: "row" | "column"): PrivacyNode[] {
       type: "stack",
       position: at("private"),
       origin: center,
-      data: { tone: "private", label: "Private", detail: "Swaps, payments", enter, leave: null },
+      data: {
+        tone: "private",
+        label: "Private",
+        detail: "Swaps, payments",
+        compact: !row,
+        enter,
+        leave: null,
+      },
     },
     {
       id: "public",
       type: "stack",
       position: at("public"),
       origin: center,
-      data: { tone: "public", label: "Public", detail: "Deposits, payouts", enter, leave: null },
+      data: {
+        tone: "public",
+        label: "Public",
+        detail: "Deposits, payouts",
+        compact: !row,
+        enter,
+        leave: null,
+      },
     },
   ];
 }
@@ -173,6 +188,9 @@ function playPrivacy(timeline: gsap.core.Timeline, element: HTMLElement): void {
   light(timeline, step("public"), send(timeline, element, "intents-public", intents + 0.4));
 }
 
+// A thin margin (2% a side), so the 304 px phone column fits a 360 px screen at about 93% instead of 85%.
+const FIT: FitViewOptions = { padding: 0.02, maxZoom: 1 };
+
 /** The static canvas: no panning, zooming or selection, and page scrolling passes straight through. */
 export function PrivacyFlow(): ReactElement {
   const box = useRef<HTMLDivElement>(null);
@@ -191,7 +209,7 @@ export function PrivacyFlow(): ReactElement {
           edgeTypes={EDGE_TYPES}
           colorMode="dark"
           fitView
-          fitViewOptions={{ padding: 0.06, maxZoom: 1 }}
+          fitViewOptions={FIT}
           minZoom={0.5}
           maxZoom={1}
           nodesDraggable={false}
@@ -208,6 +226,7 @@ export function PrivacyFlow(): ReactElement {
           proOptions={{ hideAttribution: true }}
         >
           <FlowDrawn id={layout} onDrawn={setDrawn} />
+          <FlowFit box={box} options={FIT} />
         </ReactFlow>
       ) : null}
     </div>

@@ -16,7 +16,7 @@ import { FlowDrawn } from "@/components/flows/flow-drawn";
 
 // An agent's steps as a small React Flow pipeline, like the "How it runs" diagrams: tiles joined by lines that
 // carry a beam from one step to the next. Tiles keep their real pixel size (zoom 1, laid out from the measured
-// width) so text never scales; below about 400 px the four tiles fold into a clockwise 2 × 2 loop.
+// width) so text never scales. Always one row; below about 410 px the tiles turn compact, at the same height.
 
 export interface Phase {
   readonly id: string;
@@ -26,10 +26,11 @@ export interface Phase {
 }
 
 const STROKE = { strokeWidth: 1.75, absoluteStrokeWidth: true, "aria-hidden": true } as const;
-/** Tile height (px): 10 px padding around a body line and a small line. */
+/** Tile height (px), the same in both sizes, so the card never changes height when the layout is picked. */
 const TILE = 64;
-/** Space between tiles (px), where the beams run. */
+/** Space between tiles (px), where the beams run: roomy, then tight on narrow cards. */
 const GAP = 24;
+const TIGHT_GAP = 10;
 /** The narrowest tile (px) that fits an icon and the longest name ("Bought") on one line. */
 const MIN_TILE = 84;
 
@@ -37,21 +38,34 @@ interface PhaseData extends Record<string, unknown> {
   readonly label: string;
   readonly detail: string;
   readonly icon: LucideIcon;
+  readonly compact: boolean;
   readonly enter: Position | null;
   readonly leave: Position | null;
 }
 type PhaseNode = Node<PhaseData, "phase">;
 type BeamEdge = Edge<Record<string, unknown>, "beam">;
 
-/** One step: icon and name on a line, its detail below. Lights with --lit (agent-lifecycle.css). */
+/**
+ * One step, lit with --lit (agent-lifecycle.css). Full size: icon and name on a line, the detail below. Compact
+ * (phones): the icon over the name, centered, without the detail, so four tiles still share one row.
+ */
 function PhaseTile({ data }: NodeProps<PhaseNode>): ReactElement {
   return (
-    <div data-phase="" className="agent-phase">
-      <span className="flex min-w-0 items-center gap-1.5">
-        <data.icon size={16} {...STROKE} />
-        <span className="truncate text-body">{data.label}</span>
-      </span>
-      <span className="agent-step-detail truncate text-small">{data.detail}</span>
+    <div data-phase="" data-compact={data.compact ? "" : undefined} className="agent-phase">
+      {data.compact ? (
+        <>
+          <data.icon size={16} {...STROKE} />
+          <span className="truncate text-small">{data.label}</span>
+        </>
+      ) : (
+        <>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <data.icon size={16} {...STROKE} />
+            <span className="truncate text-body">{data.label}</span>
+          </span>
+          <span className="agent-step-detail truncate text-small">{data.detail}</span>
+        </>
+      )}
       {data.enter ? (
         <Handle id="in" type="target" position={data.enter} isConnectable={false} className="flow-handle" />
       ) : null}
@@ -79,45 +93,36 @@ const EDGE_TYPES = { beam: BeamLink };
 interface Layout {
   /** Changes when the tiles move, so the canvas and its timeline are rebuilt. */
   readonly key: string;
-  readonly loop: boolean;
+  readonly compact: boolean;
   readonly tile: number;
+  readonly gap: number;
 }
+/** Always one row, as on desktop; a card too narrow for full tiles gets compact ones with tighter gaps. */
 function phaseLayout(width: number): Layout {
-  const row = Math.floor((width - GAP * 3) / 4);
-  if (row >= MIN_TILE) {
-    return { key: `row-${row.toString()}`, loop: false, tile: row };
+  const roomy = Math.floor((width - GAP * 3) / 4);
+  if (roomy >= MIN_TILE) {
+    return { key: `row-${roomy.toString()}`, compact: false, tile: roomy, gap: GAP };
   }
-  const half = Math.floor((width - GAP) / 2);
-  return { key: `loop-${half.toString()}`, loop: true, tile: half };
+  const tight = Math.floor((width - TIGHT_GAP * 3) / 4);
+  return { key: `compact-${tight.toString()}`, compact: true, tile: tight, gap: TIGHT_GAP };
 }
 
-/** The row runs left to right; the 2 × 2 loop runs clockwise from the top left. */
+/** The row runs left to right. */
 function phaseNodes(steps: readonly Phase[], layout: Layout): PhaseNode[] {
-  const step = layout.tile + GAP;
-  return steps.map((phase, index) => {
-    const last = index === steps.length - 1;
-    const place = layout.loop
-      ? [
-          { x: 0, y: 0, enter: null, leave: Position.Right },
-          { x: step, y: 0, enter: Position.Left, leave: Position.Bottom },
-          { x: step, y: TILE + GAP, enter: Position.Top, leave: Position.Left },
-          { x: 0, y: TILE + GAP, enter: Position.Right, leave: null },
-        ][index]
-      : { x: index * step, y: 0, enter: index === 0 ? null : Position.Left, leave: Position.Right };
-    return {
-      id: phase.id,
-      type: "phase",
-      position: { x: place?.x ?? 0, y: place?.y ?? 0 },
-      style: { width: layout.tile, height: TILE },
-      data: {
-        label: phase.label,
-        detail: phase.detail,
-        icon: phase.icon,
-        enter: place?.enter ?? null,
-        leave: last ? null : (place?.leave ?? null),
-      },
-    };
-  });
+  return steps.map((phase, index) => ({
+    id: phase.id,
+    type: "phase",
+    position: { x: index * (layout.tile + layout.gap), y: 0 },
+    style: { width: layout.tile, height: TILE },
+    data: {
+      label: phase.label,
+      detail: phase.detail,
+      icon: phase.icon,
+      compact: layout.compact,
+      enter: index === 0 ? null : Position.Left,
+      leave: index === steps.length - 1 ? null : Position.Right,
+    },
+  }));
 }
 function phaseEdges(steps: readonly Phase[]): BeamEdge[] {
   return steps.slice(1).map((phase, index) => ({
@@ -168,7 +173,7 @@ export function PhaseFlow({
   const nodes = useMemo(() => (layout ? phaseNodes(steps, layout) : []), [steps, layout]);
   const edges = useMemo(() => phaseEdges(steps), [steps]);
   return (
-    <div ref={box} className={layout?.loop ? "flow-canvas h-38 w-full" : "flow-canvas h-16 w-full"}>
+    <div ref={box} className="flow-canvas h-16 w-full">
       {layout ? (
         <ReactFlow
           key={layout.key}

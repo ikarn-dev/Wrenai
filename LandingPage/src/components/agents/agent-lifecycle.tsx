@@ -125,23 +125,40 @@ export function DcaLifecycle(): ReactElement {
       const slots = Array.from(element.querySelectorAll("[data-slot]"));
       const phases = Array.from(element.querySelectorAll("[data-phase]"));
       const fill = element.querySelector("[data-slot-fill]");
+      const head = element.querySelector("[data-slot-head]");
+      const last = DCA_SLOTS.length - 1;
       gsap.set([...slots, ...phases], { "--lit": 0 });
+      // The fill and the playhead move as one, on one long eased glide per interval, so the rail never jerks.
+      const glide = (progress: number, at: gsap.Position, duration: number): void => {
+        const ease = "power3.inOut";
+        if (fill) {
+          timeline.to(fill, { scaleX: progress, duration, ease }, at);
+        }
+        if (head) {
+          timeline.to(head, { xPercent: progress * 100, duration, ease }, at);
+        }
+      };
       if (fill) {
         gsap.set(fill, { scaleX: 0 });
       }
-      for (const [index, slot] of slots.entries()) {
-        const at = index * 2.6;
-        if (fill && index > 0) {
-          timeline.to(fill, { scaleX: index / (slots.length - 1), duration: 0.6, ease: "power1.inOut" }, at);
+      for (const index of DCA_SLOTS.keys()) {
+        const at = index * 2.8;
+        if (index > 0) {
+          glide(index / last, at, 1.1);
         }
-        timeline.to(slot, { "--lit": 1, duration: 0.3 }, at + 0.5);
-        runPhases(timeline, element, at + 0.7, 0.4);
-        timeline.to(phases, { "--lit": 0, duration: 0.3 }, at + 2.4);
+        // The buy lights as the playhead lands on it, then runs through the pipeline.
+        const arrive = index > 0 ? at + 1.05 : at + 0.2;
+        timeline.to(
+          element.querySelectorAll(`[data-slot="${index.toString()}"]`),
+          { "--lit": 1, duration: 0.35 },
+          arrive,
+        );
+        runPhases(timeline, element, arrive + 0.15, 0.4);
+        timeline.to(phases, { "--lit": 0, duration: 0.35 }, arrive + 1.9);
       }
-      timeline.to(slots, { "--lit": 0, duration: 0.6 }, "+=1.2");
-      if (fill) {
-        timeline.to(fill, { scaleX: 0, duration: 0.6 }, "<");
-      }
+      // Back to the start in one soft glide while the buys cool, ready for the next pass.
+      timeline.to(slots, { "--lit": 0, duration: 0.9, ease: "power2.inOut" }, "+=0.8");
+      glide(0, "<", 1.2);
     },
     1,
     drawn,
@@ -149,19 +166,39 @@ export function DcaLifecycle(): ReactElement {
 
   return (
     <LifecycleCard title="Schedule" root={root}>
-      <div className="flex flex-1 flex-col justify-between gap-3">
-        <div className="relative">
-          <span aria-hidden="true" className="agent-slots-track">
-            <span data-slot-fill="" />
-          </span>
-          <ol aria-label="Buys" className="agent-slots">
-            {DCA_SLOTS.map((slot) => (
-              <li key={slot} data-slot="" className="agent-slot">
-                <span aria-hidden="true" className="agent-step-dot" />
-                <span className="text-small tabular-nums">{slot}</span>
+      <div className="flex flex-1 flex-col gap-3">
+        {/* The schedule sits centered in the space above the pipeline: the buy's name, its mark on the rail, its
+            time. Each buy's three parts share data-slot, so they light together. */}
+        <div className="flex flex-1 flex-col justify-center gap-2">
+          <ol aria-label="Buys" className="agent-schedule-row">
+            {DCA_SLOTS.map((slot, index) => (
+              <li key={slot} data-slot={index} className="agent-slot-text text-small font-medium">
+                Buy {index + 1}
+                <span className="sr-only">, {slot}</span>
               </li>
             ))}
           </ol>
+          <div aria-hidden="true" className="agent-schedule-track">
+            <span className="agent-schedule-rail">
+              <span data-slot-fill="" />
+            </span>
+            {DCA_SLOTS.map((slot, index) => (
+              <span
+                key={slot}
+                data-slot={index}
+                className="agent-slot-mark"
+                style={{ left: `${(12.5 + index * 25).toString()}%` }}
+              />
+            ))}
+            <span data-slot-head="" className="agent-schedule-head" />
+          </div>
+          <div aria-hidden="true" className="agent-schedule-row">
+            {DCA_SLOTS.map((slot, index) => (
+              <span key={slot} data-slot={index} className="agent-slot-text text-small">
+                {slot}
+              </span>
+            ))}
+          </div>
         </div>
         <PhaseFlow steps={DCA_STEPS} onDrawn={setDrawn} />
       </div>
@@ -251,8 +288,11 @@ export function SpotLifecycle(): ReactElement {
 
   return (
     <LifecycleCard title="Order" aside="Example" root={root}>
-      <div className="flex flex-1 flex-col justify-between gap-3">
-        <PhaseFlow steps={SPOT_STEPS} onDrawn={setDrawn} />
+      <div className="flex flex-1 flex-col gap-3">
+        {/* The pipeline centered in the space above the exits strip, so a tall card leaves no band under it. */}
+        <div className="flex flex-1 items-center">
+          <PhaseFlow steps={SPOT_STEPS} onDrawn={setDrawn} />
+        </div>
         {/* Room above the strip for the live result riding over the price. */}
         <div className="flex items-center gap-2.5 pt-7">
           <span data-sign="loss" className="agent-badge">

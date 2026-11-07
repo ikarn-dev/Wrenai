@@ -1,9 +1,10 @@
 "use client";
 
-import { ReactFlow, useNodesInitialized } from "@xyflow/react";
+import { type FitViewOptions, ReactFlow, useNodesInitialized } from "@xyflow/react";
 import { type ReactElement, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { gsap, ScrollTrigger, useGSAP } from "@/components/motion/gsap";
 import { type Flow, spokeAnchor } from "./flow-data";
+import { FlowFit } from "./flow-fit";
 import { type HubNode, HubTile, type LinkEdge, LinkLine, SpokeChip, type SpokeNode } from "./flow-parts";
 
 const NODE_TYPES = { hub: HubTile, spoke: SpokeChip };
@@ -185,6 +186,9 @@ function flowEdges(flow: Flow): LinkEdge[] {
   ];
 }
 
+// Room for the names under the tiles. One constant, so the refit on resize uses the same box as the first fit.
+const FIT: FitViewOptions = { padding: { top: 0.12, bottom: 0.24, left: 0.08, right: 0.08 }, maxZoom: 1.1 };
+
 /** A static React Flow canvas: no panning, zooming or selection, and page scrolling passes straight through. */
 export function FlowDiagram({ flow }: { readonly flow: Flow }): ReactElement {
   const root = useRef<HTMLDivElement>(null);
@@ -199,8 +203,7 @@ export function FlowDiagram({ flow }: { readonly flow: Flow }): ReactElement {
         edgeTypes={EDGE_TYPES}
         colorMode="dark"
         fitView
-        // Room for the names under the tiles.
-        fitViewOptions={{ padding: { top: 0.12, bottom: 0.24, left: 0.08, right: 0.08 }, maxZoom: 1.1 }}
+        fitViewOptions={FIT}
         minZoom={0.3}
         maxZoom={1.1}
         nodesDraggable={false}
@@ -217,6 +220,7 @@ export function FlowDiagram({ flow }: { readonly flow: Flow }): ReactElement {
         proOptions={{ hideAttribution: true }}
       >
         <FlowTimeline flow={flow} root={root} />
+        <FlowFit box={root} options={FIT} />
       </ReactFlow>
     </div>
   );

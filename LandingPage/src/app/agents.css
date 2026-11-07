@@ -75,10 +75,23 @@
    characters, and a row's label and value stay close enough to read as a pair. The list takes the rest. */
 @utility agent-layout {
   display: grid;
+  /* One column below lg that can shrink below its content's width; an implicit auto column grows to fit the
+     widest scene and would push the panel past a phone's edge. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 2rem;
   @media (width >= 64rem) {
     grid-template-columns: minmax(0, 1fr) minmax(0, 30rem);
     column-gap: 3rem;
+  }
+}
+
+/* The arrows' row. Below lg it moves after the panel (order), centered, 16 px under its bottom edge (the grid's
+   32 px gap pulled up by half), clear of the panel. */
+@utility agent-arrows {
+  @media (width < 64rem) {
+    order: 1;
+    justify-self: center;
+    margin-top: -1rem;
   }
 }
 
@@ -137,7 +150,13 @@
 @utility agent-stage {
   display: flex;
   flex: 1;
-  min-height: 15rem;
+  /* Below lg the panel stands alone, so its height would follow each scene and the card (and the arrows under
+     it) would jump as the agents rotate. One height for every scene instead: the tallest, Spot Trader at 360 px
+     (about 27 rem), so the others fill it. */
+  min-height: 28rem;
+  @media (width >= 64rem) {
+    min-height: 15rem;
+  }
 }
 
 /* Opens this agent's setup in the app; sits at the end of the profile row. */
