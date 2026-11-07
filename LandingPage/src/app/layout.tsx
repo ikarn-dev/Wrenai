@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { SmoothScroll } from "@/components/motion/smooth-scroll";
@@ -21,6 +22,9 @@ export default function RootLayout({ children }: { readonly children: ReactNode 
     <html lang="en" className={`${sansFont.variable} ${roundedFont.variable}`}>
       <body>
         <SmoothScroll>{children}</SmoothScroll>
+        {/* Vercel Web Analytics: cookieless page views, sent to /_vercel/insights on a Vercel deployment once Web
+            Analytics is enabled for the project. Outside Vercel it logs in development and sends nothing. */}
+        <Analytics />
       </body>
     </html>
   );

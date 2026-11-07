@@ -29,7 +29,7 @@ export function Hero(): ReactElement {
           </div>
         </div>
         {/* Sits on the solid core of the bright floor (mint-50 → mint-100): ink 16+:1 / 15.39:1. */}
-        <p className="absolute inset-x-0 bottom-hero-floor px-gutter text-center text-small font-medium text-ink">
+        <p className="absolute inset-x-0 bottom-hero-floor px-gutter text-center text-body font-medium text-ink">
           Agentic trading, native to NEAR
         </p>
       </div>

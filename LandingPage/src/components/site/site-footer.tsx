@@ -69,11 +69,11 @@ export function SiteFooter(): ReactElement {
         <FooterPatches />
       </div>
       {/* The frame's closing line sits right above, so the first row draws none of its own. Phones: the brand
-          cell, Links and Contact side by side, then the Launch app cell. From lg, twelve columns: brand 4,
-          Links 2, Contact 3, and the Launch app cell 3 to the right edge. */}
+          cell, Links and Contact side by side, then the Launch app cell. From lg, four equal cells of three
+          columns: brand, Links, Contact and Launch app, so Links and Contact are the same width. */}
       <Row rule={false}>
         <div className="grid grid-cols-2 lg:min-h-64 lg:grid-cols-12">
-          <div className="col-span-2 flex flex-col items-start gap-3 p-frame lg:col-span-4">
+          <div className="col-span-2 flex flex-col items-start gap-3 p-frame lg:col-span-3">
             <a href="/" aria-label="Wrenai home" className="rounded-sm">
               <Brand size="lg" />
             </a>
@@ -83,7 +83,7 @@ export function SiteFooter(): ReactElement {
           <LinkCell
             id="footer-links"
             title="Links"
-            className="border-t border-line-card lg:col-span-2 lg:border-t-0 lg:border-l"
+            className="border-t border-line-card lg:col-span-3 lg:border-t-0 lg:border-l"
           >
             {SECTIONS.map((link) => (
               <li key={link.href}>
