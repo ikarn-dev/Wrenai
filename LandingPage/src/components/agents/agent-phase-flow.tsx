@@ -144,8 +144,11 @@ function usePhaseLayout(box: RefObject<HTMLDivElement | null>): Layout | null {
       return;
     }
     const observer = new ResizeObserver((entries) => {
-      const width = entries[0]?.contentRect.width;
-      if (width === undefined || width <= 0) {
+      // Lay out (and so mount the canvas) only once the box has both a width and a height: React Flow reports
+      // error 004 if it mounts into a box that isn't laid out yet.
+      const rect = entries[0]?.contentRect;
+      const width = rect?.width;
+      if (width === undefined || width <= 0 || !rect || rect.height <= 0) {
         return;
       }
       const next = phaseLayout(width);

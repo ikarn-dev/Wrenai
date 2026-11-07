@@ -6,6 +6,7 @@ import { useSceneLoop } from "@/components/agents/agent-loop";
 import { light, ripple } from "@/components/flows/flow-diagram";
 import { FlowDrawn } from "@/components/flows/flow-drawn";
 import { FlowFit } from "@/components/flows/flow-fit";
+import { useBoxReady } from "@/components/flows/use-box-ready";
 import type { PrivacyGlyph } from "./privacy-icons";
 import { type Packet, type PacketEdge, PacketLink, send } from "./privacy-links";
 import {
@@ -194,13 +195,15 @@ const FIT: FitViewOptions = { padding: 0.02, maxZoom: 1 };
 /** The static canvas: no panning, zooming or selection, and page scrolling passes straight through. */
 export function PrivacyFlow(): ReactElement {
   const box = useRef<HTMLDivElement>(null);
+  const ready = useBoxReady(box);
   const layout = useSyncExternalStore<"row" | "column" | null>(subscribe, currentLayout, () => null);
   const [drawn, setDrawn] = useState<string | null>(null);
   const nodes = useMemo(() => (layout ? privacyNodes(layout) : []), [layout]);
   useSceneLoop(box, playPrivacy, 2.2, drawn);
   return (
     <div ref={box} className="flow-canvas size-full">
-      {layout ? (
+      {/* Mounted only into a sized box (useBoxReady). */}
+      {layout && ready ? (
         <ReactFlow
           key={layout}
           defaultNodes={nodes}

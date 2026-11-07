@@ -6,6 +6,7 @@ import { gsap, ScrollTrigger, useGSAP } from "@/components/motion/gsap";
 import { type Flow, spokeAnchor } from "./flow-data";
 import { FlowFit } from "./flow-fit";
 import { type HubNode, HubTile, type LinkEdge, LinkLine, SpokeChip, type SpokeNode } from "./flow-parts";
+import { useBoxReady } from "./use-box-ready";
 
 const NODE_TYPES = { hub: HubTile, spoke: SpokeChip };
 const EDGE_TYPES = { link: LinkLine };
@@ -192,36 +193,54 @@ const FIT: FitViewOptions = { padding: { top: 0.12, bottom: 0.24, left: 0.08, ri
 /** A static React Flow canvas: no panning, zooming or selection, and page scrolling passes straight through. */
 export function FlowDiagram({ flow }: { readonly flow: Flow }): ReactElement {
   const root = useRef<HTMLDivElement>(null);
+  const ready = useBoxReady(root);
   const nodes = useMemo(() => flowNodes(flow), [flow]);
   const edges = useMemo(() => flowEdges(flow), [flow]);
   return (
     <div ref={root} className="flow-canvas size-full">
-      <ReactFlow
-        defaultNodes={nodes}
-        defaultEdges={edges}
-        nodeTypes={NODE_TYPES}
-        edgeTypes={EDGE_TYPES}
-        colorMode="dark"
-        fitView
-        fitViewOptions={FIT}
-        minZoom={0.3}
-        maxZoom={1.1}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        nodesFocusable={false}
-        edgesFocusable={false}
-        elementsSelectable={false}
-        panOnDrag={false}
-        panOnScroll={false}
-        zoomOnScroll={false}
-        zoomOnPinch={false}
-        zoomOnDoubleClick={false}
-        preventScrolling={false}
-        proOptions={{ hideAttribution: true }}
-      >
-        <FlowTimeline flow={flow} root={root} />
-        <FlowFit box={root} options={FIT} />
-      </ReactFlow>
+      {ready ? <FlowCanvas flow={flow} root={root} nodes={nodes} edges={edges} /> : null}
     </div>
+  );
+}
+
+/** The canvas itself, mounted only into a sized box (useBoxReady). */
+function FlowCanvas({
+  flow,
+  root,
+  nodes,
+  edges,
+}: {
+  readonly flow: Flow;
+  readonly root: RefObject<HTMLDivElement | null>;
+  readonly nodes: (HubNode | SpokeNode)[];
+  readonly edges: LinkEdge[];
+}): ReactElement {
+  return (
+    <ReactFlow
+      defaultNodes={nodes}
+      defaultEdges={edges}
+      nodeTypes={NODE_TYPES}
+      edgeTypes={EDGE_TYPES}
+      colorMode="dark"
+      fitView
+      fitViewOptions={FIT}
+      minZoom={0.3}
+      maxZoom={1.1}
+      nodesDraggable={false}
+      nodesConnectable={false}
+      nodesFocusable={false}
+      edgesFocusable={false}
+      elementsSelectable={false}
+      panOnDrag={false}
+      panOnScroll={false}
+      zoomOnScroll={false}
+      zoomOnPinch={false}
+      zoomOnDoubleClick={false}
+      preventScrolling={false}
+      proOptions={{ hideAttribution: true }}
+    >
+      <FlowTimeline flow={flow} root={root} />
+      <FlowFit box={root} options={FIT} />
+    </ReactFlow>
   );
 }
