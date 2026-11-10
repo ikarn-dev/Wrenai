@@ -13,6 +13,7 @@
 @import "./privacy.css";
 @import "./faq.css";
 @import "./footer.css";
+@import "./footer-patches.css";
 @import "./theme.css";
 
 /* Palette: Docs/DESIGN.md → Color, the same values as the app. The --p-* values are fixed. The --void-* and

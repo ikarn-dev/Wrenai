@@ -4,7 +4,7 @@ import { Brand } from "./brand";
 import { FooterPatches } from "./footer-patches";
 
 // The page's close, drawn with the frame's own geometry: its rails run on through the footer, plain hairlines
-// split it into cells and rows, with no fills, so the footer reads as the last part of the frame. Behind it: the green light and flat patches on a faint grid. Only
+// split it into cells and rows, with no fills, so the footer reads as the last part of the frame. Behind it: the green light and faint patches with quiet beams on a faint grid. Only
 // real places and contacts: this page's sections, the team's email and X account.
 const SECTIONS = [
   { href: "#how-it-works", label: "How it works" },

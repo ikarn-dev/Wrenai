@@ -1,0 +1,146 @@
+/* The patches' grid: 72 px hairlines through the bottom center (footer-patches.tsx places the patches and beams on
+   the same lines), barely above the ground. A tile is offset half its width from center so its left line sits on
+   the center itself, where the patches' columns start. Grid and patches live in the lowest rows, behind the
+   wordmark, and are gone well before the link row. A size container, so beams can cross its full width or height. */
+@utility footer-grid {
+  container-type: size;
+  overflow: hidden;
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--void-50) 3%, transparent) 1px, transparent 1px),
+    linear-gradient(to top, color-mix(in oklab, var(--void-50) 3%, transparent) 1px, transparent 1px);
+  background-size: 72px 72px;
+  background-position: calc(50% + 36px) bottom;
+  mask-image: linear-gradient(to top, #000 0%, #000 20%, transparent 55%);
+}
+
+/* A patch only lifts its cell a percent or two, so it reads as a quiet tile behind the wordmark and never competes
+   with it (user request, Nov 2026: lower than before). One accent cell a step stronger, like the reference's odd
+   square. Its own size container, so its beam crosses exactly its width or height. */
+@utility footer-patch {
+  position: absolute;
+  overflow: hidden;
+  container-type: size;
+  background-color: color-mix(in oklab, var(--mint-400) 1.25%, transparent);
+  &[data-tone="mint"] {
+    background-color: color-mix(in oklab, var(--mint-400) 2.25%, transparent);
+  }
+  &[data-tone="grey"] {
+    background-color: color-mix(in oklab, var(--void-50) 1%, transparent);
+  }
+  &[data-tone="accent"] {
+    background-color: color-mix(in oklab, var(--mint-400) 4%, transparent);
+  }
+}
+
+/* A faint mint streak on a grid line: along a patch's bottom edge (left to right) or up its left edge, then rests
+   until its next pass. Both edges are the grid lines' own pixels inside the patch. */
+@utility footer-patch-beam {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  opacity: 0;
+  &[data-edge="bottom"] {
+    width: 40px;
+    height: 1px;
+    background-image: linear-gradient(to right, transparent, var(--mint-300));
+    @media (prefers-reduced-motion: no-preference) {
+      animation: footer-beam-across var(--duration) var(--ease-ios) var(--delay) infinite;
+    }
+  }
+  &[data-edge="left"] {
+    width: 1px;
+    height: 40px;
+    background-image: linear-gradient(to top, transparent, var(--mint-300));
+    @media (prefers-reduced-motion: no-preference) {
+      animation: footer-beam-up var(--duration) var(--ease-ios) var(--delay) infinite;
+    }
+  }
+}
+
+/* A beam across the whole grid: a 160 px streak along a row line, or up a column line until the grid fades out. */
+@utility footer-scan {
+  position: absolute;
+  opacity: 0;
+  &[data-axis="row"] {
+    left: 0;
+    width: 160px;
+    height: 1px;
+    background-image: linear-gradient(to right, transparent, var(--mint-300));
+    @media (prefers-reduced-motion: no-preference) {
+      animation: footer-scan-across var(--duration) linear var(--delay) infinite;
+    }
+  }
+  &[data-axis="column"] {
+    bottom: 0;
+    width: 1px;
+    height: 120px;
+    background-image: linear-gradient(to top, transparent, var(--mint-300));
+    @media (prefers-reduced-motion: no-preference) {
+      animation: footer-scan-up var(--duration) linear var(--delay) infinite;
+    }
+  }
+}
+
+@keyframes footer-beam-across {
+  0% {
+    translate: -40px 0;
+    opacity: 0;
+  }
+  4%,
+  26% {
+    opacity: 0.5;
+  }
+  30%,
+  100% {
+    translate: 100cqw 0;
+    opacity: 0;
+  }
+}
+
+@keyframes footer-beam-up {
+  0% {
+    translate: 0 40px;
+    opacity: 0;
+  }
+  4%,
+  26% {
+    opacity: 0.5;
+  }
+  30%,
+  100% {
+    translate: 0 -100cqh;
+    opacity: 0;
+  }
+}
+
+@keyframes footer-scan-across {
+  0% {
+    translate: -160px 0;
+    opacity: 0;
+  }
+  4%,
+  46% {
+    opacity: 0.4;
+  }
+  50%,
+  100% {
+    translate: 100cqw 0;
+    opacity: 0;
+  }
+}
+
+@keyframes footer-scan-up {
+  0% {
+    translate: 0 120px;
+    opacity: 0;
+  }
+  4%,
+  42% {
+    opacity: 0.4;
+  }
+  46%,
+  100% {
+    translate: 0 -60cqh;
+    opacity: 0;
+  }
+}

@@ -36,35 +36,6 @@
   contain: paint;
 }
 
-/* The patches' grid: 72 px hairlines anchored at the bottom center (footer-patches.tsx places the patches on the
-   same cells), barely above the ground. Grid and patches live in the lowest rows, behind the wordmark, and are
-   gone well before the link row. */
-@utility footer-grid {
-  background-image:
-    linear-gradient(to right, color-mix(in oklab, var(--void-50) 4%, transparent) 1px, transparent 1px),
-    linear-gradient(to top, color-mix(in oklab, var(--void-50) 4%, transparent) 1px, transparent 1px);
-  background-size: 72px 72px;
-  background-position: center bottom;
-  mask-image: linear-gradient(to top, #000 0%, #000 20%, transparent 55%);
-}
-
-/* A patch only lifts its cell a few percent, so it reads as a quiet tile behind the wordmark and never competes
-   with it (estimated, not measured: the wordmark's void-50 stays near 7:1 and mint-300 near 4.5:1 on the
-   lightest patch over the brightest light). One accent cell a step stronger, like the reference's odd square. */
-@utility footer-patch {
-  position: absolute;
-  background-color: color-mix(in oklab, var(--mint-400) 2%, transparent);
-  &[data-tone="mint"] {
-    background-color: color-mix(in oklab, var(--mint-400) 3.5%, transparent);
-  }
-  &[data-tone="grey"] {
-    background-color: color-mix(in oklab, var(--void-50) 1.5%, transparent);
-  }
-  &[data-tone="accent"] {
-    background-color: color-mix(in oklab, var(--mint-400) 6%, transparent);
-  }
-}
-
 /* Black and green only: deep mint light rising from the bottom center and the two lower corners, each fading on
    an eased curve into the black. No pale mint, so the top row stays on near-black (fg-muted void-300 9.97:1,
    heading void-50 17.49:1 on void-950) and the wordmark keeps its contrast on the light (void-50 on mint-800
@@ -111,6 +82,43 @@
   line-height: 0.8;
   letter-spacing: -0.03em;
   white-space: nowrap;
-  color: var(--color-fg-strong);
   user-select: none;
+  /* A fade toward the bottom edge (user request, Nov 2026): full strength through the top third, easing to 30% at
+     the baseline. The letters stay opaque and their color eases toward the light behind them (mint-800 at the
+     footer's floor), so they look faded yet still cover the patches and beams; a transparency fade let the beams
+     show through the letters. "Wren" and the mint "ai" fade over the same band: the "ai" span is an inline-block
+     on the same line height, and both paint boxes extend 0.15 em past the line box so no glyph edge is clipped.
+     Decoration only: the wordmark is aria-hidden and the brand link above names the site. */
+  --wordmark-ink: var(--color-fg-strong);
+  padding-block: 0.15em;
+  margin-block: -0.15em;
+  color: transparent;
+  background-image: linear-gradient(
+    to bottom,
+    var(--wordmark-ink) 0%,
+    var(--wordmark-ink) 32%,
+    color-mix(in oklab, var(--wordmark-ink) 82%, var(--mint-800)) 55%,
+    color-mix(in oklab, var(--wordmark-ink) 55%, var(--mint-800)) 78%,
+    color-mix(in oklab, var(--wordmark-ink) 30%, var(--mint-800)) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  & > span {
+    --wordmark-ink: var(--color-accent-text);
+    display: inline-block;
+    padding-block: inherit;
+    margin-block: inherit;
+    color: transparent;
+    /* Repeated rather than inherited: an inherited gradient arrives with the parent's ink already resolved. */
+    background-image: linear-gradient(
+      to bottom,
+      var(--wordmark-ink) 0%,
+      var(--wordmark-ink) 32%,
+      color-mix(in oklab, var(--wordmark-ink) 82%, var(--mint-800)) 55%,
+      color-mix(in oklab, var(--wordmark-ink) 55%, var(--mint-800)) 78%,
+      color-mix(in oklab, var(--wordmark-ink) 30%, var(--mint-800)) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
 }
