@@ -16,12 +16,14 @@ async function loadLayoutFeatures(): Promise<typeof import("motion/react")["domM
 
 interface AppShellProps {
   readonly initiallyCollapsed: boolean;
+  /** The documentation site, linked from the sidebar. */
+  readonly docsUrl: string;
   readonly header: ReactNode;
   readonly children: ReactNode;
 }
 
 /** Synchronizes the sidebar and page without scaling the page's text or moving the account menu. */
-export function AppShell({ initiallyCollapsed, header, children }: AppShellProps): ReactElement {
+export function AppShell({ initiallyCollapsed, docsUrl, header, children }: AppShellProps): ReactElement {
   const reducedMotion = usePrefersReducedMotion();
   const [collapsed, setCollapsed] = useState(initiallyCollapsed);
   return (
@@ -29,7 +31,7 @@ export function AppShell({ initiallyCollapsed, header, children }: AppShellProps
       <MotionConfig reducedMotion="user" transition={reducedMotion ? INSTANT : SIDEBAR_TRANSITION}>
         <LayoutGroup>
           <div className="mx-auto flex min-h-dvh max-w-app">
-            <Sidebar collapsed={collapsed} onCollapsedChange={setCollapsed} />
+            <Sidebar collapsed={collapsed} onCollapsedChange={setCollapsed} docsUrl={docsUrl} />
             <div className="flex min-w-0 flex-1 flex-col">
               <LayoutGroup inherit={false}>{header}</LayoutGroup>
               {/* A plain flex child: it reflows with the sidebar's width transition each frame, so centered page

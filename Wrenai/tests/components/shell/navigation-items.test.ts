@@ -1,3 +1,4 @@
+import { BookOpen } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Tooltip } from "radix-ui";
 import { createElement } from "react";
@@ -31,6 +32,7 @@ describe("app navigation", () => {
       "/agents",
       "/chat",
       "/activity",
+      "/claims",
       "/proof",
       "/spot",
       "/perps",
@@ -65,16 +67,14 @@ describe("app navigation", () => {
         "/agents",
         "/chat",
         "/activity",
+        "/claims",
         "/proof",
         "/spot",
         "/perps",
         "/memecoins",
         "/settings",
       ]);
-      expect(markup).not.toContain('aria-label="Proof is not built yet"');
-      // Documentation has no destination yet, so it is the one unavailable item.
-      expect(markup.match(/aria-disabled="true"/g)).toHaveLength(1);
-      expect(markup).toContain('aria-label="Documentation is not built yet"');
+      expect(markup).not.toContain('aria-disabled="true"');
     },
   );
 
@@ -97,6 +97,33 @@ describe("app navigation", () => {
   it("does not select a route that only shares a name prefix", () => {
     vi.mocked(usePathname).mockReturnValue("/settings-other");
     expect(renderNavigation("expanded")).not.toContain('aria-current="page"');
+  });
+
+  it("opens the documentation site in a new tab without marking it as the current page", () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        Tooltip.Provider,
+        null,
+        createElement(NavigationItems, {
+          items: [
+            ...NAV_ITEMS,
+            {
+              kind: "external",
+              href: "https://docs.wrenai.xyz",
+              label: "Documentation",
+              icon: BookOpen,
+              group: "settings",
+            },
+          ],
+          view: "expanded",
+        }),
+      ),
+    );
+    expect(markup).toMatch(
+      /<a\b(?=[^>]*href="https:\/\/docs\.wrenai\.xyz")(?=[^>]*target="_blank")(?=[^>]*rel="noopener noreferrer")(?=[^>]*aria-label="Documentation \(opens in a new tab\)")[^>]*>/,
+    );
+    expect(markup).not.toContain("Not built");
+    expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
   });
 
   it("names each available link when its visible label is hidden", () => {

@@ -68,6 +68,13 @@ export function coingeckoApiKey(): string | null {
   return parsed.success ? parsed.data.COINGECKO_API_KEY : null;
 }
 
+/** The documentation site (DocsSite/) the sidebar links to. Optional and public; defaults to production. */
+export function docsUrl(): string {
+  const parsed = z
+    .object({ DOCS_URL: z.url({ protocol: /^https?$/ }).default("https://docs.wrenai.xyz") })
+    .safeParse(process.env);
+  return parsed.success ? parsed.data.DOCS_URL : "https://docs.wrenai.xyz";
+}
 /** Inference credentials are required only for requested strategy parsing or chat replies. */
 export function nearAiKeys(): readonly string[] {
   const parsed = z.object({ NEAR_AI_API_KEY: z.string().trim().min(1) }).safeParse(process.env);

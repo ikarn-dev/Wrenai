@@ -1,12 +1,12 @@
 "use client";
 
-import { ChevronsLeft, ChevronsRight } from "lucide-react";
+import { BookOpen, ChevronsLeft, ChevronsRight } from "lucide-react";
 import Link from "next/link";
 import { Tooltip } from "radix-ui";
-import { memo, type ReactElement, useId } from "react";
+import { memo, type ReactElement, useId, useMemo } from "react";
 import { SIDEBAR_COOKIE } from "@/shared/sidebar";
 import { Brand } from "./brand";
-import { NAV_ITEMS } from "./nav-items";
+import { NAV_ITEMS, type NavItem } from "./nav-items";
 import { NavigationItems, NavigationTooltip } from "./navigation-items";
 
 const MAIN_ITEMS = NAV_ITEMS.filter((item) => item.group === "main");
@@ -80,11 +80,19 @@ function SectionLabel({
 interface SidebarProps {
   readonly collapsed: boolean;
   readonly onCollapsedChange: (collapsed: boolean) => void;
+  readonly docsUrl: string;
 }
 
 /** Route subscribers live in NavigationItems; the frame only updates when its width changes. */
-function SidebarView({ collapsed, onCollapsedChange }: SidebarProps): ReactElement {
+function SidebarView({ collapsed, onCollapsedChange, docsUrl }: SidebarProps): ReactElement {
   const navigationId = useId();
+  const settingsItems = useMemo(
+    (): readonly NavItem[] => [
+      ...SETTINGS_ITEMS,
+      { kind: "external", href: docsUrl, label: "Documentation", icon: BookOpen, group: "settings" },
+    ],
+    [docsUrl],
+  );
   const toggleLabel = collapsed ? "Expand sidebar" : "Collapse sidebar";
   const ToggleIcon = collapsed ? ChevronsRight : ChevronsLeft;
 
@@ -141,7 +149,7 @@ function SidebarView({ collapsed, onCollapsedChange }: SidebarProps): ReactEleme
               <NavigationItems items={MARKET_ITEMS} view={collapsed ? "collapsed" : "expanded"} />
             </div>
             <div className="flex shrink-0 flex-col gap-0.5 border-t border-line-card pt-2">
-              <NavigationItems items={SETTINGS_ITEMS} view={collapsed ? "collapsed" : "expanded"} />
+              <NavigationItems items={settingsItems} view={collapsed ? "collapsed" : "expanded"} />
             </div>
           </nav>
         </div>

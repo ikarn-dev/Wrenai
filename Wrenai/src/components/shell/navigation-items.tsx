@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowUpRight } from "lucide-react";
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { Tooltip } from "radix-ui";
@@ -45,7 +46,6 @@ const ITEM_BASE =
 // hover; active is the one item on a pill (surface-3) with its label and icon in the calm nav mint.
 const ITEM_IDLE = "cursor-pointer text-fg-muted hover:text-fg-strong";
 const ITEM_ACTIVE = "cursor-pointer nav-active text-accent-nav";
-const ITEM_UNAVAILABLE = "cursor-not-allowed text-fg-disabled";
 
 // Expanded and collapsed share one box, so the icon keeps its left offset while the sidebar's width animates and
 // nothing jumps; collapsed only clips and fades the label.
@@ -84,14 +84,14 @@ function LinkPending({
   );
 }
 
-/** One set of routes, unavailable states and active indicators for the sidebar and mobile navigation. */
+/** One set of routes, external links and active indicators for the sidebar and mobile navigation. */
 export function NavigationItems({ items, view }: NavigationItemsProps): ReactElement {
   const pathname = usePathname();
   return (
     <ul className={`flex gap-0.5 ${view === "mobile" ? "overflow-x-auto" : "flex-col"}`}>
       {items.map((item) => {
         const active = item.kind === "link" && isNavItemActive(pathname, item.href);
-        const state = item.kind === "unavailable" ? ITEM_UNAVAILABLE : active ? ITEM_ACTIVE : ITEM_IDLE;
+        const state = active ? ITEM_ACTIVE : ITEM_IDLE;
         const className = `${ITEM_BASE} ${VIEW_CLASSES[view]} ${state}`;
         const Icon = item.icon;
         const icon = (
@@ -106,21 +106,23 @@ export function NavigationItems({ items, view }: NavigationItemsProps): ReactEle
             >
               {item.label}
             </span>
-            {item.kind === "unavailable" && view !== "mobile" ? (
-              <span
+            {item.kind === "external" && view !== "mobile" ? (
+              // Opens another site in a new tab, so the arrow says so before the click.
+              <ArrowUpRight
                 aria-hidden="true"
-                className={`ml-auto shrink-0 whitespace-nowrap text-caption text-fg-subtle transition-opacity duration-300 ease-ios motion-reduce:transition-none ${view === "collapsed" ? "opacity-0" : "opacity-100"}`}
-              >
-                Not built
-              </span>
+                size={14}
+                strokeWidth={1.75}
+                absoluteStrokeWidth
+                className={`ml-auto shrink-0 text-fg-subtle transition-opacity duration-300 ease-ios motion-reduce:transition-none ${view === "collapsed" ? "opacity-0" : "opacity-100"}`}
+              />
             ) : null}
           </>
         );
         return (
           <li key={item.label} className={view === "mobile" ? "min-w-14 shrink-0 flex-1" : ""}>
             <NavigationTooltip
-              label={item.kind === "link" ? item.label : `${item.label} is not built yet`}
-              shown={view === "collapsed" || item.kind === "unavailable"}
+              label={item.label}
+              shown={view === "collapsed"}
               side={view === "mobile" ? "top" : "right"}
             >
               {item.kind === "link" ? (
@@ -134,15 +136,15 @@ export function NavigationItems({ items, view }: NavigationItemsProps): ReactEle
                   <LinkPending label={item.label} view={view} />
                 </Link>
               ) : (
-                // aria-disabled keeps the explanation reachable by keyboard; there is no action or route.
-                <button
-                  type="button"
-                  aria-disabled="true"
-                  aria-label={`${item.label} is not built yet`}
+                <a
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`${item.label} (opens in a new tab)`}
                   className={`relative ${className}`}
                 >
                   {contents}
-                </button>
+                </a>
               )}
             </NavigationTooltip>
           </li>

@@ -7,6 +7,7 @@ import { Brand } from "@/components/shell/brand";
 import { Badge } from "@/components/ui/badge";
 import { requireUser } from "@/server/auth/session";
 import { storedKeyState } from "@/server/delegation/delegated-key";
+import { docsUrl } from "@/server/env";
 import { readSidebarCollapsed } from "@/server/preferences/sidebar";
 
 // From lg the sidebar card holds the brand and nav; below lg the brand sits in the top bar and the nav is a
@@ -17,6 +18,7 @@ export default async function AppLayout({ children }: { readonly children: React
   return (
     <AppShell
       initiallyCollapsed={initiallyCollapsed}
+      docsUrl={docsUrl()}
       header={
         <header className="flex h-16 items-center justify-between gap-4 px-gutter lg:mt-3">
           <Link href="/portfolio" className="rounded-sm lg:hidden">

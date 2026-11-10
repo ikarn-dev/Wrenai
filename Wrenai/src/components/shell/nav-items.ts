@@ -1,11 +1,11 @@
 import {
   ArrowLeftRight,
-  BookOpen,
   BrainCircuit,
   ChartCandlestick,
   ChartPie,
   Fingerprint,
   Flame,
+  HandCoins,
   History,
   type LucideIcon,
   MessagesSquare,
@@ -20,20 +20,20 @@ interface NavItemLabel {
 }
 
 export type NavItem = NavItemLabel &
-  ({ readonly kind: "link"; readonly href: Route } | { readonly kind: "unavailable" });
+  ({ readonly kind: "link"; readonly href: Route } | { readonly kind: "external"; readonly href: string });
 
-// Unbuilt sections have no URL, so neither navigation can send the user to a missing screen.
+// App routes. The sidebar adds Documentation, an external link to the docs site, after Settings (sidebar.tsx).
 export const NAV_ITEMS: readonly NavItem[] = [
   { kind: "link", href: "/portfolio", label: "Portfolio", icon: ChartPie, group: "main" },
   { kind: "link", href: "/agents", label: "Agents", icon: BrainCircuit, group: "main" },
   { kind: "link", href: "/chat", label: "Chat", icon: MessagesSquare, group: "main" },
   { kind: "link", href: "/activity", label: "Activity", icon: History, group: "main" },
+  { kind: "link", href: "/claims", label: "Claims", icon: HandCoins, group: "main" },
   { kind: "link", href: "/proof", label: "Proof", icon: Fingerprint, group: "main" },
   { kind: "link", href: "/spot", label: "Spot", icon: ArrowLeftRight, group: "markets" },
   { kind: "link", href: "/perps", label: "Perps", icon: ChartCandlestick, group: "markets" },
   { kind: "link", href: "/memecoins", label: "Memecoins", icon: Flame, group: "markets" },
   { kind: "link", href: "/settings", label: "Settings", icon: Settings, group: "settings" },
-  { kind: "unavailable", label: "Documentation", icon: BookOpen, group: "settings" },
 ];
 
 export function isNavItemActive(pathname: string, href: Route): boolean {
