@@ -96,8 +96,9 @@
   initial-value: #121212;
 }
 
-/* The Jarvis card: an opaque light surface with the lit edge and a soft drop shadow. Opaque on purpose: a
-   translucent card would need backdrop-filter to stay readable, and that re-blurs on every scrolled frame. */
+/* The Jarvis card: an opaque light surface, flat (user choice, Nov 2026): one hairline edge, no lit gradient border,
+   inner highlight or drop shadow, so it reads as part of the hero rather than floating over it. The light theme
+   frosts it instead (theme.css). */
 @utility jarvis-card {
   /* Sized from its @container wrapper, so the card scales with its width on every screen. --jarvis-control is
      the height of every chip and of Ask. The corners are concentric with them: the card's radius is a control's
@@ -110,23 +111,14 @@
   gap: var(--jarvis-pad);
   padding: var(--jarvis-pad);
   border-radius: calc(var(--jarvis-control) / 2 + var(--jarvis-pad) + 1px);
-  border: 1px solid transparent;
-  background:
-    linear-gradient(155deg, var(--color-paper) 0%, var(--color-paper) 42%, var(--color-paper-tint) 100%)
-    padding-box,
-    linear-gradient(
-      150deg,
-      var(--void-50) 0%,
-      color-mix(in oklab, var(--void-50) 70%, var(--void-300)) 22%,
-      color-mix(in oklab, var(--void-300) 55%, transparent) 46%,
-      color-mix(in oklab, var(--void-300) 40%, transparent) 66%,
-      var(--mint-50) 100%
+  border: 1px solid color-mix(in oklab, var(--p-void-950) 12%, transparent);
+  background: linear-gradient(
+      155deg,
+      var(--color-paper) 0%,
+      var(--color-paper) 42%,
+      var(--color-paper-tint) 100%
     )
-    border-box;
-  box-shadow:
-    inset 0 1px 0 var(--void-50),
-    0 32px 80px -24px rgb(0 0 0 / 0.6),
-    0 8px 24px -10px rgb(0 0 0 / 0.35);
+    padding-box;
   /* Phone layout (card under 30rem): roomier padding and 40 px controls; the corner radius follows, 35 px. */
   @container (max-width: 30rem) {
     --jarvis-pad: 0.875rem;
@@ -134,15 +126,12 @@
   }
 }
 
-/* A tool chip on the card: white fill with a lit edge that dims toward the bottom. chip-on is the selected look
-   (mint-200 fill, ink text 13.84:1), used by the sliding highlight layer. */
+/* A tool chip on the card: a flat white pill with a hairline edge. chip-on is the selected look (mint-200 fill, ink
+   text 13.84:1), used by the sliding highlight layer. */
 @utility chip-shine {
   --shine-fill: var(--color-chip);
-  border: 1px solid transparent;
-  background:
-    linear-gradient(var(--shine-fill), var(--shine-fill)) padding-box,
-    linear-gradient(160deg, var(--void-50) 0%, var(--void-200) 55%, var(--void-300) 100%) border-box;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+  border: 1px solid color-mix(in oklab, var(--p-void-950) 10%, transparent);
+  background: linear-gradient(var(--shine-fill), var(--shine-fill)) padding-box;
   transition:
     --shine-fill 300ms var(--ease-ios),
     color 300ms var(--ease-ios);
@@ -153,23 +142,11 @@
   color: var(--color-ink);
 }
 
-/* The dark Ask button: the card-shine edge on void-950, lifting to void-800 on hover. */
+/* The dark Ask button: a flat void-950 pill, lifting to void-800 on hover. */
 @utility button-shine {
   --shine-fill: var(--color-ink-button);
   border: 1px solid transparent;
-  background:
-    linear-gradient(var(--shine-fill), var(--shine-fill)) padding-box,
-    linear-gradient(
-      150deg,
-      var(--void-500) 0%,
-      var(--void-700) 30%,
-      var(--void-900) 60%,
-      var(--void-600) 100%
-    )
-    border-box;
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklab, var(--void-50) 12%, transparent),
-    0 6px 16px -6px rgb(0 0 0 / 0.5);
+  background: linear-gradient(var(--shine-fill), var(--shine-fill)) padding-box;
   transition:
     --shine-fill 300ms var(--ease-ios),
     scale 300ms var(--ease-ios);

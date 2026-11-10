@@ -21,7 +21,7 @@ export interface AgentSlideWithLink extends AgentSlide {
 function Profile({ agent }: { readonly agent: AgentSlideWithLink }): ReactElement {
   return (
     <div data-slide-part className="relative flex items-center gap-2.5">
-      <Image src={logo} alt="" height={24} className="h-6 w-auto shrink-0" />
+      <Image src={logo} alt="" height={24} className="logo-mark h-6 w-auto shrink-0" />
       {/* The name on one line; the description is for screen readers, the scene shows it. */}
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-body font-medium text-fg-strong">{agent.name}</h3>

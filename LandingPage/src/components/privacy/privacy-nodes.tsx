@@ -79,7 +79,7 @@ export function WrenaiHub({ data }: NodeProps<HubNode>): ReactElement {
     <div data-step="" className="flow-hub">
       <span className="flow-ripple" data-ripple="" />
       <div className="flow-hub-face">
-        <Image src={logo} alt="" height={30} className="h-7.5 w-auto" />
+        <Image src={logo} alt="" height={30} className="logo-mark h-7.5 w-auto" />
       </div>
       <Points enter={data.enter} leave={data.leave} />
     </div>

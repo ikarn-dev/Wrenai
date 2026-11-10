@@ -20,7 +20,7 @@ export function Brand({ size = "md" }: { readonly size?: keyof typeof SIZES }): 
         alt=""
         height={scale.height}
         loading="eager"
-        className={`${scale.mark} w-auto shrink-0`}
+        className={`logo-mark ${scale.mark} w-auto shrink-0`}
       />
       <span aria-hidden="true" className="font-rounded font-bold">
         Wren<span className="text-accent-text">ai</span>

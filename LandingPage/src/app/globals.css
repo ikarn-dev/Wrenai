@@ -13,34 +13,62 @@
 @import "./privacy.css";
 @import "./faq.css";
 @import "./footer.css";
+@import "./theme.css";
 
-/* Palette: Docs/DESIGN.md → Color, the same values as the app. Components use the semantic tokens below. */
+/* Palette: Docs/DESIGN.md → Color, the same values as the app. The --p-* values are fixed. The --void-* and
+   --mint-* steps that the styles use point at them and re-step for the light theme (theme.css), so every surface,
+   line and text keeps its role in both. Components use the semantic tokens below. */
 :root {
-  --mint-50: #f0fcf7;
-  --mint-100: #d9f8ea;
-  --mint-200: #b3f3d5;
-  --mint-300: #89edc0;
-  --mint-400: #5fd6a4;
-  --mint-500: #3db886;
-  --mint-600: #2d9570;
-  --mint-700: #237359;
-  --mint-800: #1b5646;
-  --mint-900: #133c31;
-  --mint-950: #0c241e;
-  --void-50: #f7f7f7;
-  --void-100: #ededed;
-  --void-200: #dedede;
-  --void-300: #bdbdbd;
-  --void-400: #959595;
-  --void-500: #6b6b6b;
-  --void-600: #454545;
-  --void-700: #2e2e2e;
-  --void-800: #232323;
-  --void-900: #1a1a1a;
-  --void-950: #121212;
+  --p-mint-50: #f0fcf7;
+  --p-mint-100: #d9f8ea;
+  --p-mint-200: #b3f3d5;
+  --p-mint-300: #89edc0;
+  --p-mint-400: #5fd6a4;
+  --p-mint-500: #3db886;
+  --p-mint-600: #2d9570;
+  --p-mint-700: #237359;
+  --p-mint-800: #1b5646;
+  --p-mint-900: #133c31;
+  --p-mint-950: #0c241e;
+  --p-void-50: #f7f7f7;
+  --p-void-100: #ededed;
+  --p-void-200: #dedede;
+  --p-void-300: #bdbdbd;
+  --p-void-400: #959595;
+  --p-void-500: #6b6b6b;
+  --p-void-600: #454545;
+  --p-void-700: #2e2e2e;
+  --p-void-800: #232323;
+  --p-void-900: #1a1a1a;
+  --p-void-950: #121212;
   /* Status (DESIGN.md → Status): loss only for negative results, here the agents' stop-loss and losing P/L. */
-  --loss: #f07a72;
-  --loss-soft: #2a1412;
+  --p-loss: #f07a72;
+  --p-loss-soft: #2a1412;
+
+  --mint-50: var(--p-mint-50);
+  --mint-100: var(--p-mint-100);
+  --mint-200: var(--p-mint-200);
+  --mint-300: var(--p-mint-300);
+  --mint-400: var(--p-mint-400);
+  --mint-500: var(--p-mint-500);
+  --mint-600: var(--p-mint-600);
+  --mint-700: var(--p-mint-700);
+  --mint-800: var(--p-mint-800);
+  --mint-900: var(--p-mint-900);
+  --mint-950: var(--p-mint-950);
+  --void-50: var(--p-void-50);
+  --void-100: var(--p-void-100);
+  --void-200: var(--p-void-200);
+  --void-300: var(--p-void-300);
+  --void-400: var(--p-void-400);
+  --void-500: var(--p-void-500);
+  --void-600: var(--p-void-600);
+  --void-700: var(--p-void-700);
+  --void-800: var(--p-void-800);
+  --void-900: var(--p-void-900);
+  --void-950: var(--p-void-950);
+  --loss: var(--p-loss);
+  --loss-soft: var(--p-loss-soft);
   color-scheme: dark;
 }
 
@@ -124,10 +152,32 @@
   --container-landing: 75rem;
 }
 
+/* Tokens the light theme sets directly rather than through a re-stepped scale (theme.css). Not inline, so their
+   utilities read the variable and follow the override. */
+@theme {
+  --color-line-card: var(--void-700);
+  /* Text on the hero's lit floor: ink on the dark theme's bright mint, dark on the light theme's pale wash. */
+  --color-on-glow: var(--void-900);
+
+  /* The hero's Jarvis card: light on the dark theme, so on fixed steps; the light theme sets its own frosted surface
+     and dark ink (theme.css). Measured: ink 14.87:1 on void-100 and 15.39:1 on mint-100; ink-subtle (placeholder)
+     4.55:1 / 4.71:1; ink-muted 8.95:1 on a chip (void-50); ink on a selected chip (mint-200) 13.84:1; the focus
+     ring (mint-700) 4.89:1. Ink-strong on the dark button: void-50 on void-950, 17.49:1. */
+  --color-paper: var(--p-void-100);
+  --color-paper-tint: var(--p-mint-100);
+  --color-chip: var(--p-void-50);
+  --color-chip-selected: var(--p-mint-200);
+  --color-ink: var(--p-void-900);
+  --color-ink-muted: var(--p-void-600);
+  --color-ink-subtle: var(--p-void-500);
+  --color-ink-focus: var(--p-mint-700);
+  --color-ink-button: var(--p-void-950);
+  --color-ink-button-hover: var(--p-void-800);
+}
+
 @theme inline {
   --color-bg: var(--void-900);
   --color-sunken: var(--void-950);
-  --color-line-card: var(--void-700);
   --color-fg-strong: var(--void-50);
   --color-fg: var(--void-200);
   --color-fg-muted: var(--void-300);
@@ -135,20 +185,6 @@
   --color-accent-text: var(--mint-300);
   /* Hero subtext: quieter than fg-muted. 6.25:1 on sunken (void-950). */
   --color-fg-subtle: var(--void-400);
-
-  /* The hero's light Jarvis card. Measured: ink 14.87:1 on void-100 and 15.39:1 on mint-100; ink-subtle
-     (placeholder) 4.55:1 / 4.71:1; ink-muted 8.95:1 on a chip (void-50); ink on a selected chip (mint-200)
-     13.84:1; the focus ring (mint-700) 4.89:1. Ink-strong on the dark button: void-50 on void-950, 17.49:1. */
-  --color-paper: var(--void-100);
-  --color-paper-tint: var(--mint-100);
-  --color-chip: var(--void-50);
-  --color-chip-selected: var(--mint-200);
-  --color-ink: var(--void-900);
-  --color-ink-muted: var(--void-600);
-  --color-ink-subtle: var(--void-500);
-  --color-ink-focus: var(--mint-700);
-  --color-ink-button: var(--void-950);
-  --color-ink-button-hover: var(--void-800);
 
   --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
   --font-rounded: var(--font-quicksand), ui-rounded, ui-sans-serif, system-ui, sans-serif;

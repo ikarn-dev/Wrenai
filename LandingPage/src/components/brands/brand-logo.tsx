@@ -138,7 +138,8 @@ export function BrandLogo({
           height={entry.file.height}
           alt={entry.name}
           style={height(Math.round(scale.wordmark * entry.scale))}
-          className="shrink-0"
+          // Drawn for dark grounds; theme.css flips their lightness on the light theme.
+          className="brand-wordmark shrink-0"
         />
       );
     case "mark":

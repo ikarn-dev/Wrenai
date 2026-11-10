@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import { appHref } from "@/app-url";
 import { Brand } from "./brand";
+import { ThemeToggle } from "./theme-toggle";
 
 // In-page sections, in page order, the same as the footer's Links (Docs/DESIGN.md → Screens → Landing). Lenis
 // scrolls to them smoothly.
@@ -14,7 +15,7 @@ const SECTIONS = [
 const LINK =
   "inline-flex h-10 items-center rounded-full px-3.5 text-small font-medium text-fg-muted transition-colors duration-300 ease-ios hover:text-fg-strong pointer-coarse:h-11";
 
-/** The hero's top bar: brand on the left, sections in the center (from md), the app on the right. */
+/** The hero's top bar: brand on the left, sections in the center (from sm), the theme button and the app on the right. */
 export function SiteNav(): ReactElement {
   return (
     <header className="relative z-10 mx-auto grid h-hero-nav w-full max-w-landing grid-cols-[1fr_auto] items-center px-gutter sm:grid-cols-[1fr_auto_1fr]">
@@ -33,12 +34,15 @@ export function SiteNav(): ReactElement {
           ))}
         </ul>
       </nav>
-      <a
-        href={appHref("/")}
-        className="launch-shine inline-flex h-10 items-center justify-self-end rounded-full px-4 text-small font-medium text-fg-strong active:scale-97 motion-reduce:active:scale-100 pointer-coarse:h-11"
-      >
-        Launch app
-      </a>
+      <div className="flex items-center gap-2 justify-self-end">
+        <ThemeToggle />
+        <a
+          href={appHref("/")}
+          className="launch-shine inline-flex h-10 items-center rounded-full px-4 text-small font-medium text-fg-strong active:scale-97 motion-reduce:active:scale-100 pointer-coarse:h-11"
+        >
+          Launch app
+        </a>
+      </div>
     </header>
   );
 }

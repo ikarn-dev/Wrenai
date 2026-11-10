@@ -1,0 +1,278 @@
+/* The light theme (user request, Nov 2026), chosen by the device setting on the first visit and by the nav's theme
+   button after that (public/theme.js sets html[data-theme] before the first paint). Same palette, same roles: no
+   new colors, only the two scales re-stepped for a light ground, plus the few places where a straight re-step would
+   be wrong (light sources, lit edges, logos).
+
+   How the scales re-step. Text and line steps mirror (void-50 ↔ void-950, mint-300 ↔ mint-700, ...), so each keeps
+   its distance from the ground and every measured role holds. Surfaces don't mirror: on a light page a raised face
+   must still be the lighter one, so void-800 (raised faces) and void-950 (hero, footer, wells inside wells) become
+   void-50, void-900 (the page and the wells on a face) becomes void-100, and void-700 (hover fills, rails) void-200.
+   Measured on the page (void-100) and a face (void-50): fg-strong 16.0 / 17.49, fg-muted 8.19 / 8.95, fg-subtle 4.55
+   / 4.97, accent-text (mint-700) 4.89 / 5.34, mint-700 on mint-50 (tags) 5.44, the focus ring and graphics (mint-600)
+   3.18 / 3.47. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --void-50: var(--p-void-950);
+  --void-100: var(--p-void-900);
+  --void-200: var(--p-void-800);
+  --void-300: var(--p-void-600);
+  --void-400: var(--p-void-500);
+  --void-500: var(--p-void-400);
+  --void-600: var(--p-void-300);
+  --void-700: var(--p-void-200);
+  --void-800: var(--p-void-50);
+  --void-900: var(--p-void-100);
+  --void-950: var(--p-void-50);
+  --mint-50: var(--p-mint-950);
+  --mint-100: var(--p-mint-900);
+  --mint-200: var(--p-mint-800);
+  --mint-300: var(--p-mint-700);
+  --mint-400: var(--p-mint-600);
+  --mint-500: var(--p-mint-500);
+  --mint-600: var(--p-mint-400);
+  --mint-700: var(--p-mint-300);
+  --mint-800: var(--p-mint-200);
+  --mint-900: var(--p-mint-100);
+  --mint-950: var(--p-mint-50);
+
+  /* Hairlines halfway between void-200 and void-300: 1.33:1 on the page, close to the dark theme's 1.50, so the
+     frame's rails, rules and dot grid keep their weight without turning into a wireframe. */
+  --color-line-card: color-mix(in oklab, var(--p-void-200) 50%, var(--p-void-300));
+  /* The hero's floor text sits on a pale mint wash here, so it stays dark (16.6:1 on mint-100). */
+  --color-on-glow: var(--p-void-950);
+  /* Loss red is too light for a light ground (2.31:1), so it is pulled toward void-950 in oklab until it reads:
+     5.34:1 on the page, 5.29:1 on its own soft fill. Same meaning, same hue. */
+  --loss: color-mix(in oklab, var(--p-loss) 60%, var(--p-void-950));
+  --loss-soft: color-mix(in oklab, var(--p-loss) 12%, var(--p-void-50));
+}
+
+/* Light sources. The dark hero is lit by a bright mint floor; mirrored, that would be a dark green stain. On the light
+   ground the same three lights become a pale wash from the same places, and the dark shading layer is dropped. */
+:root[data-theme="light"] .hero-glow {
+  background:
+    radial-gradient(
+      ellipse 92% 56% at 50% 112%,
+      var(--p-mint-100) 0%,
+      color-mix(in oklab, var(--p-mint-100) 88%, transparent) 18%,
+      color-mix(in oklab, var(--p-mint-100) 64%, transparent) 32%,
+      color-mix(in oklab, var(--p-mint-200) 38%, transparent) 46%,
+      color-mix(in oklab, var(--p-mint-200) 20%, transparent) 60%,
+      color-mix(in oklab, var(--p-mint-300) 9%, transparent) 74%,
+      color-mix(in oklab, var(--p-mint-300) 3%, transparent) 88%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse 80% 80% at 4% 106%,
+      color-mix(in oklab, var(--p-mint-300) 34%, transparent) 0%,
+      color-mix(in oklab, var(--p-mint-300) 26%, transparent) 16%,
+      color-mix(in oklab, var(--p-mint-200) 18%, transparent) 32%,
+      color-mix(in oklab, var(--p-mint-200) 10%, transparent) 50%,
+      color-mix(in oklab, var(--p-mint-100) 4%, transparent) 70%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse 64% 86% at 104% 62%,
+      color-mix(in oklab, var(--p-mint-200) 30%, transparent) 0%,
+      color-mix(in oklab, var(--p-mint-200) 22%, transparent) 18%,
+      color-mix(in oklab, var(--p-mint-100) 14%, transparent) 38%,
+      color-mix(in oklab, var(--p-mint-100) 6%, transparent) 60%,
+      transparent 100%
+    );
+}
+
+:root[data-theme="light"] .footer-glow {
+  background:
+    radial-gradient(
+      ellipse 85% 70% at 50% 118%,
+      color-mix(in oklab, var(--p-mint-200) 62%, transparent) 0%,
+      color-mix(in oklab, var(--p-mint-100) 58%, transparent) 26%,
+      color-mix(in oklab, var(--p-mint-100) 32%, transparent) 50%,
+      color-mix(in oklab, var(--p-mint-50) 12%, transparent) 76%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse 55% 75% at 0% 112%,
+      color-mix(in oklab, var(--p-mint-200) 34%, transparent) 0%,
+      color-mix(in oklab, var(--p-mint-100) 18%, transparent) 40%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse 50% 70% at 100% 110%,
+      color-mix(in oklab, var(--p-mint-200) 28%, transparent) 0%,
+      color-mix(in oklab, var(--p-mint-100) 14%, transparent) 42%,
+      transparent 100%
+    );
+}
+
+/* Lit edges. A dark face is lit by a pale top highlight; on a light face that highlight would read as a dark crease,
+   so light faces get the ring and a short, soft drop instead (Material-style key shadow, no halo). */
+:root[data-theme="light"]
+  :is(.flow-chip, .privacy-pill, .privacy-card, .privacy-stack-front, .flow-hub-face) {
+  box-shadow:
+    inset 0 0 0 1px var(--color-line-card),
+    0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+:root[data-theme="light"] .agent-panel {
+  box-shadow:
+    inset 0 0 0 1px var(--color-line-card),
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 12px 32px -20px rgb(0 0 0 / 0.18);
+}
+
+:root[data-theme="light"] .agent-item-tile::before {
+  box-shadow:
+    inset 0 0 0 1px var(--void-600),
+    0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+/* The Jarvis card on the light hero: frosted and flat (user choice, Nov 2026). A translucent void-50 surface blurs
+   the hero's wash and rules behind it, edged by one translucent hairline; no lit edge, gradient border, inner
+   highlight or drop shadow, so it sits in the page instead of floating over it. Chips and Ask are flat the same way.
+   This is the page's one backdrop-filter, an exception to DESIGN.md's no-glass rule for this card only. It re-blurs
+   while the hero's parallax moves under it, which costs GPU time during the first screen's scroll only.
+   Its ink tokens are set back to dark here. Measured over the worst backdrop (the mint-200 floor) through the 62%
+   surface: ink 15.24:1, typed text (ink-muted) 8.40:1, placeholder 4.67:1, the mark (mint-700) 5.01:1, chip text
+   8.81:1, ink on the selected chip 15.39:1, Ask's label 17.49:1. */
+:root[data-theme="light"] {
+  --color-paper: color-mix(in oklab, var(--p-void-50) 62%, transparent);
+  --color-chip: color-mix(in oklab, var(--p-void-50) 75%, transparent);
+  --color-chip-selected: var(--p-mint-100);
+  --color-ink: var(--p-void-900);
+  --color-ink-muted: var(--p-void-600);
+  --color-ink-subtle: var(--p-void-500);
+  --color-ink-focus: var(--p-mint-700);
+  --color-ink-button: var(--p-void-950);
+  --color-ink-button-hover: var(--p-void-800);
+}
+
+/* The card, chips and Ask are already flat in both themes (hero.css); here the card only drops its tint and frosts. */
+:root[data-theme="light"] .jarvis-card {
+  background: var(--color-paper) padding-box;
+  backdrop-filter: blur(24px) saturate(1.4);
+}
+
+/* Ask's label is fg in the markup, which is dark here; on the dark pill it stays light. */
+:root[data-theme="light"] .button-shine {
+  color: var(--p-void-50);
+}
+
+/* Launch app and Back to top: the dark pill on light ground, the mirror of the raised grey pill on black, so the one
+   app call to action still stands off its ground. void-50 on void-900 16.25:1; hover lifts to void-800. */
+:root[data-theme="light"] .launch-shine {
+  --shine-fill: var(--p-void-900);
+  color: var(--p-void-50);
+  background:
+    linear-gradient(var(--shine-fill), var(--shine-fill)) padding-box,
+    linear-gradient(
+      150deg,
+      var(--p-void-500),
+      var(--p-void-700) 30%,
+      var(--p-void-900) 60%,
+      var(--p-void-600)
+    )
+    border-box;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--p-void-50) 12%, transparent),
+    0 6px 16px -8px rgb(0 0 0 / 0.45);
+  @media (hover: hover) {
+    &:hover {
+      --shine-fill: var(--p-void-800);
+    }
+  }
+}
+
+/* Text on a mint fill stays dark in both themes: void-950 on mint-600 5.04:1. */
+:root[data-theme="light"] .agent-coin {
+  color: var(--p-void-950);
+}
+
+/* Stars are grey points here: dark specks would read as dust on the light grid. */
+:root[data-theme="light"] .star:not([data-tone="mint"]) {
+  background-color: var(--p-void-400);
+}
+
+/* Logos. The services' wordmarks are drawn for dark grounds (white letters), so they flip lightness and keep their
+   hues. The Wrenai mark is pale mint and fades on void-50, so it is darkened to about mint-600 (3.56:1, above the
+   3:1 for graphics) with its two-tone faces intact. */
+:root[data-theme="light"] .brand-wordmark {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+:root[data-theme="light"] .logo-mark {
+  filter: brightness(0.62) saturate(1.25);
+}
+
+/* Switching themes cross-fades the page once (the View Transitions API, theme-toggle.tsx) instead of every element
+   running its own color transition at its own speed. Opacity only; reduced motion switches at once. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 360ms;
+  animation-timing-function: var(--ease-ios);
+}
+
+/* The theme button in the nav: a round hairline ring like the agents' arrows, its icon in fg-muted lifting to
+   fg-strong. The icon is one drawing that morphs: in the dark theme a crescent moon, in the light theme a sun.
+   The disc shrinks into the sun's core while the bite that carves the crescent slides out past its edge, and the
+   rays turn and grow in from the center. Transforms and opacity only, on ease-ios; reduced motion switches. */
+@utility theme-toggle {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-full);
+  color: var(--color-fg-muted);
+  box-shadow: inset 0 0 0 1px var(--color-line-card);
+  cursor: pointer;
+  transition:
+    color 300ms var(--ease-ios),
+    scale 300ms var(--ease-ios);
+  @media (hover: hover) {
+    &:hover {
+      color: var(--color-fg-strong);
+    }
+  }
+  &:active {
+    scale: 0.92;
+    transition-duration: 120ms;
+  }
+  @media (pointer: coarse) {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}
+
+@utility theme-icon {
+  overflow: visible;
+  & :is([data-part="disc"], [data-part="bite"], [data-part="rays"]) {
+    transform-box: view-box;
+    transform-origin: 12px 12px;
+    transition:
+      transform 560ms var(--ease-ios),
+      opacity 360ms var(--ease-ios);
+  }
+  /* Dark theme: the moon. A full disc carved by the bite; no rays. */
+  & [data-part="rays"] {
+    opacity: 0;
+    transform: rotate(-60deg) scale(0.4);
+  }
+  :root[data-theme="light"] & {
+    /* Light theme: the sun. The disc becomes the core, the bite leaves past the top-right, the rays arrive. */
+    & [data-part="disc"] {
+      transform: scale(0.5);
+    }
+    & [data-part="bite"] {
+      transform: translate(9px, -9px);
+    }
+    & [data-part="rays"] {
+      opacity: 1;
+      transform: none;
+      transition-delay: 80ms;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    & :is([data-part="disc"], [data-part="bite"], [data-part="rays"]) {
+      transition: none;
+    }
+  }
+}

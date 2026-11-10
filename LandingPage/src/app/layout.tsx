@@ -12,14 +12,24 @@ export const metadata: Metadata = {
     "Research NEAR markets with Jarvis, then turn a plan into an agent. Every trade passes a Guard the model can't override.",
 };
 
+// The page grounds of both themes (void-900 dark, void-100 light), following the device setting.
 export const viewport: Viewport = {
-  themeColor: "#1a1a1a",
-  colorScheme: "dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#1a1a1a" },
+    { media: "(prefers-color-scheme: light)", color: "#ededed" },
+  ],
+  colorScheme: "dark light",
 };
 
 export default function RootLayout({ children }: { readonly children: ReactNode }) {
   return (
-    <html lang="en" className={`${sansFont.variable} ${roundedFont.variable}`}>
+    // public/theme.js sets data-theme on <html> before hydration, so React is told not to expect it.
+    <html lang="en" className={`${sansFont.variable} ${roundedFont.variable}`} suppressHydrationWarning>
+      <head>
+        {/* Blocking on purpose: it must run before the body paints, or a light visit would flash dark. A static
+            file rather than an inline script, so no HTML is injected. */}
+        <script src="/theme.js" />
+      </head>
       <body>
         <SmoothScroll>{children}</SmoothScroll>
         {/* Vercel Web Analytics: cookieless page views, sent to /_vercel/insights on a Vercel deployment once Web
