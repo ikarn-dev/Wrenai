@@ -1,0 +1,22 @@
+The **Guard** is the check every trade passes just before it is signed. It is plain code with no AI in it: the same inputs always give the same answer, and only you can change its inputs.
+
+## What it checks
+
+- **The rules you approved.** The order matches the agent's reviewed strategy, assets and venue.
+- **Your limits.** The order fits the per-order, daily and total limits, counting other orders still in flight.
+- **Owned funds.** The agent spends only the tokens attributed to it, and a manual trade only spends tokens no agent holds.
+- **A fresh quote.** The quote is recent and still valid, from the route the agent was reviewed for.
+- **Price protection.** Fees and slippage are inside your limits, rounded against you, never in your favor.
+- **Stop state.** The agent isn't paused or stopped, Stop all isn't engaged, and trading access hasn't been revoked.
+
+## When a check can't run
+
+The Guard fails closed. If a price is stale, a quote is missing or a balance can't be read, the trade doesn't run. The agent page and Activity say what blocked it, for example "over your per-order limit".
+
+## After the Guard
+
+An approved order is bound to its exact amounts, assets and quote. Wrenai records it before sending, then reads the final result from the provider or NEAR. If the result is unknown, the funds stay reserved and the order is checked again; it is never sent twice.
+
+<Callout tone="info">
+  The Guard can stop a bad order. It can't make a good trade: a trade that passes can still lose money.
+</Callout>

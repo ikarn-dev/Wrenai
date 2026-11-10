@@ -1,0 +1,40 @@
+Some accounts Wrenai trades from are created and held by Wrenai: the trading account for native NEAR swaps, and the Hyperliquid addresses for Perps. A **recovery backup** gives you your own copy of their keys, so you can reach those funds without the app.
+
+You must save one before funding these accounts.
+
+## Save a backup
+
+<Steps>
+  <Step title="Open Settings">
+    Go to **Settings**, then **Recovery**. Choose the account to back up if you have agents.
+  </Step>
+  <Step title="Choose a password">
+    Enter a password of at least 12 characters, twice. It never leaves your device.
+  </Step>
+  <Step title="Approve and download">
+    Press **Save backup**. Your wallet signs a message to prove you own the account, then the file is encrypted in your browser and downloaded.
+  </Step>
+  <Step title="Confirm">
+    Tick that you saved the file and its password, then press **Confirm backup**.
+  </Step>
+</Steps>
+
+The file is encrypted on your device with your password (PBKDF2-SHA256 with 600,000 iterations, then AES-GCM). Wrenai never sees the password.
+
+<Callout tone="warning">
+  Keep the file and the password in separate safe places. Wrenai can't recover a lost password, and the confirmation can't prove you kept the file.
+</Callout>
+
+## Recover without the app
+
+Keep a copy of the Wrenai project. From its app folder, run:
+
+```bash
+pnpm recover backup.json recovered.key
+```
+
+Add an agent's index to recover its separate Perps address. The command asks for your password, works offline and writes the private keys to a new file only you can read.
+
+## After a new backup
+
+If Wrenai adds a new kind of account, Settings shows **Update needed**. Download a new backup before funding that account; your old backup stays valid for the accounts it covers.

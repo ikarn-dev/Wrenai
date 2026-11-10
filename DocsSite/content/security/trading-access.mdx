@@ -1,0 +1,33 @@
+**Trading access** is the one approval that lets your agents trade from your NEAR Intents account. You set it up once and it covers every agent until you revoke it.
+
+## How it works
+
+Setting up trading access adds an agent key to your NEAR Intents account. Wrenai keeps that key encrypted and uses it to sign agents' trades, within each agent's limits and after the [Guard](/security/the-guard) approves them.
+
+## Set it up
+
+<Steps>
+  <Step title="Open Settings">
+    Go to **Settings**, then **Trading access**. You can also do this from an agent's setup.
+  </Step>
+  <Step title="Set up the key">
+    Press **Set up agent key**. Your wallet asks for one approval, with a tiny network fee.
+  </Step>
+  <Step title="Done">
+    The status shows **Active**, with the key and the date it was added.
+  </Step>
+</Steps>
+
+<Callout tone="tip">
+  You don't need trading access to create or review agents. It's only needed before an agent trades.
+</Callout>
+
+## Revoke it
+
+In **Settings**, then **Trading access**, press **Revoke**. Your wallet asks you to approve removing the key. After that:
+
+- agents can't place new trades until you set up a new key;
+- orders already sent still settle, and their results are recorded;
+- open Hyperliquid positions stay open until you close them.
+
+The account menu in the app's top bar always shows the key's status.

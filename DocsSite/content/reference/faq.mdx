@@ -1,0 +1,31 @@
+## Does Wrenai hold my funds?
+
+Your wallet's funds stay in your wallet. Funds you give an agent move to your NEAR Intents account or to a trading account Wrenai holds for you, where Wrenai can sign trades for them within the agent's limits. You can claim them back at any time from [Claims](/agents/claims).
+
+## Can the AI make trades on its own?
+
+No. The model explains data and drafts rules for you to review. Deciding when to trade, how much and whether it's allowed is plain code, and every order passes the [Guard](/security/the-guard). In chat, only a quote card you confirm places an order.
+
+## What does it cost?
+
+Wrenai shows the costs of each step before you confirm it: network gas, provider and swap fees, registration fees and, for Hyperliquid returns, a 1 USDC transfer fee. Trading can lose money.
+
+## How fast do agents react?
+
+Price checks run about every five seconds and schedules about every minute. This is best effort; it isn't a guarantee of exact timing or fills.
+
+## What happens if I delete an agent?
+
+It stops and leaves your Agents list. Nothing is sent: everything it holds waits in [Claims](/agents/claims) until you claim it.
+
+## Is everything private?
+
+No. Private balance swaps and payments are confidential, but deposits, wallet payouts, RHEA swaps and Hyperliquid positions are public. Wrenai's servers can read your chats and sign with your trading keys. See [What stays private](/security/what-stays-private).
+
+## How do I stop everything?
+
+Press **Stop all** on the Agents page. To also stop agents signing at all, revoke [trading access](/security/trading-access).
+
+## Which networks are supported?
+
+NEAR mainnet, plus tokens from other chains that have a verified NEAR ecosystem route. Perps trade on Hyperliquid.

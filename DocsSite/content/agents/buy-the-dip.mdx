@@ -1,0 +1,24 @@
+Buy the Dip buys a spot token when its price falls to a level you set, or by a percentage from a recent high.
+
+```text
+Buy 10 USDC of NEAR each time it drops 8% from its 24-hour high, up to three times.
+```
+
+## What it needs
+
+- The token, the token you pay with, and the chain.
+- The trigger: an exact price, or a drawdown from a high over a window you define.
+- How long the price must hold before buying (confirmation).
+- The amount per buy, the most buys and the total budget.
+- A cooldown, and when the agent may arm again.
+- Fee and slippage limits, and an end date.
+
+## How it runs
+
+The agent tracks the high and its own state, so a restart picks up where it left off. Prices come from the venue the agent trades on, so a token on NEAR is never triggered by an unrelated exchange price.
+
+- **One buy per dip.** Each dip buys once, then waits for your re-arm rule.
+- **No chasing.** If price data has a gap, the agent waits for fresh data rather than reconstructing the move or buying an old dip.
+- **Fresh quote.** Each buy gets a new quote and passes the Guard.
+
+Buy the Dip only buys spot tokens; it doesn't use leverage.

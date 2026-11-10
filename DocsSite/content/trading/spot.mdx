@@ -1,0 +1,34 @@
+**Spot** is for swapping tokens by hand. Pick a market, enter an amount, review the quote and confirm it. No agent is created.
+
+## Where a swap pays from
+
+| Source | Route | Visibility |
+| --- | --- | --- |
+| Private balance | NEAR Intents | Confidential |
+| Wallet | RHEA or NEAR Intents | Public on NEAR |
+
+Swaps from your private balance only use tokens that no agent holds, so a manual trade never spends an agent's funds.
+
+## Make a swap
+
+<Steps>
+  <Step title="Choose the market">
+    The Spot table lists markets with live prices. Pick one to open the trade ticket.
+  </Step>
+  <Step title="Get a quote">
+    Enter the amount. The quote shows what you pay, the least you receive, the fees and a countdown.
+  </Step>
+  <Step title="Confirm">
+    Press **Confirm swap**. From the wallet, your wallet asks you to approve the transaction.
+  </Step>
+</Steps>
+
+The card follows the swap until it settles, then shows what you received and the transaction. If a quote expires, refresh it and review the new one.
+
+<Callout tone="info">
+  Swapping native NEAR from your wallet sends one NEAR transfer; you won't see a separate wrap to wNEAR first.
+</Callout>
+
+## Automate it
+
+After a trade, **Automate with an agent** opens a Spot Trader setup with your pair filled in. It is reviewed and funded separately.

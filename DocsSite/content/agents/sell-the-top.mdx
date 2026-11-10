@@ -1,0 +1,26 @@
+Sell the Top sells tokens you own when they reach your profit targets. It doesn't predict the top of the market; it sells at the levels you choose.
+
+```text
+Sell half my NEAR at 20% profit and the rest at 40%, with a 5% trailing stop after the first target.
+```
+
+## What it needs
+
+- Tokens the agent owns, or a cost basis you confirm for tokens you bought elsewhere.
+- One or more targets: a net-profit percentage or a price, and how much to sell at each.
+- The token to sell into, and fee and slippage limits.
+- An end date, and optionally a trailing stop.
+
+## Profit is measured after fees
+
+Targets are net of fees, against your actual cost basis. If the cost basis is unknown, it isn't treated as zero; the agent won't claim a profit it can't measure.
+
+## How it runs
+
+- Each target sells once. Completed targets and trailing highs are saved, so a restart doesn't sell twice.
+- Partial fills are counted exactly, and the remaining targets apply to what's left.
+- Tokens are shared with your other agents, so two agents can't both sell the same units.
+
+<Callout tone="info">
+  At its end date, the agent keeps whatever it still holds unless you chose to close the position on expiry.
+</Callout>

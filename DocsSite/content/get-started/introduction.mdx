@@ -1,0 +1,47 @@
+Wrenai is a NEAR app for researching markets and running trading agents. You ask **Jarvis** about a token, a yield or a setup, and get an answer from a verified private model. When you want something to keep happening, you turn the plan into an **agent**: a fixed set of rules with its own budget, which checks the market on a schedule and trades only inside the limits you reviewed.
+
+Wrenai runs on NEAR mainnet. Every trade moves real funds and pays real fees.
+
+## What you can do
+
+<Cards>
+  <Card title="Ask Jarvis" href="/jarvis/ask-and-research" icon="chat">
+    Research markets and your account in a private, verified chat.
+  </Card>
+  <Card title="Run an agent" href="/agents/how-agents-work" icon="agents">
+    Describe a strategy, review it, fund it and start it.
+  </Card>
+  <Card title="Trade by hand" href="/trading/spot" icon="spot">
+    Swap spot tokens or open perps positions from a quote you confirm.
+  </Card>
+  <Card title="Claim your funds" href="/agents/claims" icon="claims">
+    Send an agent's deposit and profit back to your wallet.
+  </Card>
+</Cards>
+
+## How Wrenai keeps you in control
+
+- **You approve the limits.** An agent can only spend the exact tokens you reserved for it, within the per-order, daily and total limits you reviewed.
+- **The model never signs.** AI explains data and turns your words into rules you review. Deciding, sizing and signing a trade is plain code that the model cannot change.
+- **Every trade passes the Guard.** Before anything is signed, the [Guard](/security/the-guard) checks the limits, a fresh quote, fees and slippage. If a check can't run, the trade doesn't run.
+- **Stop is one click.** **Stop all** on the Agents page stops every agent at once, with no confirmation step.
+
+## The seven agents
+
+| Agent | What it does |
+| --- | --- |
+| Private Payments | Sends tokens from your private balance to a recipient |
+| DCA | Buys a fixed amount on a schedule |
+| Spot Trader | Buys and sells a spot pair, with take-profit and stop-loss exits |
+| Perps | Trades Hyperliquid perpetuals with stops held by the venue |
+| Meme Hunter | Buys new NEAR listings only when every risk check passes |
+| Buy the Dip | Buys when the price falls to a level or drawdown you set |
+| Sell the Top | Sells tokens you own when your profit targets are reached |
+
+<Callout tone="info">
+  Agents don't predict the market. Each one follows the rules you reviewed, and a passed check is not a promise about what a price will do next.
+</Callout>
+
+## Next steps
+
+Start with the [Quickstart](/get-started/quickstart). It takes you from signing in to your first agent.

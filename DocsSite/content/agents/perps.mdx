@@ -1,0 +1,34 @@
+The Perps agent trades perpetual futures on Hyperliquid, with isolated margin and stops that the venue itself holds.
+
+```text
+Go long NEAR with 3x leverage on 50 USDC, stop at 4% and take profit at 8%.
+```
+
+## What it needs
+
+- Long or short, the market and the size.
+- Leverage and the most margin it may risk. Margin is always isolated per position.
+- The order's price limit and slippage, and an end date.
+- Exits: stop-loss and take-profit, and optionally a trailing stop.
+
+## Its own account
+
+Each Perps agent trades from its own Hyperliquid address, separate from your other agents and your manual Perps account. Wrenai creates these addresses from one key that you back up yourself. A [recovery backup](/security/recovery-backup) is required before a Perps agent can be funded.
+
+Funding converts the agent's tokens to USDC and bridges them to its Hyperliquid address. The bridge pays out in eight decimals and Hyperliquid keeps six, so amounts are rounded down, never up.
+
+## Orders and protection
+
+- **Entries** are sent as immediate-or-cancel orders, checked against the venue's tick size, lot size, leverage tiers, fees and the depth of the order book.
+- **Stops and take-profits** are placed on Hyperliquid as reduce-only orders for the size that actually filled. If an entry fills only partly, the stops cover only what filled.
+- **Trailing stops** are moved by Wrenai about every five seconds and only ever tighten. An existing stop stays in place until its replacement is confirmed.
+
+<Callout tone="warning">
+  Venue stops are limit orders. In a fast market they can fill late or not at all, and a position can still be liquidated. No stop is guaranteed.
+</Callout>
+
+## Pause and revoke
+
+Pausing or revoking trading access stops new orders. Orders already on Hyperliquid can still fill, and Wrenai keeps recording their results. If the account shows activity it doesn't recognize, the agent stops placing new orders.
+
+Hyperliquid positions are public on Hyperliquid. Returning funds from Hyperliquid needs every position and order closed first, and costs a 1 USDC transfer fee, shown before you confirm.

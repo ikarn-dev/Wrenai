@@ -1,0 +1,36 @@
+Every agent has its own budget: an exact amount of one token you hold. There is no account-wide spending cap; each agent is limited on its own.
+
+## Reserving a budget
+
+When you create an agent, you pick a token from your wallet and an amount. Wrenai lists the NEAR and NEP-141 tokens you actually hold, including bridged ones, and reads the token's balance and decimals from NEAR before saving.
+
+- **Other agents count.** Tokens reserved for other agents aren't available again, so two agents can't plan to spend the same units.
+- **Gas stays free.** For native NEAR, Wrenai keeps some back for account storage and about 0.05 NEAR for gas.
+- **A reservation is a plan, not a lock.** The tokens stay in your wallet until you fund the agent. If you spend them elsewhere, the agent page shows the shortfall, and funding checks the balance again.
+
+<Callout tone="info">
+  Funded tokens move out of your wallet into your private balance or the agent's trading account, so they aren't counted against your wallet twice.
+</Callout>
+
+## Limits
+
+You review these limits before saving. Safe defaults are filled in, and you can change them under the optional risk limits.
+
+| Limit | What it caps |
+| --- | --- |
+| Per order | The most one trade can spend |
+| Per day | The most the agent can spend in a rolling day |
+| Total | The most the agent can spend over its life |
+| Price protection | The slippage and fee limits every quote must meet |
+
+The Guard checks all of these before every signature. A trade that would cross one is blocked, and the agent page says which limit stopped it.
+
+## Exits after the caps
+
+If you allow it, an agent can still sell what it owns after its buying limits are used up, so a take-profit or stop-loss isn't stuck behind a daily cap. Exits still have to pass the fee and slippage limits, and they don't count as new spending.
+
+## Changing a budget
+
+- **Edit** a paused agent to raise or lower its budget. Lowering is always allowed.
+- **Unused funded tokens** can be released back or moved to another paused agent of a compatible type from the agent's advanced options.
+- **Deleting** an agent that was never funded releases its reservation.

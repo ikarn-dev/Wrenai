@@ -1,0 +1,51 @@
+An agent is a saved set of rules with its own budget. Once started, it checks the market on a schedule and trades only when its rules say so and every check passes. Each new agent gets a generated name, like Quiet Heron, so you can tell them apart.
+
+## Create an agent
+
+Open **Agents**, pick a type, and the setup dialog walks you through four steps.
+
+<Steps>
+  <Step title="Describe it">
+    Write what the agent should do in plain words, and choose the token and the amount it may use from your wallet.
+  </Step>
+  <Step title="Verify">
+    A verified private model turns your words into exact rules: assets, amounts, triggers, schedule and exits. Its signature is checked before the rules are shown.
+  </Step>
+  <Step title="Review and save">
+    Read the rules and limits. Saving reserves the budget and creates the agent, paused. Nothing has traded yet.
+  </Step>
+  <Step title="Add funds and start">
+    Set up [trading access](/security/trading-access) once, approve the deposit in your wallet, then press **Start**.
+  </Step>
+</Steps>
+
+<Callout tone="info">
+  The model only drafts rules for you to review. Deciding when to trade, how much and whether a trade is allowed is plain code, and the [Guard](/security/the-guard) checks every order before it is signed.
+</Callout>
+
+## Funding
+
+Funding moves the reserved tokens from your wallet to where the agent trades.
+
+- **One wallet approval** deposits the exact amount into your NEAR Intents account, wrapping NEAR first when needed. This deposit is public on NEAR and costs a little gas.
+- Wrenai checks the finished deposit on NEAR before it counts. Then the funds move to your private balance, where the agent trades.
+- Perps agents trade on Hyperliquid instead, from their own address. See [Perps](/agents/perps).
+
+If you decline the deposit in your wallet, nothing moves, and the setup offers a fresh review.
+
+## While it runs
+
+- Price checks run about every five seconds, and slower checks such as a schedule run about every minute. This is best effort; it is not a guarantee of exact timing or fills.
+- Each check gets a fresh quote. If data is stale, a quote is missing or a limit would be crossed, the agent skips that trade.
+- Activity shows every order, its result and the transaction where there is one.
+
+## Pause, stop and delete
+
+| Action | What happens |
+| --- | --- |
+| Pause | No new trades until you start it again |
+| Stop | Stops the agent; orders already sent still settle |
+| Stop and delete | Stops it and removes it from the list. Nothing is sent: its funds wait in [Claims](/agents/claims) |
+| Stop all | On the Agents page: stops every agent at once |
+
+An agent with an open perps position can't be deleted until the position is closed.

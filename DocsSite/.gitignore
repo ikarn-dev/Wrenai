@@ -1,0 +1,56 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+.envrc
+.direnv/
+.vercel/
+.aws/
+.ssh/
+.near-credentials/
+*.key
+*.pem
+*.p12
+*.pfx
+*.keystore
+wrenai-encrypted-recovery*.json
+
+# Dependencies and caches
+node_modules/
+.pnpm-store/
+.cache/
+.swc/
+.vitest/
+.turbo/
+
+# Generated build and test output
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+next-env.d.ts
+coverage/
+playwright-report/
+test-results/
+
+# Local databases and backups
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.dump
+*.backup
+*.sql.gz
+
+# OS and editor files
+.DS_Store
+._*
+.idea/
+.history/
+*.swp
+*.swo
+*~
+*.log

@@ -1,0 +1,43 @@
+Jarvis is Wrenai's research chat. Open **Chat** in the app's sidebar. Ask in plain words about a market, a token, a yield or a strategy, and Jarvis answers from live data.
+
+## What Jarvis can do
+
+- **Explain a market.** For perps it leads with a long or short lean, how strong the evidence is, the time frame, then an entry, a take-profit, a stop-loss and the strongest fact against it.
+- **Read your account.** Each message includes a fresh read of your NEAR balance and the status of your agents, so you can ask "how are my agents doing?".
+- **Prepare a trade.** Ask for an exact swap or perps order and Jarvis shows a [quote card](/jarvis/quote-cards) for you to confirm.
+- **Send a payment.** Ask it to send a token to a NEAR account and it shows a [payment card](/jarvis/payments).
+- **Suggest an agent.** After a research answer, Jarvis may offer to set up the matching agent. You still review and fund it yourself.
+
+<Callout tone="info">
+  Jarvis never trades from text. Only a card you confirm can place an order, and agents only run after you review, fund and start them.
+</Callout>
+
+## Choose a tool
+
+The **Tools** menu under the message box scopes a question to one agent family, such as Perps or Meme Hunter. **Auto** lets Jarvis pick. If your message doesn't fit the tool you chose, Jarvis asks you to switch instead of guessing.
+
+## Verified answers
+
+Jarvis runs on private models in NEAR AI Cloud, which run inside hardware-protected environments (TEEs). Every reply is checked against the model's signature before it is saved. Open a reply's verification details to see which model answered and when it was verified.
+
+While a reply streams in, it is marked **Verification pending**. If a reply fails verification, it is removed rather than saved.
+
+<Callout tone="warning">
+  Verification proves which model produced a reply. It does not prove the reply is right. Check the numbers before you act.
+</Callout>
+
+## Saved chats
+
+Your chats are saved so you can come back to them. Titles, messages, replies and verification evidence are encrypted before they are stored. Wrenai's servers can still read them while they work on a reply, so this is encrypted storage, not end-to-end privacy.
+
+| Limit | Value |
+| --- | --- |
+| Message length | 8,000 characters |
+| Messages per chat | 100 |
+| Saved chats | 100 |
+
+Delete a chat from the history list. Deleting removes its messages for good.
+
+## Stop a reply
+
+Press the stop button in the message box while Jarvis is answering. The partial reply is not saved as an answer, and you can ask again.

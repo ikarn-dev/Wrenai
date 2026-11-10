@@ -1,0 +1,29 @@
+Meme Hunter looks for genuinely new NEAR token launches and buys only those that pass every risk check you set.
+
+```text
+Buy 2 NEAR of new Nearly launches under 30 minutes old with at least 5,000 USDC of liquidity.
+```
+
+## Where it looks
+
+New listings come from Squint's index of NEAR launchpads, including Nearly and Meme.Cooking. A listing only counts when its creation is confirmed on NEAR, and it must be younger than the age you set. Profiles, boosts and metadata changes are not launches.
+
+## The checks
+
+A candidate is skipped unless **every** check has a known, passing result at that moment:
+
+- The token contract is a known, unmodified type, with no mint, freeze, admin or upgrade powers.
+- Supply, decimals and holder and creator concentration are within your limits.
+- The pool's ownership and reserves are known, and its liquidity meets your minimum.
+- There are no transfer taxes.
+- A buy quote and a sell quote both work at your size, with price impact inside your limit.
+
+Right now Meme Hunter trades Nearly launches with locked pools on RHEA, paired with wNEAR. Other launch types are skipped.
+
+<Callout tone="danger">
+  Passing every check is not a safety guarantee. A token can still lose its liquidity or become hard to sell later. Only use what you can afford to lose.
+</Callout>
+
+## How it trades
+
+Buys and sells go through RHEA from your trading account and are public on NEAR. Exits follow your take-profit, stop-loss and age rules. A failed check on a token you hold never blocks selling it.

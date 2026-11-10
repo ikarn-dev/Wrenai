@@ -1,0 +1,114 @@
+/* Article text (components/doc-page.tsx): the app's type roles applied to Markdown. Reading width is the reading
+   token (42rem, about 72 characters at body size, DESIGN.md → Setting text). Headings carry their own anchor links
+   and leave room under the sticky header when jumped to. */
+@utility doc-prose {
+  color: var(--color-fg);
+  font-size: var(--text-body);
+  line-height: 1.7;
+  letter-spacing: var(--text-body--letter-spacing);
+
+  & > * + * {
+    margin-top: 1rem;
+  }
+  & h2 {
+    margin-top: 2.75rem;
+    font-size: var(--text-h2);
+    font-weight: 600;
+    line-height: var(--text-h2--line-height);
+    letter-spacing: var(--text-h2--letter-spacing);
+    scroll-margin-top: 6rem;
+  }
+  & h3 {
+    margin-top: 2rem;
+    font-size: var(--text-h3);
+    font-weight: 600;
+    line-height: var(--text-h3--line-height);
+    letter-spacing: var(--text-h3--letter-spacing);
+    scroll-margin-top: 6rem;
+  }
+  & h2 + *,
+  & h3 + * {
+    margin-top: 0.625rem;
+  }
+  & strong {
+    color: var(--color-fg-strong);
+    font-weight: 600;
+  }
+  /* Steps (components/mdx/steps.tsx) draw their own numbers. */
+  & ul,
+  & ol:not(.doc-steps) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    padding-left: 1.25rem;
+  }
+  & ul {
+    list-style: disc;
+  }
+  & ol:not(.doc-steps) {
+    list-style: decimal;
+  }
+  & li::marker {
+    color: var(--color-fg-subtle);
+  }
+  /* Cards and heading anchors are links with their own look. */
+  & a:not(.doc-card, .doc-anchor) {
+    color: var(--color-accent-text);
+    text-underline-offset: 4px;
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+  & :not(pre) > code {
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-xs);
+    background-color: var(--color-surface-2);
+    box-shadow: inset 0 0 0 1px var(--color-line-card);
+    color: var(--color-fg-strong);
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+  }
+  & hr {
+    margin-block: 2.5rem;
+    border-color: var(--color-line-subtle);
+  }
+  & blockquote {
+    padding-left: 1rem;
+    border-left: 2px solid var(--color-line-card);
+    color: var(--color-fg-muted);
+  }
+}
+
+/* A Markdown table: a card well that scrolls sideways on narrow screens, never the page. */
+@utility doc-table {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--color-line-card);
+  & table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-small);
+    line-height: var(--text-small--line-height);
+  }
+  & th {
+    padding: 0.625rem 0.875rem;
+    text-align: left;
+    white-space: nowrap;
+    color: var(--color-fg-subtle);
+    font-family: var(--font-mono);
+    font-size: var(--text-eyebrow);
+    font-weight: 500;
+    letter-spacing: var(--text-eyebrow--letter-spacing);
+    text-transform: uppercase;
+  }
+  & td {
+    padding: 0.625rem 0.875rem;
+    border-top: 1px solid var(--color-line-card);
+    vertical-align: top;
+  }
+  & td:first-child {
+    color: var(--color-fg-strong);
+    font-weight: 500;
+  }
+}

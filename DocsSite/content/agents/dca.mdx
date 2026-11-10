@@ -1,0 +1,26 @@
+DCA (dollar-cost averaging) buys a fixed amount of a token on a schedule, so you build a position over time instead of all at once.
+
+```text
+Buy 5 NEAR worth of USDC every 12 hours for two weeks.
+```
+
+## What it needs
+
+- The token to buy and the token to pay with.
+- The amount per buy, and a minimum below which a buy is skipped.
+- The schedule and its time zone, with an end date or a number of buys.
+- A total cap, plus fee and slippage limits.
+
+## How it runs
+
+Each scheduled time is one slot. When a slot comes due, the agent gets a fresh quote, the Guard checks it, and the agent buys once.
+
+- **One buy per slot.** A restart or a duplicate check never buys the same slot twice.
+- **No catch-up.** If the agent was paused or a slot was missed, it doesn't buy the missed slots all at once. You review this before starting.
+- **Time zones are kept.** Slots follow the time zone you chose, including daylight-saving changes.
+
+The agent pauses itself if the budget runs out, the route isn't available or the quote is stale.
+
+<Callout tone="tip">
+  A buy that's in flight when you pause still settles. Its result shows in Activity.
+</Callout>

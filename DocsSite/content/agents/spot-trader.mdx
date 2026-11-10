@@ -1,0 +1,31 @@
+Spot Trader buys or sells a spot pair when you tell it to, and protects what it buys with take-profit, stop-loss and trailing exits.
+
+```text
+Buy 20 USDC of NEAR, take profit at 10% and stop out at 5%.
+```
+
+## What it needs
+
+- Buy or sell, and the exact pair.
+- The amount, from the tokens allocated to the agent.
+- Now, or a condition such as a price.
+- Fee and slippage limits, and an end date.
+- Optional exits: take-profit, stop-loss and trailing stop.
+
+## Exits
+
+Exits are tied to what the agent actually bought and what it paid, not to an estimate.
+
+- **Take-profit** sells when the price reaches your target above your cost.
+- **Stop-loss** sells when the price falls to your limit below your cost.
+- **Trailing stop** follows the highest price since entry and sells when the price falls back by your distance.
+
+Exits are checked about every five seconds. They are best effort: a fast move can fill past your level, and a stop is not guaranteed.
+
+## What it won't do
+
+- Sell tokens it doesn't own. Sells come only from its own units.
+- Use leverage or open a new venue on its own.
+- Treat a quote as a trade. A dry quote is research; only a checked, signed order trades.
+
+Partial fills are tracked exactly, and exits apply only to what was filled.

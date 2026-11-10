@@ -1,0 +1,31 @@
+Wrenai keeps some steps confidential and others are public by nature. This page says which is which, so you know what others can see.
+
+## At a glance
+
+| Step | Private or public | Why |
+| --- | --- | --- |
+| Jarvis replies and strategy parsing | Private model, verified | Runs on NEAR AI Cloud inside hardware-protected environments (TEEs); each reply's signature is checked |
+| Swaps and payments from your private balance | Confidential | Run inside NEAR Intents' confidential environment |
+| Deposits from your wallet | Public | A transfer from your NEAR account is visible on NEAR |
+| Payouts to a NEAR wallet, including claims | Public | The transfer to the wallet is visible on NEAR |
+| Swaps from your wallet or the trading account (RHEA) | Public | They are ordinary NEAR transactions |
+| Hyperliquid positions | Public | Hyperliquid is a public venue |
+
+## What NEAR AI Cloud protects
+
+The models that answer Jarvis and read your strategies run inside TEEs, and Wrenai checks the model's attestation and every reply's signature. That protects the model's work. It doesn't make the rest of Wrenai private.
+
+## What Wrenai's servers can see
+
+Wrenai's servers run on Vercel with a Supabase database. They can read your chats, strategies and trading activity while they work on them.
+
+- **Chats** are encrypted before they are stored, but the servers decrypt them to answer.
+- **Trading keys** are encrypted at rest. The servers decrypt them to sign your agents' trades, so signing is not hidden from the operator.
+
+<Callout tone="warning">
+  Wrenai does not claim operator-private execution. Treat it like any hosted service that can sign for the accounts you fund.
+</Callout>
+
+## Never downgraded
+
+A private payment is never switched to a public one on its own. Public delivery is something you choose, and the card or review says it's public before you confirm.

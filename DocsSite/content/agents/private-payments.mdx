@@ -1,0 +1,31 @@
+Private Payments sends supported tokens from your private balance to a recipient, once or on a schedule.
+
+```text
+Pay alice.near 25 USDC on the first of every month until June.
+```
+
+## What it needs
+
+- The exact recipient, token and amount.
+- When to pay: once, or a schedule with an end date.
+- Fee and slippage limits.
+- Where the payment lands: confidential by default, or an explicitly chosen public NEAR wallet.
+
+## Private or public delivery
+
+| Delivery | What the recipient gets | Who can see it |
+| --- | --- | --- |
+| Confidential (default) | Funds in their private NEAR Intents balance | Kept confidential inside NEAR Intents |
+| Public NEAR wallet | Tokens in their NEAR account | The payout transfer is public on NEAR |
+
+You choose public delivery explicitly; an agent never switches a private payment to public on its own. For a public payout, Wrenai checks the account exists and is registered for the token. It never pays storage for the recipient.
+
+## How it runs
+
+Each payment gets a fresh quote and passes the Guard. A payment counts as sent only when the provider reports final delivery; a full refund comes back to your private balance.
+
+<Callout tone="warning">
+  Check the recipient carefully. A payment that has been delivered can't be reversed.
+</Callout>
+
+For one-off sends from chat, see [Payments](/jarvis/payments).

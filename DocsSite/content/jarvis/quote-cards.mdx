@@ -1,0 +1,42 @@
+When you ask Jarvis for an exact trade, it prices the trade and shows a **quote card** in the chat. The card is the only way chat can place an order: nothing happens until you press its confirm button.
+
+```text
+Swap 10 NEAR to USDC
+```
+
+## What a quote card shows
+
+- **You pay** and **you receive at least**: the most the trade can spend and the least it can return. Amounts are exact token units; the minimum already includes your slippage limit.
+- **Route and visibility**: whether the trade runs from your private balance or from your public wallet.
+- **Fees and terms**: the provider's fees and how they were applied.
+- **A countdown** until the quote expires.
+
+## Confirm or dismiss
+
+<Steps>
+  <Step title="Check the terms">
+    Read the minimum you receive and the fees. If anything looks wrong, dismiss the card with its close button.
+  </Step>
+  <Step title="Confirm">
+    Press **Confirm trade** (or **Confirm swap**). This approves that one exact quote. Wrenai reserves the funds, signs and submits it.
+  </Step>
+  <Step title="Watch it settle">
+    The card updates as the trade is submitted and settles, then shows what you actually received and a link to the transaction where there is one.
+  </Step>
+</Steps>
+
+## When a quote expires
+
+Quotes last a short time because prices move. An expired card can't be confirmed. Press **Refresh quote** for a fresh price, then review it again.
+
+<Callout tone="info">
+  Typing "yes" or "do it" never confirms a trade. A confirmation is bound to the exact amounts on the card; if the quote changes, you confirm the new one.
+</Callout>
+
+## If the result is unknown
+
+Sometimes a provider doesn't answer right away. The card then says it's checking the transaction, and the funds stay reserved until the final result is known. Wrenai never resends an order while an earlier one might still settle.
+
+## Turn a trade into an agent
+
+Spot and perps cards offer **Automate with an agent**. That opens a separate agent setup with its own review; the trade you confirmed is not repeated.

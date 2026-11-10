@@ -1,0 +1,31 @@
+**Perps** is for trading Hyperliquid perpetuals by hand. It shows each market's hourly candles and indicators beside an order ticket.
+
+## Your manual account
+
+Manual trades use their own Hyperliquid address, separate from every Perps agent. Before you fund it, save a [recovery backup](/security/recovery-backup), so you can reach that address without Wrenai.
+
+Deposit USDC to the account from the Perps page. Each deposit and return shows its route and fees before you confirm.
+
+## Place an order
+
+<Steps>
+  <Step title="Set up the order">
+    Choose long or short, the size, leverage and the price limit. Margin is isolated per position.
+  </Step>
+  <Step title="Add protection">
+    Set a stop-loss and a take-profit, and optionally a trailing stop.
+  </Step>
+  <Step title="Confirm">
+    Review the quote card and press **Confirm trade**. The order goes to Hyperliquid as immediate-or-cancel.
+  </Step>
+</Steps>
+
+Stops and take-profits are placed on Hyperliquid for the size that filled. A trailing stop is moved by Wrenai about every five seconds and only tightens.
+
+<Callout tone="warning">
+  Leverage magnifies losses. Venue stops can fill late or not at all in a fast market, and positions can be liquidated.
+</Callout>
+
+## Return funds
+
+To move USDC back, close every position and open order first. The return costs a 1 USDC transfer fee, shown before you confirm.

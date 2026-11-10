@@ -1,0 +1,41 @@
+**Claims** is where funds wait to go back to your wallet. Open it from the app's sidebar. One table lists:
+
+- each agent's deposits, profit and loss, and what it holds now;
+- free tokens in your private balance that no agent holds;
+- wNEAR in your wallet that you can turn back into NEAR.
+
+## Deleting never sends funds
+
+When you delete an agent, it stops and leaves the Agents list. Everything it holds, your deposit plus any profit or loss, waits in Claims until you claim it. You can claim first and delete later, or delete first and claim later.
+
+## Claim an agent's funds
+
+<Steps>
+  <Step title="Press Claim">
+    On the agent's row, press **Claim**. A running agent is stopped first, so it can't trade while its funds leave.
+  </Step>
+  <Step title="Choose what you receive">
+    Pick the token to receive. **NEAR** is listed first; **As held** returns each token as it is; or choose another NEAR token you can receive.
+  </Step>
+  <Step title="Wait for it to arrive">
+    The row shows **Claiming** with a timer, then the transaction once it's paid.
+  </Step>
+</Steps>
+
+To receive a token, your wallet must already be registered for it. Wrenai never pays storage on your behalf.
+
+## Receiving NEAR
+
+The payout service can't send native NEAR, so a NEAR claim arrives as **wNEAR**. The row then offers **Claim as NEAR**: one wallet approval unwraps it.
+
+## Claim your private balance
+
+For free tokens in your private balance, Claim shows a quote first: what you send, the least you receive, the fee and when the quote expires. Press **Confirm claim** to send it.
+
+<Callout tone="info">
+  The transfer to your wallet is public on NEAR. Values in the table are reference-price estimates rounded down; token amounts are exact.
+</Callout>
+
+## If a claim seems stuck
+
+The row offers **Check status**. It reads the payout's result without sending anything again, so it is always safe to press.

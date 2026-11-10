@@ -1,0 +1,40 @@
+Ask Jarvis to send a token and it shows a **payment card** with the exact amount and recipient.
+
+```text
+Send 0.02 NEAR to alice.near
+```
+
+Jarvis reads the amount, the token and the recipient from your message. It doesn't use the model for this, so the card matches exactly what you typed.
+
+## Public or private
+
+A payment can go two ways, depending on the token:
+
+| Route | Pays from | Who can see it |
+| --- | --- | --- |
+| Public wallet | Your NEAR wallet | The transfer is public on NEAR |
+| Private | Your private balance in NEAR Intents | The transfer is confidential; if Wrenai has to top up your private balance first, that deposit is public |
+
+When only one route fits, the card opens on its quote. When both do, choose **Send publicly** or **Send privately**.
+
+## Send a public payment
+
+<Steps>
+  <Step title="Review the card">
+    Check the amount, the recipient and the fees. If the recipient isn't registered for the token yet, the card shows the small registration cost.
+  </Step>
+  <Step title="Confirm payment">
+    Press **Confirm payment**. Your wallet opens and asks you to approve the transfer.
+  </Step>
+  <Step title="Done">
+    Wrenai reads the finished transaction from NEAR and marks the payment **Sent**, with a link to the transaction.
+  </Step>
+</Steps>
+
+<Callout tone="tip">
+  If you cancel in your wallet, the card says so and nothing is sent. Ask Jarvis again for a fresh payment.
+</Callout>
+
+## If the wallet didn't report back
+
+If the wallet closed before the app saw the result, the card asks for the transaction hash. Paste it and press **Verify**. Wrenai checks that hash on NEAR and only accepts it if it is exactly this payment. Check your wallet's history before sending again, so you don't pay twice.
