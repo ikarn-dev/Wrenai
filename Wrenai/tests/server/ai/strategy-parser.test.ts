@@ -88,7 +88,7 @@ describe("attested strategy parsing", () => {
       parseAttestedStrategy("spot_trader", "Sell all USDC from my wallet for NEAR"),
     ).rejects.toThrow("Set a fixed token budget");
   });
-  it("rejects a wrapped NEAR strategy if the user requested native NEAR", async () => {
+  it("trades NEAR privately as the 1Click NEAR asset whether the text says NEAR or wNEAR", async () => {
     cloud.create.mockResolvedValue(
       completion({
         kind: "spot_trader",
@@ -105,14 +105,14 @@ describe("attested strategy parsing", () => {
     );
     await expect(
       parseAttestedStrategy("spot_trader", "Spend 1 USDC to buy native NEAR", "nep141:usdc.near"),
-    ).rejects.toThrow("NEAR means native NEAR");
+    ).resolves.toMatchObject({ strategy: { buyAssetId: "nep141:wrap.near" } });
     await expect(
       parseAttestedStrategy("spot_trader", "Spend 1 USDC to buy wNEAR", "nep141:usdc.near"),
     ).resolves.toMatchObject({
       strategy: { buyAssetId: "nep141:wrap.near" },
     });
   });
-  it("preserves native NEAR in a supported strategy and rejects reverse exits", async () => {
+  it("keeps native NEAR on the public route and moves a NEAR leg with exits to the private route", async () => {
     const native = {
       kind: "spot_trader",
       format: 2,
@@ -136,7 +136,9 @@ describe("attested strategy parsing", () => {
         "Spend 1 USDC to buy NEAR with a stop at 2 USDC.",
         WALLET_SWAP_USDC,
       ),
-    ).rejects.toThrow("Remove exit rules");
+    ).resolves.toMatchObject({
+      strategy: { buyAssetId: "nep141:wrap.near", exits: { stopLossPrice: "2" } },
+    });
   });
 
   it("refuses gateway-only signatures even for otherwise valid strategy JSON", async () => {

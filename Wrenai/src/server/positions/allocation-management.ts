@@ -133,6 +133,14 @@ async function requireIdle(
   agentId: string,
 ): Promise<Awaited<ReturnType<typeof ownedAgent>>> {
   const agent = await ownedAgent(db, userId, agentId);
+  // A claim sends the agent's funds to the wallet, and a deleted agent's funds wait in Claims. Moving them
+  // meanwhile once left them in the private balance while the delete reported them returned (Nov 2026).
+  if (agent.claimRequestedAt !== null || agent.deleteRequestedAt !== null) {
+    throw new ExecutionError(
+      "not_ready",
+      "This agent's funds are claimed or waiting in Claims, so they can't be moved here.",
+    );
+  }
   await assertNoWalletFunding(db, userId, agentId);
   const [pending] = await db
     .select({ id: executionActions.id })

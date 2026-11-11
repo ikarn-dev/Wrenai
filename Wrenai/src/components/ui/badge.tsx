@@ -26,6 +26,11 @@ export function badgeClasses(tone: BadgeTone): string {
 // sm: inline status (24 px). md: beside 32 px controls in a bar, such as the account pill.
 const BADGE_SIZES = { sm: "h-6 px-2.5", md: "h-8 px-3" } as const;
 
+/** The badge's own classes, for a badge with live content such as a running timer. */
+export function badgeShape(tone: BadgeTone, size: keyof typeof BADGE_SIZES): string {
+  return `${SHAPE} ${TONES[tone]} badge-shine ${BADGE_SIZES[size]}`;
+}
+
 interface BadgeProps {
   readonly tone: BadgeTone;
   /** A status dot before the label. The label always carries the meaning; the dot only repeats it. */
@@ -36,7 +41,7 @@ interface BadgeProps {
 
 export function Badge({ tone, dot = false, size = "sm", children }: BadgeProps) {
   return (
-    <span className={`${SHAPE} ${TONES[tone]} badge-shine ${BADGE_SIZES[size]}`}>
+    <span className={badgeShape(tone, size)}>
       {dot ? <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-current" /> : null}
       {children}
     </span>

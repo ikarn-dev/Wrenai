@@ -19,6 +19,14 @@ export const walletAssetSchema = z
       (value.startsWith("nep141:") && nearAccountSchema.safeParse(value.slice(7)).success),
     "Choose native NEAR or a valid NEAR token contract.",
   );
+/**
+ * The asset a strategy spends for a wallet budget. Native NEAR is deposited through 1Click, whose NEAR asset is
+ * `nep141:wrap.near` (funding/prepare.ts, setup-binding.ts); every other token spends itself.
+ */
+export function budgetFundingAsset(assetId: string | undefined): string | undefined {
+  return assetId === "native:near" ? "nep141:wrap.near" : assetId;
+}
+
 export const agentBudgetInputSchema = z.strictObject({
   assetId: walletAssetSchema,
   amount: z

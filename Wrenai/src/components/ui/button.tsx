@@ -1,6 +1,7 @@
-import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import { LoaderCircle } from "lucide-react";
+import type { ComponentPropsWithoutRef, MouseEvent, ReactNode } from "react";
 
-type RaisedVariant = "primary" | "soft";
+type RaisedVariant = "primary" | "soft" | "danger";
 type FlatVariant = "secondary" | "ghost" | "destructive";
 type ButtonVariant = RaisedVariant | FlatVariant;
 type ButtonSize = "md" | "lg";
@@ -11,8 +12,9 @@ type ButtonSize = "md" | "lg";
 const SHARED =
   "cursor-pointer whitespace-nowrap rounded-sm font-medium disabled:cursor-not-allowed aria-busy:cursor-default";
 
-// The row that holds the icon and label: a flat button itself, or a raised button's face.
-const ROW = "items-center justify-center gap-2";
+// The row that holds the icon and label: a flat button itself, or a raised button's face. Relative, so the busy
+// spinner can sit over the hidden label.
+const ROW = "relative items-center justify-center gap-2";
 
 const SIZES: Readonly<Record<ButtonSize, { readonly box: string; readonly text: string }>> = {
   md: { box: "h-10 px-4 pointer-coarse:h-11", text: "text-body" },
@@ -35,10 +37,12 @@ const RAISED_VARIANTS: Readonly<Record<RaisedVariant, string>> = {
   primary: "button-glow text-accent-fg",
   // The quiet action beside a primary (Later): same shape and press, no glow.
   soft: "button-soft text-fg-strong",
+  // The destructive confirm beside a soft Cancel, so both share one height and press.
+  danger: "button-danger text-loss",
 };
 
 function isRaised(variant: ButtonVariant): variant is RaisedVariant {
-  return variant === "primary" || variant === "soft";
+  return variant === "primary" || variant === "soft" || variant === "danger";
 }
 
 function buttonClasses(variant: ButtonVariant, size: ButtonSize): string {
@@ -58,22 +62,59 @@ function ButtonFace({ size, children }: ButtonFaceProps) {
   return <span className={`button-face flex ${ROW} ${SIZES[size].box}`}>{children}</span>;
 }
 
+/**
+ * While busy the label keeps its space but hides, and a spinner takes its place, so the button never changes width.
+ * The label stays in the accessibility tree through the sr-only copy.
+ */
+function BusyContent({ children }: { readonly children: ReactNode }) {
+  return (
+    <>
+      <span aria-hidden="true" className="invisible inline-flex items-center gap-2">
+        {children}
+      </span>
+      <span className="sr-only">{children}</span>
+      <LoaderCircle
+        aria-hidden="true"
+        size={18}
+        strokeWidth={1.75}
+        absoluteStrokeWidth
+        className="absolute motion-safe:animate-spin"
+      />
+    </>
+  );
+}
+
+function ignoreBusyClick(event: MouseEvent<HTMLButtonElement>): void {
+  // Also stops a submit button from submitting its form a second time.
+  event.preventDefault();
+}
+
 interface ButtonProps extends Omit<ComponentPropsWithoutRef<"button">, "className" | "type"> {
   readonly variant?: ButtonVariant;
   readonly size?: ButtonSize;
   readonly type?: "button" | "submit";
+  /** Shows a spinner in place of the label and ignores clicks until the work finishes. */
+  readonly busy?: boolean;
 }
 
 export function Button({
   variant = "secondary",
   size = "md",
   type = "button",
+  busy = false,
   children,
+  onClick,
   ...props
 }: ButtonProps) {
+  const content = busy ? <BusyContent>{children}</BusyContent> : children;
   return (
-    <button type={type} className={buttonClasses(variant, size)} {...props}>
-      {isRaised(variant) ? <ButtonFace size={size}>{children}</ButtonFace> : children}
+    <button
+      type={type}
+      className={buttonClasses(variant, size)}
+      {...props}
+      {...(busy ? { "aria-busy": true, onClick: ignoreBusyClick } : onClick ? { onClick } : {})}
+    >
+      {isRaised(variant) ? <ButtonFace size={size}>{content}</ButtonFace> : content}
     </button>
   );
 }

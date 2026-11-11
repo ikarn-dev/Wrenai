@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { agentRuntimes } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { instructionStateSchema } from "@/server/engine/instruction-state";
+import { guardManualAction } from "@/server/manual-trading/guard";
 import { currentAgentStrategy } from "./asset-review";
 import { submitConfidentialTransfer } from "./confidential-transfer";
 import { ExecutionError } from "./contracts";
@@ -23,6 +24,25 @@ export async function executePaymentAction(
   }
   const plan = defiPlanSchema.parse(JSON.parse(action.planJson)),
     saved = await paymentRecord(db, action);
+  if (action.origin === "manual") {
+    if (
+      plan.budgetMode !== "manual" ||
+      saved.destination !== "confidential" ||
+      plan.venueId !== "confidential-intents"
+    ) {
+      throw new ExecutionError("conflict", "The payment is outside its reviewed private route.");
+    }
+    await submitConfidentialTransfer(
+      db,
+      action,
+      leaseToken,
+      saved.order,
+      (accountId) => verifiedPaymentQuote(action, saved, accountId, Date.now()),
+      async (tx) => guardManualAction(tx, action, await databaseTime(tx), true, saved.order.payloadHash),
+      "payment_submitted",
+    );
+    return;
+  }
   const current = await currentAgentStrategy(db, userId, action.agentId, action.agentRevision),
     instruction = current.strategy;
   if (

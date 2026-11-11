@@ -1,26 +1,22 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { LoaderCircle } from "lucide-react";
 import { type FormEvent, type ReactElement, useRef, useState } from "react";
 import { PortfolioPanel } from "@/components/portfolio/panel";
 import { readTrading } from "@/components/trading/trading-api";
 import { Button } from "@/components/ui/button";
 import { AgentKeyDialog } from "@/components/wallet/agent-key-dialog";
 import { walletTransactionHash } from "@/components/wallet/transaction-hash";
-import {
-  beginWalletFunding,
-  cancelWalletFundingReview,
-  continueWalletFunding,
-  reviewWalletFunding,
-  stopPrivateFunding,
-  submitWalletFundingProof,
-} from "@/server/funding/actions";
 import { budgetTokenAmount } from "@/shared/agent-budget";
 import type { AgentResult, AgentSummary } from "@/shared/agents";
+import { shortTokenAmount } from "@/shared/money";
 import {
   agentFundingStateSchema,
+  directNativeFunding,
   type WalletFundingView,
   walletFundingTransaction,
 } from "@/shared/wallet-funding";
+import { fundingClose, fundingStep } from "./review-api";
 
 function value<T>(result: AgentResult<T>): T {
   if (!result.ok) {
@@ -28,17 +24,28 @@ function value<T>(result: AgentResult<T>): T {
   }
   return result.value;
 }
+/** The query key for an agent's funding state, shared with the deploy flow that waits on it. */
+export function agentFundingKey(ownerId: string, agentId: string, revision: number): readonly unknown[] {
+  return ["agent-funding", ownerId, agentId, revision];
+}
+
 export function AgentWalletFunding({
   agent,
   ownerId,
   accountId,
+  available,
+  framed = true,
 }: {
-  readonly agent: AgentSummary;
+  readonly agent: Pick<AgentSummary, "id" | "revision" | "status">;
   readonly ownerId: string;
   readonly accountId: string;
+  /** False when this deployment has no trading workflow, so funds could not be moved or used. */
+  readonly available: boolean;
+  /** False inside another surface, such as the create dialog, so the panel isn't a card inside a card. */
+  readonly framed?: boolean;
 }): ReactElement {
   const cache = useQueryClient(),
-    key = ["agent-funding", ownerId, agent.id, agent.revision];
+    key = agentFundingKey(ownerId, agent.id, agent.revision);
   const request = useRef<string | null>(null);
   const [transactionHash, setTransactionHash] = useState("");
   const query = useQuery({
@@ -52,7 +59,14 @@ export function AgentWalletFunding({
     retry: false,
     staleTime: 5000,
     refetchOnWindowFocus: true,
-    refetchInterval: (q) => (q.state.data?.funding?.state === "converting" ? 5000 : false),
+    // Polls only while funds are moving: a conversion, or a NEAR deposit 1Click is delivering.
+    refetchInterval: (q) => {
+      const saved = q.state.data?.funding;
+      return saved?.state === "converting" ||
+        (saved?.state === "deposited" && directNativeFunding(saved.snapshot))
+        ? 5000
+        : false;
+    },
     refetchIntervalInBackground: false,
   });
   async function changed(): Promise<void> {
@@ -62,13 +76,26 @@ export function AgentWalletFunding({
       cache.invalidateQueries({ queryKey: ["agent-runtime", ownerId, agent.id] }),
     ]);
   }
+  async function reopenReview(fundingId: string): Promise<void> {
+    value(await fundingClose("decline", { fundingId }));
+    request.current = crypto.randomUUID();
+    value(
+      await fundingStep("review", {
+        requestId: request.current,
+        agentId: agent.id,
+        expectedRevision: agent.revision,
+      }),
+    );
+  }
   const action = useMutation({
-    mutationFn: async (command: "review" | "deposit" | "continue" | "proof" | "cancel" | "public") => {
+    mutationFn: async (
+      command: "review" | "deposit" | "continue" | "proof" | "cancel" | "public" | "decline",
+    ) => {
       const saved = query.data?.funding;
       if (command === "review") {
         request.current ??= crypto.randomUUID();
         return value(
-          await reviewWalletFunding({
+          await fundingStep("review", {
             requestId: request.current,
             agentId: agent.id,
             expectedRevision: agent.revision,
@@ -79,38 +106,69 @@ export function AgentWalletFunding({
         throw new Error("Refresh the agent funding review.");
       }
       if (command === "cancel") {
-        value(await cancelWalletFundingReview({ fundingId: saved.id }));
+        value(await fundingClose("cancel", { fundingId: saved.id }));
         request.current = null;
         return null;
       }
       if (command === "public") {
-        value(await stopPrivateFunding({ fundingId: saved.id }));
+        value(await fundingClose("public", { fundingId: saved.id }));
+        return null;
+      }
+      if (command === "decline") {
+        await reopenReview(saved.id);
         return null;
       }
       if (command === "continue") {
-        return value(await continueWalletFunding({ fundingId: saved.id }));
+        return value(await fundingStep("continue", { fundingId: saved.id }));
       }
       if (command === "proof") {
         return value(
-          await submitWalletFundingProof({ fundingId: saved.id, transactionHash: transactionHash.trim() }),
+          await fundingStep("proof", { fundingId: saved.id, transactionHash: transactionHash.trim() }),
         );
       }
-      const { walletForAccount } = await import("@/components/wallet/near-connector");
+      const [{ walletForAccount }, { walletNotice }] = await Promise.all([
+        import("@/components/wallet/near-connector"),
+        import("@/components/wallet/notices"),
+      ]);
       const wallet = await walletForAccount(accountId, "authorize", () => {});
       if (!wallet.ok) {
         throw new Error(wallet.notice.text);
       }
-      const attempted = value(await beginWalletFunding({ fundingId: saved.id }));
+      // An expired review gets a fresh quote first, so a retry after a cancel needs no extra click.
+      let fundingId = saved.id;
+      if (saved.expiresAt <= Date.now()) {
+        value(await fundingClose("cancel", { fundingId }));
+        request.current = crypto.randomUUID();
+        fundingId = value(
+          await fundingStep("review", {
+            requestId: request.current,
+            agentId: agent.id,
+            expectedRevision: agent.revision,
+          }),
+        ).id;
+      }
+      const attempted = value(await fundingStep("begin", { fundingId }));
       const transaction = walletFundingTransaction(attempted.snapshot);
-      const reply = await wallet.value.signAndSendTransaction({
-        ...transaction,
-        actions: [...transaction.actions],
-      });
+      let reply: unknown;
+      try {
+        reply = await wallet.value.signAndSendTransaction({
+          ...transaction,
+          actions: [...transaction.actions],
+        });
+      } catch (error) {
+        const notice = walletNotice(error, "authorize");
+        if (notice.tone === "info") {
+          // The wallet reports the owner declined: close that request and get a fresh one, so Confirm works again.
+          await reopenReview(fundingId);
+          throw new Error("Deposit cancelled in your wallet. Confirm again when you’re ready.");
+        }
+        throw new Error(notice.text);
+      }
       const hash = walletTransactionHash.parse(reply);
       setTransactionHash(hash);
-      const confirmed = value(await submitWalletFundingProof({ fundingId: saved.id, transactionHash: hash }));
+      const confirmed = value(await fundingStep("proof", { fundingId, transactionHash: hash }));
       return confirmed.state === "deposited"
-        ? value(await continueWalletFunding({ fundingId: saved.id }))
+        ? value(await fundingStep("continue", { fundingId }))
         : confirmed;
     },
     onSettled: changed,
@@ -122,8 +180,8 @@ export function AgentWalletFunding({
     event.preventDefault();
     action.mutate("proof");
   }
-  return (
-    <PortfolioPanel id="agent-funding" title="Agent funds">
+  const content = (
+    <>
       {query.isPending ? (
         <p role="status" className="text-small text-fg-muted">
           Checking your agent’s funds…
@@ -140,7 +198,8 @@ export function AgentWalletFunding({
           {!data.authorized ? (
             <div className="space-y-3">
               <p className="text-small text-fg-muted">
-                Approve trading once. Your agents share this authorization until you revoke it.
+                Allow your agents to trade for you. One approval covers all of them, and you can revoke it in
+                Settings.
               </p>
               <AgentKeyDialog accountId={accountId} onAuthorized={changed} />
             </div>
@@ -148,38 +207,45 @@ export function AgentWalletFunding({
           {data.budget ? (
             <p className="text-small">
               <span className="text-fg-muted">Budget </span>
-              <span className="break-all font-mono tabular-nums">
-                {budgetTokenAmount(data.budget.units, data.budget.decimals)} {data.budget.symbol}
+              <span
+                className="font-mono tabular-nums text-fg-strong"
+                title={`${budgetTokenAmount(data.budget.units, data.budget.decimals)} ${data.budget.symbol}`}
+              >
+                {shortTokenAmount(data.budget.units, data.budget.decimals)} {data.budget.symbol}
               </span>
             </p>
           ) : null}
           {funding ? (
             <FundingProgress funding={funding} busy={busy} onAction={(command) => action.mutate(command)} />
           ) : data.allocatedPrivateUnits !== "0" ? (
-            <p className="text-small text-accent-text">Funds allocated. Start the agent when you’re ready.</p>
+            <p className="text-small text-accent-text">Funds are in. Start the agent when you’re ready.</p>
           ) : data.allocatedPublicUnits !== "0" ? (
             <p className="text-small text-fg-muted">
-              Funds remain in your public Intents balance. Manage or release their allocation under Advanced
-              options.
+              Funds are in your public Intents balance. Manage them under More details.
             </p>
           ) : data.budget?.walletReservedUnits === "0" ? (
             <p className="text-small text-fg-muted">
-              This wallet budget has already been used or released. Manage remaining allocations under
-              Advanced options.
+              This budget was already moved or released. Manage the rest under More details.
             </p>
           ) : (
             <div className="space-y-3">
               <p className="text-small text-fg-muted">
-                Review the costs, then confirm one wallet deposit. The private-balance step is handled for
-                you.
+                Choosing a budget only set it aside in your wallet. Move it to the agent with one wallet
+                approval; the cost is shown before you approve.
               </p>
               <Button
                 variant="primary"
-                disabled={busy || !data.authorized || agent.status === "running"}
+                disabled={busy || !available || !data.authorized || agent.status === "running"}
                 onClick={() => action.mutate("review")}
               >
-                {busy ? "Checking costs…" : "Fund agent"}
+                {busy ? "Checking costs…" : "Move funds to agent"}
               </Button>
+              {available ? null : (
+                <p className="text-caption text-warn">
+                  Funding and starting need the trading workflow: use the Vercel app, or set
+                  WRENAI_LOCAL_EXECUTION=1 for this copy.
+                </p>
+              )}
             </div>
           )}
           {funding?.state === "wallet_pending" ? (
@@ -199,9 +265,20 @@ export function AgentWalletFunding({
                   className="min-h-11 rounded-sm border border-line bg-surface-2 px-3 font-mono text-small"
                 />
               </label>
-              <Button type="submit" disabled={busy}>
-                {busy ? "Verifying…" : "Verify deposit"}
-              </Button>
+              <div className="flex flex-wrap gap-3">
+                <Button type="submit" disabled={busy}>
+                  {busy ? "Verifying…" : "Verify deposit"}
+                </Button>
+                {/* For a wallet window that closed without approving. A deposit sent anyway stays in your own balance. */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => action.mutate("decline")}
+                >
+                  I didn’t approve it
+                </Button>
+              </div>
             </form>
           ) : null}
         </div>
@@ -211,7 +288,14 @@ export function AgentWalletFunding({
           {action.error.message}
         </p>
       ) : null}
+    </>
+  );
+  return framed ? (
+    <PortfolioPanel id="agent-funding" title="Funds">
+      {content}
     </PortfolioPanel>
+  ) : (
+    content
   );
 }
 function FundingProgress({
@@ -224,6 +308,8 @@ function FundingProgress({
   readonly onAction: (command: "deposit" | "continue" | "cancel" | "public") => void;
 }): ReactElement {
   const snapshot = funding.snapshot;
+  // Native NEAR is deposited as 1Click's NEAR asset (wrap.near); to the user it is NEAR throughout.
+  const symbol = snapshot.walletAssetId === "native:near" ? "NEAR" : snapshot.symbol;
   if (funding.state === "prepared") {
     return (
       <div className="space-y-3">
@@ -231,13 +317,13 @@ function FundingProgress({
           <div>
             <dt className="text-fg-muted">From your wallet</dt>
             <dd className="break-all font-mono tabular-nums">
-              {budgetTokenAmount(snapshot.units, snapshot.decimals)} {snapshot.symbol}
+              {budgetTokenAmount(snapshot.units, snapshot.decimals)} {symbol}
             </dd>
           </div>
           <div>
             <dt className="text-fg-muted">Minimum into your private balance</dt>
             <dd className="break-all font-mono tabular-nums">
-              {budgetTokenAmount(snapshot.minimumPrivateUnits, snapshot.decimals)} {snapshot.symbol}
+              {budgetTokenAmount(snapshot.minimumPrivateUnits, snapshot.decimals)} {symbol}
             </dd>
           </div>
         </dl>
@@ -253,6 +339,25 @@ function FundingProgress({
             Cancel review
           </Button>
         </div>
+      </div>
+    );
+  }
+  if (funding.state === "deposited" && directNativeFunding(snapshot)) {
+    return (
+      <div className="space-y-3">
+        <p role="status" className="flex items-center gap-2 text-small text-fg-muted">
+          <LoaderCircle
+            size={14}
+            strokeWidth={1.75}
+            absoluteStrokeWidth
+            aria-hidden="true"
+            className="motion-safe:animate-spin"
+          />
+          NEAR sent. It usually reaches the agent within a minute.
+        </p>
+        <Button variant="soft" disabled={busy} onClick={() => onAction("continue")}>
+          {busy ? "Checking…" : "Check now"}
+        </Button>
       </div>
     );
   }

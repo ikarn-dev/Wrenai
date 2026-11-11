@@ -9,7 +9,11 @@ import { tokenUnitsSchema } from "@/shared/token-units";
 import { ExecutionError } from "./contracts";
 import { settleDefiExecution } from "./defi-accounting";
 import { defiPlanSchema } from "./defi-contracts";
-import { intentsStatusSchema, readIntentsProviderStatus } from "./intents-reconciliation";
+import {
+  confirmedStatusQuote,
+  intentsStatusSchema,
+  readIntentsProviderStatus,
+} from "./intents-reconciliation";
 import { quoteMicroUsd } from "./oneclick-quote";
 import { paymentRecord, verifiedPaymentQuote } from "./payment-order";
 import { synchronizePrivateInventory } from "./private-inventory";
@@ -59,7 +63,13 @@ export async function reconcilePaymentAction(
   const status = intentsStatusSchema.parse(await readIntentsProviderStatus(saved.order.depositAddress));
   verifiedPaymentQuote(
     action,
-    { ...saved, order: { ...saved.order, providerQuote: status.quoteResponse } },
+    {
+      ...saved,
+      order: {
+        ...saved.order,
+        providerQuote: confirmedStatusQuote(saved.order.providerQuote, status.quoteResponse),
+      },
+    },
     account,
     saved.order.quotedAt,
   );
@@ -87,25 +97,6 @@ export async function reconcilePaymentAction(
       "not_ready",
       "The payment status does not fully account for its recipient amount, deposit and refund.",
     );
-  }
-  const [submitted] = await db
-    .select()
-    .from(executionEvents)
-    .where(
-      and(
-        eq(executionEvents.userId, userId),
-        eq(executionEvents.actionId, actionId),
-        eq(executionEvents.kind, "payment_submitted"),
-      ),
-    )
-    .limit(1);
-  if (
-    submitted &&
-    !details.intentHashes.includes(
-      z.object({ intentHash: z.string() }).parse(JSON.parse(submitted.detailJson)).intentHash,
-    )
-  ) {
-    throw new ExecutionError("conflict", "The payment receipt does not include the acknowledged transfer.");
   }
   const evidence = paymentTerminalSchema.parse({
     ...(saved.destination === "near_wallet"

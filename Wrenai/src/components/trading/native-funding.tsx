@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   cancelNativeFunding,
   confirmNativeFundingStep,
+  declineNativeFundingStep,
   readNativeFunding,
   reviewNativeFunding,
   startNativeFundingStep,
@@ -106,7 +107,21 @@ export function NativeFunding({
           role === "gas"
             ? nativeGasTransaction(attempted.snapshot)
             : nativeDepositTransaction(attempted.snapshot);
-        const response = await wallet.value.signAndSendTransaction(transaction);
+        let response: unknown;
+        try {
+          response = await wallet.value.signAndSendTransaction(transaction);
+        } catch (failure) {
+          const { walletNotice } = await import("@/components/wallet/notices");
+          const notice = walletNotice(failure, "authorize");
+          if (notice.tone === "info") {
+            // Declined in the wallet: reopen this step so it can simply be approved again.
+            value(await declineNativeFundingStep({ id: saved.id, snapshotHash: saved.snapshotHash }));
+            setError("Deposit cancelled in your wallet. Continue when you’re ready.");
+            await query.refetch();
+            return;
+          }
+          throw new Error(notice.text);
+        }
         const transactionHash = walletHash.parse(response);
         setHash(transactionHash);
         await changed(value(await confirmNativeFundingStep({ ...command, transactionHash })));

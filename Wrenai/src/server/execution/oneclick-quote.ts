@@ -114,7 +114,10 @@ export function verifiedProviderQuote(
 ): TradeQuote {
   const parsed = z
     .object({
-      correlationId: z.string().max(256),
+      // Unsigned metadata: the SDK's signed hash covers only quoteRequest, quote and timestamp (hashQuote in
+      // @defuse-protocol/one-click-sdk-typescript), and 1Click leaves it out of the quote echoed by /v0/status.
+      // Fresh /v0/quote responses still carry it, so their hashes keep the stored format.
+      correlationId: z.string().max(256).optional(),
       timestamp: z.iso.datetime(),
       signature: z.string().max(512),
       quoteRequest: z.looseObject({
@@ -134,10 +137,12 @@ export function verifiedProviderQuote(
       quote: quoteFields,
     })
     .parse(raw);
-  z.object({ quoteWaitingTimeMs: z.literal(request.quoteWaitingTimeMs ?? 0).optional() }).parse(
+  // The quote 1Click echoes in /v0/status fills unset request fields with null rather than leaving them out
+  // (observed Nov 2026), so null reads as "not set" here, like an absent field. Any real value still fails.
+  z.object({ quoteWaitingTimeMs: z.literal(request.quoteWaitingTimeMs ?? 0).nullish() }).parse(
     parsed.quoteRequest,
   );
-  z.object({ refundFee: tokenUnitsSchema.optional(), withdrawFee: tokenUnitsSchema.optional() }).parse(
+  z.object({ refundFee: tokenUnitsSchema.nullish(), withdrawFee: tokenUnitsSchema.nullish() }).parse(
     parsed.quote,
   );
   const unexpected = [
@@ -146,28 +151,32 @@ export function verifiedProviderQuote(
     "virtualChainRecipient",
     "virtualChainRefundRecipient",
     "insured",
-  ];
-  if (
-    unexpected.some(
-      (key) =>
-        parsed.quoteRequest[key] !== undefined &&
-        parsed.quoteRequest[key] !== false &&
-        JSON.stringify(parsed.quoteRequest[key]) !== "[]",
-    )
-  ) {
-    throw new ExecutionError("not_ready", "The quote added unapproved fees or routing instructions.");
+  ].find((key) => {
+    const value = parsed.quoteRequest[key];
+    return value !== undefined && value !== null && value !== false && JSON.stringify(value) !== "[]";
+  });
+  if (unexpected !== undefined) {
+    // The field's name is protocol vocabulary, not a secret; naming it lets a blocked return be diagnosed.
+    throw new ExecutionError(
+      "not_ready",
+      `The quote added unapproved fees or routing instructions (${unexpected}).`,
+    );
   }
   const { appFees } = z
     .object({
       appFees: z
         .array(z.object({ recipient: z.string().min(2).max(64), fee: z.number().int().min(0).max(2000) }))
         .max(10)
-        .default([]),
+        .nullish()
+        .transform((fees) => fees ?? []),
     })
     .parse(parsed.quoteRequest);
   const appFeeBps = appFees.reduce((sum, fee) => sum + fee.fee, 0);
   const quotedAt = Date.parse(parsed.timestamp);
-  if (quotedAt > capturedAt + 1000 || capturedAt - quotedAt >= 15_000 || !verifyQuoteSignature(parsed)) {
+  // The SDK's QuoteResponse type requires correlationId, but its signed hash excludes it, so an empty value for a
+  // status echo verifies exactly the same signed content. `parsed` (and so quoteHash) is left unchanged.
+  const signed = { ...parsed, correlationId: parsed.correlationId ?? "" };
+  if (quotedAt > capturedAt + 1000 || capturedAt - quotedAt >= 15_000 || !verifyQuoteSignature(signed)) {
     throw new ExecutionError("not_ready", "The quote signature or freshness check failed.");
   }
   const quote = parsed.quote;

@@ -14,8 +14,22 @@ export const walletFundingSnapshotSchema = z.strictObject({
   principalMicroUsd: positiveTokenUnitsSchema,
   maximumSlippageBps: z.number().int().min(1).max(500),
   maximumProviderFeeBps: z.number().int().min(0).max(2000),
+  // Native NEAR: one plain transfer to this 1Click deposit address, delivered straight to the private balance.
+  // Older reviews have neither field and keep the wrap-and-deposit route.
+  depositAddress: nearAccountSchema.optional(),
+  requestDeadline: z.iso.datetime().optional(),
 });
 export type WalletFundingSnapshot = z.infer<typeof walletFundingSnapshotSchema>;
+/** True when the deposit is one native NEAR transfer that 1Click delivers to the private balance. */
+export function directNativeFunding(
+  snapshot: WalletFundingSnapshot,
+): snapshot is WalletFundingSnapshot & { readonly depositAddress: string; readonly requestDeadline: string } {
+  return (
+    snapshot.walletAssetId === "native:near" &&
+    snapshot.depositAddress !== undefined &&
+    snapshot.requestDeadline !== undefined
+  );
+}
 export const fundingIdInputSchema = z.strictObject({ fundingId: z.uuid() });
 export const fundingTransactionInputSchema = fundingIdInputSchema.extend({
   transactionHash: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,64}$/),
@@ -26,8 +40,9 @@ export const walletFundingStateSchema = z.enum([
   "deposited",
   "converting",
   "complete",
+  "abandoned",
 ]);
-const walletFundingViewSchema = z.strictObject({
+export const walletFundingViewSchema = z.strictObject({
   id: z.string(),
   state: walletFundingStateSchema,
   snapshot: walletFundingSnapshotSchema,
@@ -46,21 +61,36 @@ export const agentFundingStateSchema = z.strictObject({
 });
 export type AgentFundingState = z.infer<typeof agentFundingStateSchema>;
 
-/** One wallet transaction: wrap native NEAR if necessary, then deposit the exact FT into the owner's Verifier balance. */
+export interface WalletFundingCall {
+  readonly type: "FunctionCall";
+  readonly params: {
+    readonly methodName: string;
+    readonly args: Readonly<Record<string, string>>;
+    readonly gas: string;
+    readonly deposit: string;
+  };
+}
+export interface WalletFundingTransfer {
+  readonly type: "Transfer";
+  readonly params: { readonly deposit: string };
+}
+/**
+ * One wallet transaction. Native NEAR is one plain transfer to the 1Click deposit address: no wNEAR, no second
+ * asset in the wallet. A token is deposited as-is into the owner's Intents balance.
+ */
 export function walletFundingTransaction(snapshot: WalletFundingSnapshot): {
   readonly signerId: string;
   readonly receiverId: string;
-  readonly actions: readonly {
-    readonly type: "FunctionCall";
-    readonly params: {
-      readonly methodName: string;
-      readonly args: Readonly<Record<string, string>>;
-      readonly gas: string;
-      readonly deposit: string;
-    };
-  }[];
+  readonly actions: readonly (WalletFundingCall | WalletFundingTransfer)[];
 } {
   walletFundingSnapshotSchema.parse(snapshot);
+  if (directNativeFunding(snapshot)) {
+    return {
+      signerId: snapshot.accountId,
+      receiverId: snapshot.depositAddress,
+      actions: [{ type: "Transfer", params: { deposit: snapshot.units } }],
+    };
+  }
   const contract = nearAccountSchema.parse(snapshot.assetId.slice(7));
   if (
     snapshot.walletAssetId === "native:near"

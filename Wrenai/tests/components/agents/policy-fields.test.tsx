@@ -10,27 +10,33 @@ function limits(pack: string): string {
 }
 
 describe("agent setup limits", () => {
-  it("offers payment and quote caps without position or frequency controls for a one-off payment", () => {
+  it("offers payment and price caps without position or pacing controls for a one-off payment", () => {
     const html = limits("private_payments");
     expect(html).toContain("Payment limits");
-    expect(html).toContain("Per payment, USD");
-    expect(html).toContain("Provider fee cap, bps");
-    expect(html).toContain("Quote tolerance, bps");
+    expect(html).toContain("Most per payment");
+    expect(html).toContain("Extra fee limit");
+    expect(html).toContain("Price protection");
     expect(html).not.toContain("per hour");
-    expect(html).not.toContain("position-reducing exits");
+    expect(html).not.toContain("safety sells");
   });
 
-  it("shows purchase frequency controls for DCA without exposing protective exits", () => {
+  it("shows purchase pacing controls for DCA without exposing protective exits", () => {
     const html = limits("dca");
-    expect(html).toContain("Per purchase, USD");
-    expect(html).toContain("Max purchases per hour");
-    expect(html).not.toContain("position-reducing exits");
+    expect(html).toContain("Most per purchase");
+    expect(html).toContain("Most purchases per hour");
+    expect(html).not.toContain("safety sells");
   });
 
-  it("retains position-reducing exit controls for Perps", () => {
+  it("retains protective exit controls for Perps", () => {
     const html = limits("perps");
     expect(html).toContain("Perps order limits");
-    expect(html).toContain("Slippage cap, bps");
-    expect(html).toContain("Allow position-reducing exits");
+    expect(html).toContain("Price protection");
+    expect(html).toContain("Allow safety sells");
+  });
+
+  it("shows percentages instead of basis points", () => {
+    const html = limits("spot_trader");
+    expect(html).toContain(`value="${DEFAULT_POLICY.maxSlippageBps / 100}"`);
+    expect(html).not.toContain("bps");
   });
 });

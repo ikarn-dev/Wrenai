@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { currentUser } from "@/server/auth/session";
+import { serverEnv } from "@/server/env";
 import { ExecutionError } from "@/server/execution/contracts";
 import { consumeRateLimit } from "@/server/http/rate-limit";
 import { reportUnexpectedError } from "@/server/http/unexpected-error";
@@ -81,4 +82,36 @@ export async function tradingRead<T>(
     status: result.ok ? 200 : status(result.code),
     headers: { "Cache-Control": "private, no-store" },
   });
+}
+
+const MAX_BODY_BYTES = 20_000;
+
+/**
+ * A same-origin JSON POST for a trading mutation. Route handlers, not Server Actions: a Server Action holds the
+ * router while it runs, so the page behind a claim dialog showed "Rendering" for the whole quote.
+ */
+export async function tradingPost<T>(
+  request: Request,
+  run: (userId: string, accountId: string, body: unknown) => Promise<T>,
+): Promise<Response> {
+  const headers = { "Cache-Control": "private, no-store" };
+  const text = await request.text();
+  let body: unknown = null;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    body = null;
+  }
+  if (
+    request.headers.get("origin") !== serverEnv().appOrigin ||
+    text.length > MAX_BODY_BYTES ||
+    body === null
+  ) {
+    return Response.json(
+      { ok: false, code: "invalid_input", message: "Open Wrenai and try again." },
+      { status: 400, headers },
+    );
+  }
+  const result = await tradingAction((userId, accountId) => run(userId, accountId, body));
+  return Response.json(result, { status: result.ok ? 200 : status(result.code), headers });
 }

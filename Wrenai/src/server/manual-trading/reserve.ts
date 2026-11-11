@@ -25,6 +25,7 @@ export async function reserveManualTrade(
   row: ManualTrade,
   envelope: ManualEnvelope,
   now: number,
+  expectedSigningKey?: string,
 ): Promise<LedgerAction> {
   const plan = envelope.plan;
   const swap = envelope.kind === "intents" || envelope.kind === "rhea";
@@ -50,6 +51,9 @@ export async function reserveManualTrade(
   const [key] = await db.select().from(delegatedKeys).where(eq(delegatedKeys.userId, row.userId)).limit(1);
   if (!key?.activatedAt || !key.activatedAtBlock) {
     throw new ExecutionError("not_ready", "Connect trading access before confirming this trade.");
+  }
+  if (expectedSigningKey !== undefined && key.publicKey !== expectedSigningKey) {
+    throw new ExecutionError("not_ready", "Trading access changed. Review this payment again.");
   }
   const debits = swap
     ? [{ assetId: envelope.plan.inputAssetId, maxDebitUnits: envelope.plan.inputUnits }]
@@ -156,7 +160,11 @@ export async function reserveManualTrade(
           ? "perps_funding_prepared"
           : envelope.kind === "perps_return"
             ? "perps_return_prepared"
-            : "hl_prepared",
+            : envelope.kind === "wallet_return"
+              ? "wallet_return_prepared"
+              : envelope.kind === "payment"
+                ? "payment_prepared"
+                : "hl_prepared",
     now,
     envelope.prepared,
   );

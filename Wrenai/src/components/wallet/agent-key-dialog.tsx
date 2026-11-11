@@ -1,6 +1,7 @@
 "use client";
 
 import { useLenis } from "lenis/react";
+import { useRouter } from "next/navigation";
 import { Dialog } from "radix-ui";
 import { type ReactElement, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ export function AgentKeyDialog({ accountId, onAuthorized }: AgentKeyDialogProps)
   const [open, setOpen] = useState(false);
   const [working, setWorking] = useState(false);
   const lenis = useLenis();
+  const router = useRouter();
 
   // Lenis would keep scrolling the page behind the dialog (Docs/tech-stack.md → Lenis).
   useEffect(() => {
@@ -40,6 +42,8 @@ export function AgentKeyDialog({ accountId, onAuthorized }: AgentKeyDialogProps)
   return (
     <Dialog.Root
       open={open}
+      // Non-modal while the wallet approves, so its window can take clicks and focus.
+      modal={!working}
       onOpenChange={(next) => {
         if (next) {
           setOpen(true);
@@ -52,7 +56,11 @@ export function AgentKeyDialog({ accountId, onAuthorized }: AgentKeyDialogProps)
         <Button variant="secondary">Set up agent key</Button>
       </Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-bg/80" />
+        {working ? (
+          <div aria-hidden="true" className="fixed inset-0 z-40 bg-bg/80" />
+        ) : (
+          <Dialog.Overlay className="fixed inset-0 z-40 bg-bg/80" />
+        )}
         <Dialog.Content className="fixed inset-x-gutter top-1/2 z-50 mx-auto max-w-md -translate-y-1/2 card-shine rounded-xl p-card text-center">
           <Dialog.Title className="font-rounded text-h1 font-bold">Let your agents trade</Dialog.Title>
           <Dialog.Description asChild>
@@ -67,7 +75,12 @@ export function AgentKeyDialog({ accountId, onAuthorized }: AgentKeyDialogProps)
               onWorkingChange={setWorking}
               onAuthorized={async () => {
                 setOpen(false);
-                await onAuthorized?.();
+                // A caller that tracks the key in its own queries refreshes those; otherwise the page shows the new key.
+                if (onAuthorized) {
+                  await onAuthorized();
+                } else {
+                  router.refresh();
+                }
               }}
             />
           </div>

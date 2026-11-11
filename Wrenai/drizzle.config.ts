@@ -18,7 +18,6 @@ export default defineConfig({
     "./src/server/db/position-schema.ts",
     "./src/server/db/preview-schema.ts",
     "./src/server/db/risk-schema.ts",
-    "./src/server/db/telegram-schema.ts",
     "./src/server/db/trading-account-schema.ts",
     "./src/server/db/funding-schema.ts",
     "./src/server/db/portfolio-schema.ts",

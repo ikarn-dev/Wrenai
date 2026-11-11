@@ -49,34 +49,34 @@ export function AuthorizeKeyPanel({
         <Button variant="soft" disabled={working} onClick={onLater}>
           Later
         </Button>
-        <Button
-          variant="primary"
-          aria-busy={working}
-          onClick={() => {
-            if (!working) {
-              void authorize();
-            }
-          }}
-        >
-          {working ? null : (
-            <KeyRound
-              aria-hidden="true"
-              size={16}
-              strokeWidth={1.75}
-              absoluteStrokeWidth
-              className="shrink-0"
-            />
-          )}
-          <span className="min-w-0 truncate">{working ? phase.label : "Set up key"}</span>
+        <Button variant="primary" busy={working} onClick={() => void authorize()}>
+          <KeyRound
+            aria-hidden="true"
+            size={16}
+            strokeWidth={1.75}
+            absoluteStrokeWidth
+            className="shrink-0"
+          />
+          <span className="min-w-0 truncate">Set up key</span>
         </Button>
       </div>
       <StatusLine
         notice={phase.kind === "stopped" ? phase.notice : null}
         note={
-          <>
-            <Fuel aria-hidden="true" size={14} strokeWidth={1.75} absoluteStrokeWidth className="shrink-0" />
-            <span className="min-w-0 text-small">One approval in your wallet. Tiny network fee.</span>
-          </>
+          phase.kind === "working" ? (
+            <span className="min-w-0 text-small">{phase.label}</span>
+          ) : (
+            <>
+              <Fuel
+                aria-hidden="true"
+                size={14}
+                strokeWidth={1.75}
+                absoluteStrokeWidth
+                className="shrink-0"
+              />
+              <span className="min-w-0 text-small">One approval in your wallet. Tiny network fee.</span>
+            </>
+          )
         }
       />
     </div>

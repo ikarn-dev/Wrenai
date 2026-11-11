@@ -7,6 +7,7 @@ import type { ChatReply, ChatTurn } from "@/shared/chat";
 import { CopyButton } from "./copy-button";
 import { JarvisMark } from "./jarvis-mark";
 import { ChatMarkdown } from "./markdown";
+import { PaymentCard } from "./payment-card";
 
 const ICON = { "aria-hidden": true, size: 13, strokeWidth: 1.75, absoluteStrokeWidth: true } as const;
 // Actions under a message stay quiet until the message is hovered or focused; touch shows them always.
@@ -122,6 +123,7 @@ function ReplyBody({ reply }: { readonly reply: ChatReply }) {
       <>
         <p className="text-body text-fg">{reply.manual.text}</p>
         {reply.manual.quoteRequest ? <QuoteRequest request={reply.manual.quoteRequest} /> : null}
+        {reply.manual.payment ? <PaymentCard offer={reply.manual.payment} /> : null}
         {reply.manual.tradeIds.map((id) => (
           <TradeCard key={id} id={id} />
         ))}

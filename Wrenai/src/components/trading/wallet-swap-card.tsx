@@ -9,12 +9,6 @@ import { Button } from "@/components/ui/button";
 import { notify, type ToastTone } from "@/components/ui/toast";
 import { walletNotice } from "@/components/wallet/notices";
 import { walletTransactionHash } from "@/components/wallet/transaction-hash";
-import {
-  dismissWalletSwap,
-  recordWalletSwap,
-  requestWalletSwap,
-  startWalletSwap,
-} from "@/server/manual-trading/actions";
 import type { TradingResult } from "@/shared/manual-trading";
 import { PORTFOLIO_WALLET_KEY } from "@/shared/portfolio-wallet";
 import {
@@ -26,6 +20,7 @@ import {
 import { notifyQuoteFailure } from "./quote-feedback";
 import { QuoteTimer, SwapSummary } from "./swap-summary";
 import { readTrading } from "./trading-api";
+import { dismissWalletSwap, recordWalletSwap, requestWalletSwap, startWalletSwap } from "./trading-mutations";
 import {
   type WalletApproval,
   type WalletSwapAction,

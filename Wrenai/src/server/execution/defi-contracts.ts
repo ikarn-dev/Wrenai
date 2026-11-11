@@ -3,6 +3,13 @@ import { positiveTokenUnitsSchema, tokenUnitsSchema } from "@/shared/token-units
 import { hashSchema, scopeSchema } from "./contracts";
 
 const assetId = z.string().min(1).max(256).regex(/^\S+$/);
+/** Where each balance location sends a wallet return. Perps venue cash returns through its own route first. */
+export const WALLET_RETURN_VENUES = {
+  confidential: "confidential-intents",
+  intents: "near-intents",
+  native_near: "near-account",
+  hyperliquid: null,
+} as const;
 const reference = z.string().min(1).max(256);
 const time = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 export const operationSchema = z.enum([
@@ -55,6 +62,10 @@ const defiPlanFields = z.strictObject({
   funding: z.literal(true).optional(),
   walletFundingId: z.uuid().optional(),
   returnFunds: z.literal(true).optional(),
+  // The owner deleted the agent: send one held token back to the owner's own NEAR wallet, as held.
+  walletReturn: z.literal(true).optional(),
+  // A wallet return the owner chose to receive in another NEAR token: 1Click swaps on the way out.
+  payoutAssetId: reference.optional(),
   fundingFeeUnits: tokenUnitsSchema.optional(),
   scope: scopeSchema,
   operation: operationSchema,
@@ -102,6 +113,30 @@ export const defiPlanSchema = defiPlanFields.pipe(
         code: "custom",
         message: "Wallet funding requires a bound public-to-private owner transfer.",
       });
+    }
+    if (
+      plan.walletReturn &&
+      (plan.funding ||
+        plan.returnFunds ||
+        plan.walletFundingId ||
+        // A deleted agent's return, or the owner's confirmed return of unassigned private balance.
+        plan.budgetMode === undefined ||
+        plan.operation !== "transfer" ||
+        plan.cash.length !== 1 ||
+        plan.cash[0]?.scope !== undefined ||
+        plan.cash[0]?.minCreditUnits !== "0" ||
+        plan.venueId !== WALLET_RETURN_VENUES[plan.scope])
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "A wallet return moves one held token from its own balance to the owner's wallet.",
+      });
+    }
+    if (
+      plan.payoutAssetId !== undefined &&
+      (!plan.walletReturn || plan.payoutAssetId === plan.cash[0]?.assetId)
+    ) {
+      ctx.addIssue({ code: "custom", message: "Only a wallet return can pay out in a different token." });
     }
     if (
       (plan.returnFunds &&

@@ -1,6 +1,6 @@
 "use client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { type SetStateAction, useCallback, useEffect, useRef, useState } from "react";
+import { type SetStateAction, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { notifyQuoteFailure } from "@/components/trading/quote-feedback";
 import { notify, useToastState } from "@/components/ui/toast";
 import { stopChatReply } from "@/server/chat/actions";
@@ -69,6 +69,12 @@ export function useChat(
   const turns = query.data?.turns ?? [];
   const last = turns.at(-1);
   const busy = sending || last?.state === "pending";
+  // The committed values handlers read when they run. Callbacks read them here instead of closing over them, so
+  // their identities stay fixed while a reply streams and memoized messages, history and composer stay put.
+  const latest = useRef({ conversationId, turns, last, busy, tool, draft, stopping });
+  useLayoutEffect(() => {
+    latest.current = { conversationId, turns, last, busy, tool, draft, stopping };
+  });
 
   const setDraft = useCallback((value: SetStateAction<string>): void => {
     const next = typeof value === "function" ? value(draftValue.current) : value;
@@ -184,10 +190,10 @@ export function useChat(
       const streamingStatus = chatStatus("streaming");
       setDraft("");
       drafts.current.delete(input.conversationId);
-      const previous = turns.find((turn) => turn.id === input.requestId);
+      const previous = latest.current.turns.find((turn) => turn.id === input.requestId);
       const optimistic: ChatTurn = {
         id: input.requestId,
-        sequence: previous?.sequence ?? (last?.sequence ?? 0) + 1,
+        sequence: previous?.sequence ?? (latest.current.last?.sequence ?? 0) + 1,
         message: input.message,
         includeContext: input.includeContext,
         ...(input.tool ? { tool: input.tool } : {}),
@@ -311,22 +317,21 @@ export function useChat(
         }
       }
     },
-    [cache, last, refresh, replaceTurn, saved, setDraft, turns],
+    [cache, refresh, replaceTurn, saved, setDraft],
   );
-  const inputFor = useCallback(
-    (turn: ChatTurn): ChatInput => {
-      return {
-        conversationId,
-        requestId: turn.id,
-        previousTurnId: turns.find((item) => item.sequence === turn.sequence - 1)?.id ?? null,
-        message: turn.message,
-        includeContext: turn.includeContext,
-        tool: turn.tool ?? null,
-      };
-    },
-    [conversationId, turns],
-  );
-  async function stop(): Promise<void> {
+  const inputFor = useCallback((turn: ChatTurn): ChatInput => {
+    const { conversationId, turns } = latest.current;
+    return {
+      conversationId,
+      requestId: turn.id,
+      previousTurnId: turns.find((item) => item.sequence === turn.sequence - 1)?.id ?? null,
+      message: turn.message,
+      includeContext: turn.includeContext,
+      tool: turn.tool ?? null,
+    };
+  }, []);
+  const stop = useCallback(async (): Promise<void> => {
+    const { last, stopping } = latest.current;
     const input = active.current?.input ?? (last ? inputFor(last) : null);
     if (!input || stopping) {
       return;
@@ -352,7 +357,7 @@ export function useChat(
     } finally {
       setStopping(false);
     }
-  }
+  }, [inputFor, saved]);
   const check = useCallback(async (): Promise<void> => {
     setChecking(true);
     setError(null);
@@ -388,24 +393,24 @@ export function useChat(
   }
   const select = useCallback(
     (id: string): void => {
-      if (busy) {
+      if (latest.current.busy) {
         setError("Stop or finish this reply before switching chats.");
         return;
       }
       change(id);
       window.history.pushState(null, "", `/chat?conversation=${id}`);
     },
-    [busy, change],
+    [change],
   );
   const newChat = useCallback((): void => {
-    if (busy) {
+    if (latest.current.busy) {
       setError("Stop or finish this reply before starting another chat.");
       return;
     }
     change(crypto.randomUUID());
     window.history.pushState(null, "", "/chat");
     inputRef.current?.focus();
-  }, [busy, change]);
+  }, [change]);
   function forget(id: string): void {
     if (active.current?.input.conversationId === id) {
       active.current.controller.abort();
@@ -425,7 +430,8 @@ export function useChat(
     cache.removeQueries({ queryKey: key(id) });
     drafts.current.delete(id);
   }
-  function submit(): void {
+  const submit = useCallback((): void => {
+    const { busy, draft, conversationId, last, tool } = latest.current;
     if (!busy && draft.trim()) {
       void send({
         conversationId,
@@ -436,9 +442,10 @@ export function useChat(
         tool,
       });
     }
-  }
+  }, [send]);
   const retry = useCallback(
     (turn: ChatTurn): void => {
+      const { busy, last, tool } = latest.current;
       if (!busy && turn.id === last?.id) {
         void send(
           turn.state === "cancelled" || tool !== (turn.tool ?? null)
@@ -453,7 +460,7 @@ export function useChat(
         );
       }
     },
-    [busy, inputFor, last?.id, send, tool],
+    [inputFor, send],
   );
   return {
     conversationId,

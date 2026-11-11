@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, or } from "drizzle-orm";
 import { AgentError } from "@/server/agents/errors";
 import { ownedAgent } from "@/server/agents/records";
 import { agentRuntimes, agents } from "@/server/db/agent-schema";
@@ -23,6 +23,9 @@ export async function agentRuntimeStatus(
           reason: agents.reason,
           revision: agents.revision,
           updatedAt: agents.updatedAt,
+          deleteRequestedAt: agents.deleteRequestedAt,
+          claimRequestedAt: agents.claimRequestedAt,
+          deletedAt: agents.deletedAt,
         },
         runtime: { state: agentRuntimes.state, nextCheckAt: agentRuntimes.nextCheckAt },
       })
@@ -31,7 +34,14 @@ export async function agentRuntimeStatus(
         agentRuntimes,
         and(eq(agentRuntimes.userId, agents.userId), eq(agentRuntimes.agentId, agents.id)),
       )
-      .where(and(eq(agents.userId, userId), eq(agents.id, agentId), isNull(agents.deletedAt)))
+      // An agent deleted after returning its funds stays readable here, so its open page can show it is gone.
+      .where(
+        and(
+          eq(agents.userId, userId),
+          eq(agents.id, agentId),
+          or(isNull(agents.deletedAt), isNotNull(agents.deleteRequestedAt)),
+        ),
+      )
       .limit(1),
     db
       .select({
@@ -53,7 +63,18 @@ export async function agentRuntimeStatus(
   if (!row) {
     throw new AgentError("not_found", "Agent not found.");
   }
-  return { ...row, pending };
+  const { deleteRequestedAt, claimRequestedAt, deletedAt, ...agent } = row.agent;
+  return {
+    agent: {
+      ...agent,
+      returningFunds: claimRequestedAt !== null,
+      returningSince: claimRequestedAt,
+      deleting: deleteRequestedAt !== null,
+      deleted: deletedAt !== null,
+    },
+    runtime: row.runtime,
+    pending,
+  };
 }
 
 /** User-triggered recovery cannot produce a new signature or resubmit an ambiguous order. */

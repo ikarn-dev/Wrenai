@@ -306,6 +306,7 @@ export async function readPortfolioValuation(
           eq(walletFundings.userId, user.id),
           ne(walletFundings.state, "prepared"),
           ne(walletFundings.state, "complete"),
+          ne(walletFundings.state, "abandoned"),
         ),
       )
       .limit(1),

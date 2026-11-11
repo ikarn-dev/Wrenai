@@ -1,6 +1,5 @@
 import { Circle, CircleAlert, CircleCheck, LoaderCircle } from "lucide-react";
 import { m } from "motion/react";
-import Link from "next/link";
 import type { ReactElement, ReactNode } from "react";
 import type { StrategyDraft } from "@/shared/agents";
 
@@ -24,6 +23,7 @@ export type DeployPhase =
       readonly verifyMs: number;
       readonly saveMs: number;
       readonly agentId: string;
+      readonly revision: number;
     };
 
 type StepStatus = "pending" | "active" | "done" | "failed";
@@ -102,7 +102,7 @@ function reviewStep(phase: DeployPhase, review: ReactNode): TimelineStep {
 }
 
 function saveStep(phase: DeployPhase, budgeted: boolean): TimelineStep {
-  const base = { id: "save", title: budgeted ? "Reserve budget and save" : "Save agent" } as const;
+  const base = { id: "save", title: budgeted ? "Reserve the budget" : "Save the agent" } as const;
   switch (phase.step) {
     case "saving":
       return { ...base, status: "active", detail: "Saving the agent…" };
@@ -112,21 +112,13 @@ function saveStep(phase: DeployPhase, budgeted: boolean): TimelineStep {
       return {
         ...base,
         status: "done",
-        detail: (
-          <>
-            {budgeted ? "Budget reserved. " : ""}Saved paused.{" "}
-            <Link
-              href={`/agents/${phase.agentId}`}
-              className="text-accent-text underline-offset-4 hover:underline"
-            >
-              Open agent
-            </Link>
-          </>
-        ),
+        detail: budgeted
+          ? "Budget set aside in your wallet. The agent waits for its funds."
+          : "Agent saved, not running yet.",
         durationMs: phase.saveMs,
       };
     default:
-      return { ...base, status: "pending", detail: "Saved paused, so nothing trades yet." };
+      return { ...base, status: "pending", detail: "Nothing trades until you start it." };
   }
 }
 
@@ -135,21 +127,32 @@ export function DeployTimeline({
   phase,
   budgeted,
   review,
+  launch,
 }: {
   readonly phase: DeployPhase;
   readonly budgeted: boolean;
   readonly review: ReactNode;
+  /** Funding and Start, shown once the agent is saved. */
+  readonly launch: ReactNode;
 }): ReactElement {
   const steps: readonly TimelineStep[] = [
     verifyStep(phase),
     reviewStep(phase, review),
     saveStep(phase, budgeted),
-    {
-      id: "start",
-      title: "Fund and start",
-      status: "pending",
-      detail: "Funding and Start are on the agent page.",
-    },
+    phase.step === "done"
+      ? {
+          id: "start",
+          title: "Add funds and deploy",
+          status: "active",
+          detail: "One wallet approval moves the budget to the agent. Deploy starts it.",
+          body: launch,
+        }
+      : {
+          id: "start",
+          title: "Add funds and deploy",
+          status: "pending",
+          detail: "One wallet approval moves the budget in. Then Deploy starts the agent.",
+        },
   ];
   const current = steps.find((step) => step.status === "active" || step.status === "failed");
   return (

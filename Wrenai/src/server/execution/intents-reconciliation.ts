@@ -14,6 +14,12 @@ import { databaseTime, executionEvent, executionHash, ownedExecution, requireLea
 import { tradingResponseJson } from "./trading-http";
 
 const decimal = z.string().regex(/^(?:0|[1-9]\d{0,15})(?:\.\d{1,36})?$/);
+// Live 1Click sends these as null until a deposit is final (observed Nov 2026 on PENDING_DEPOSIT/PROCESSING), while
+// its SDK types them as optional strings. Accept both and read null as absent, so every reconciler's "not yet
+// accounted" checks (`=== undefined`) still fail closed.
+const absent = <T extends z.ZodType>(schema: T) =>
+  schema.nullish().transform((value): z.output<T> | undefined => value ?? undefined);
+const hashes = absent(z.array(z.object({ hash: z.string().min(1).max(200) })).max(100));
 export const intentsStatusSchema = z.object({
   quoteResponse: z.unknown(),
   status: z.enum([
@@ -27,23 +33,45 @@ export const intentsStatusSchema = z.object({
   ]),
   updatedAt: z.iso.datetime(),
   swapDetails: z.object({
-    amountIn: tokenUnitsSchema.optional(),
-    amountOut: tokenUnitsSchema.optional(),
-    amountInUsd: decimal.optional(),
-    amountOutUsd: decimal.optional(),
-    destinationChainTxHashes: z
-      .array(z.object({ hash: z.string().min(1).max(200) }))
-      .max(100)
-      .optional(),
-    originChainTxHashes: z
-      .array(z.object({ hash: z.string().min(1).max(200) }))
-      .max(100)
-      .optional(),
-    depositedAmount: tokenUnitsSchema.optional(),
-    refundedAmount: tokenUnitsSchema.optional(),
+    amountIn: absent(tokenUnitsSchema),
+    amountOut: absent(tokenUnitsSchema),
+    amountInUsd: absent(decimal),
+    amountOutUsd: absent(decimal),
+    destinationChainTxHashes: hashes,
+    originChainTxHashes: hashes,
+    depositedAmount: absent(tokenUnitsSchema),
+    refundedAmount: absent(tokenUnitsSchema),
+    // 1Click's final accounting references. These are not the singular hash returned by /v0/submit-intent;
+    // a real successful wallet payout carried different values (Nov 2026). The submit hash stays in its audit event.
     intentHashes: z.array(z.string().min(1).max(128)).max(100),
   }),
 });
+
+/**
+ * The stored signed quote, once a /v0/status echo is shown to be that same signed quote. 1Click re-serializes
+ * the echo (no correlationId, unset request fields as null, extra request fields), so its content and hash
+ * differ from the stored copy. Its Ed25519 signature is deterministic over the signed content, so an echo
+ * carrying the stored quote's exact signature, timestamp and deposit address is that quote. Reconcilers then
+ * re-verify the stored copy against its stored hash, unchanged.
+ */
+export function confirmedStatusQuote(stored: unknown, echoed: unknown): unknown {
+  const identity = z.object({
+    signature: z.string().min(1).max(512),
+    timestamp: z.iso.datetime(),
+    quote: z.object({ depositAddress: z.string().min(1).max(128) }),
+  });
+  const saved = identity.parse(stored),
+    provider = identity.parse(echoed);
+  // Instants, not strings: the echo may re-format the same timestamp.
+  if (
+    saved.signature !== provider.signature ||
+    Date.parse(saved.timestamp) !== Date.parse(provider.timestamp) ||
+    saved.quote.depositAddress !== provider.quote.depositAddress
+  ) {
+    throw new ExecutionError("conflict", "The provider status refers to a different signed quote.");
+  }
+  return stored;
+}
 
 export async function readIntentsProviderStatus(depositAddress: string): Promise<unknown> {
   const { ONECLICK_JWT } = process.env;
@@ -88,7 +116,12 @@ export async function reconcileIntentsAction(
     .quoteRequest.recipient;
   const status = intentsStatusSchema.parse(await readIntentsProviderStatus(prepared.depositAddress));
   // Revalidate the original quote at its recorded signing time; recovery must work after quote/key expiry or stop.
-  verifiedStoredQuote(action, { ...prepared, providerQuote: status.quoteResponse }, owner, prepared.quotedAt);
+  verifiedStoredQuote(
+    action,
+    { ...prepared, providerQuote: confirmedStatusQuote(prepared.providerQuote, status.quoteResponse) },
+    owner,
+    prepared.quotedAt,
+  );
   const deposit = z
     .object({ quote: z.object({ depositAddress: z.literal(prepared.depositAddress) }) })
     .parse(status.quoteResponse);
@@ -100,25 +133,6 @@ export async function reconcileIntentsAction(
     return "pending";
   }
   const detail = status.swapDetails;
-  const [submitted] = await db
-    .select()
-    .from(executionEvents)
-    .where(
-      and(
-        eq(executionEvents.userId, userId),
-        eq(executionEvents.actionId, actionId),
-        eq(executionEvents.kind, "intents_submitted"),
-      ),
-    )
-    .limit(1);
-  if (
-    submitted &&
-    !detail.intentHashes.includes(
-      z.object({ intentHash: z.string() }).parse(JSON.parse(submitted.detailJson)).intentHash,
-    )
-  ) {
-    throw new ExecutionError("conflict", "The completed swap does not include the acknowledged transfer.");
-  }
   if (
     detail.amountIn === undefined ||
     detail.amountOut === undefined ||

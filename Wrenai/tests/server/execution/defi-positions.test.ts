@@ -5,6 +5,7 @@ import {
   nativeInventory,
   permissionFixture,
 } from "@tests/server/execution/defi-test-context";
+import { readAgentPositions } from "@tests/server/positions/report";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { agents } from "@/server/db/agent-schema";
@@ -18,7 +19,6 @@ import { confirmExecutionPermission } from "@/server/execution/permissions";
 import { readSpendingUsage } from "@/server/execution/usage";
 import { setAgentCapitalLimit } from "@/server/positions/capital-limits";
 import { committedCapital } from "@/server/positions/capital-records";
-import { readAgentPositions } from "@/server/positions/report";
 
 vi.mock("server-only", () => ({}));
 let context: Awaited<ReturnType<typeof defiTestContext>>;

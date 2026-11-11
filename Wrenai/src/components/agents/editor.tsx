@@ -8,7 +8,7 @@ import { type FormEvent, type ReactElement, useState, useTransition } from "reac
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToastState } from "@/components/ui/toast";
-import { parseAgentStrategy, saveAgentStrategy } from "@/server/agents/actions";
+import { saveAgentStrategy } from "@/server/agents/actions";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
 import { isActiveAgentTool } from "@/shared/agent-scope";
 import { agentSetupProfile } from "@/shared/agent-templates";
@@ -22,6 +22,7 @@ import {
   strategyTextSchema,
 } from "@/shared/agents";
 import { Field, INPUT_CLASS, PolicyFields } from "./policy-fields";
+import { reviewStrategyText } from "./review-api";
 import { StrategySummary } from "./strategy-summary";
 import { StrategyTemplates } from "./strategy-templates";
 
@@ -57,7 +58,7 @@ export function AgentEditor({ agent }: { readonly agent: AgentSummary }): ReactE
     setRequestId(id);
     startTransition(async () => {
       try {
-        const result = await parseAgentStrategy({ requestId: id, pack, strategyText: text });
+        const result = await reviewStrategyText({ requestId: id, pack, strategyText: text });
         if (!result.ok) {
           setError(result.message);
           if (result.code !== "in_progress" && result.code !== "unavailable") {
@@ -98,8 +99,9 @@ export function AgentEditor({ agent }: { readonly agent: AgentSummary }): ReactE
           setError(result.message);
           return;
         }
+        // One navigation: the agent page is dynamic, so push already renders it fresh. A refresh after it
+        // rendered the whole page a second time.
         router.push(`/agents/${result.value.agentId}`);
-        router.refresh();
       } catch {
         setError("The save could not be confirmed. Retry to recover it without creating a duplicate.");
       }

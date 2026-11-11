@@ -1,4 +1,4 @@
-import { BrainCircuit, ChartNoAxesCombined, MessageCircle, ShieldCheck, Wallet } from "lucide-react";
+import { BrainCircuit, ChartNoAxesCombined, HandCoins, ShieldCheck, Wallet } from "lucide-react";
 import type { ReactElement } from "react";
 import { ActivitySkeleton } from "@/components/activity/skeleton";
 import { TradingAccessSkeleton } from "@/components/portfolio/access-card";
@@ -16,7 +16,7 @@ const TILES = [
   { label: "Agents", icon: BrainCircuit },
   { label: "Realized PnL", icon: ChartNoAxesCombined },
   { label: "Budgets", icon: ShieldCheck },
-  { label: "Telegram", icon: MessageCircle },
+  { label: "Pending claims", icon: HandCoins },
 ] as const;
 
 function SectionSkeleton({ children }: { readonly children: ReactElement }): ReactElement {

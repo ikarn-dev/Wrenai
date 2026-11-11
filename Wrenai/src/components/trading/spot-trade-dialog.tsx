@@ -4,7 +4,6 @@ import { type FormEvent, type ReactElement, useId, useState, useTransition } fro
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { Button } from "@/components/ui/button";
 import { notify } from "@/components/ui/toast";
-import { requestManualQuote, requestWalletSwap } from "@/server/manual-trading/actions";
 import { DEFAULT_SPOT_FEE_BPS } from "@/shared/manual-trading";
 import type { SpotMarketToken } from "@/shared/market-pages";
 import { decimalDisplay } from "@/shared/trading-display";
@@ -15,6 +14,7 @@ import { displaySymbol, networkName } from "./spot-markets-table";
 import { Segment, SLIPPAGE, UnitField } from "./ticket-fields";
 import { TradeCard } from "./trade-card";
 import { TradeDialog, TradeDialogHeader } from "./trade-dialog";
+import { requestManualQuote, requestWalletSwap } from "./trading-mutations";
 import { WalletSwapCard } from "./wallet-swap-card";
 
 type Source = "wallet" | "private";

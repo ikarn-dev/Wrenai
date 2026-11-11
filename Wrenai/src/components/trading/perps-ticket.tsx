@@ -2,10 +2,10 @@
 import { type FormEvent, type ReactElement, useState, useTransition } from "react";
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { Button } from "@/components/ui/button";
-import { requestManualQuote } from "@/server/manual-trading/actions";
 import type { ManualPreview } from "@/shared/manual-trading";
 import { Segment, SLIPPAGE, UnitField } from "./ticket-fields";
 import { TradeCard } from "./trade-card";
+import { requestManualQuote } from "./trading-mutations";
 
 type Side = "long" | "short";
 type Action = "open" | "reduce" | "close";

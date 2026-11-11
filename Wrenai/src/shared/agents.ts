@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { agentBudgetInputSchema } from "./agent-budget";
 import { AGENT_CATALOG } from "./agent-catalog";
-import { agentInstructionSchema } from "./agent-instructions";
+import { agentInstructionSchema, instructionAssetSchema } from "./agent-instructions";
 import { activeAgentToolSchema } from "./agent-scope";
+import { tradeAssetSchema } from "./trade-preview";
 
 export const PACKS = {
   private_payments: {
@@ -233,13 +234,42 @@ export const saveAgentSchema = z.strictObject({
 export const saveAgentWithBudgetSchema = saveAgentSchema.extend({
   budget: agentBudgetInputSchema.nullable(),
 });
-export const agentCommandSchema = z.strictObject({
-  requestId: z.uuid(),
-  agentId: z.uuid(),
-  expectedRevision: z.number().int().positive(),
-  command: z.enum(["pause", "resume", "stop", "clone", "delete"]),
-});
+export const agentCommandSchema = z
+  .strictObject({
+    requestId: z.uuid(),
+    agentId: z.uuid(),
+    expectedRevision: z.number().int().positive(),
+    command: z.enum(["pause", "resume", "stop", "clone", "delete", "claim"]),
+    /**
+     * Claim only: the NEAR token to receive the agent's funds in, or "held" to send each token as held.
+     * Omitted keeps the current choice (as held for a first claim).
+     */
+    receiveAssetId: z.union([z.literal("held"), instructionAssetSchema]).optional(),
+  })
+  .refine((input) => input.receiveAssetId === undefined || input.command === "claim", {
+    message: "Only a claim chooses a receive token.",
+  });
 
+/** What the Agents list shows per agent; read with a narrow query and parsed again in the browser. */
+export const agentCardSchema = z.object({
+  id: z.uuid(),
+  name: z.string().max(120),
+  pack: packSchema,
+  status: statusSchema,
+  reason: z.string().max(400),
+  strategyText: z.string().max(4000),
+  budgetUsd: z.string().max(40),
+  returningFunds: z.boolean(),
+});
+export type AgentCardItem = z.infer<typeof agentCardSchema>;
+/** `deleted` is true when a delete removed the agent at once because it held nothing. */
+export const agentCommandResultSchema = z.object({ agentId: z.uuid(), deleted: z.boolean() });
+export type AgentCommandResult = z.infer<typeof agentCommandResultSchema>;
+export const agentListSchema = z.object({
+  agents: z.array(agentCardSchema).max(100).readonly(),
+  stop: z.object({ engaged: z.boolean(), revision: z.number().int().nonnegative() }),
+});
+export type AgentList = z.infer<typeof agentListSchema>;
 export interface AgentSummary {
   readonly id: string;
   readonly name: string;
@@ -253,27 +283,42 @@ export interface AgentSummary {
   readonly policy: AgentPolicy;
   readonly createdAt: number;
   readonly updatedAt: number;
+  /** The owner's claim is sending its funds to the wallet. */
+  readonly returningFunds: boolean;
+  /** Deleted by the owner; it disappears once it holds nothing, and its funds wait in Claims. */
+  readonly deleting: boolean;
 }
 
-export type AgentFailureCode =
-  | "signed_out"
-  | "rate_limited"
-  | "invalid_input"
-  | "not_found"
-  | "conflict"
-  | "in_progress"
-  | "unavailable"
-  | "verification_failed"
-  | "not_ready";
+export const agentFailureCodeSchema = z.enum([
+  "signed_out",
+  "rate_limited",
+  "invalid_input",
+  "not_found",
+  "conflict",
+  "in_progress",
+  "unavailable",
+  "verification_failed",
+  "not_ready",
+]);
+export type AgentFailureCode = z.infer<typeof agentFailureCodeSchema>;
 export type AgentResult<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly code: AgentFailureCode; readonly message: string };
-export interface StrategyDraft {
-  readonly id: string;
-  readonly strategy: Strategy;
-  readonly strategyText: string;
-  readonly model: string;
-  readonly verifiedAt: number;
-  readonly expiresAt: number;
-  readonly assets?: readonly import("./trade-preview").TradeAsset[];
-}
+/** A verified strategy review. Parsed again in the browser, since it arrives from a route handler. */
+export const strategyDraftSchema = z.object({
+  id: z.uuid(),
+  strategy: strategySchema,
+  strategyText: z.string().max(4000),
+  model: z.string().max(200),
+  verifiedAt: z.number().int().nonnegative(),
+  expiresAt: z.number().int().nonnegative(),
+  assets: z.array(tradeAssetSchema).max(6).readonly().optional(),
+});
+export type StrategyDraft = z.infer<typeof strategyDraftSchema>;
+/** A rewritten instruction and the result of checking it: a verified draft ready to deploy, or what to fix. */
+export const strategyRefinementSchema = z.object({
+  text: z.string().max(1000),
+  draft: strategyDraftSchema.nullable(),
+  problem: z.string().max(400).nullable(),
+});
+export type StrategyRefinement = z.infer<typeof strategyRefinementSchema>;

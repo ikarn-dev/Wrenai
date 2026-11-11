@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowUp, Square } from "lucide-react";
-import type { KeyboardEvent, ReactElement, ReactNode, Ref } from "react";
+import { type KeyboardEvent, memo, type ReactElement, type ReactNode, type Ref } from "react";
 import { MAX_CHAT_MESSAGE } from "@/shared/chat";
 import type { ResearchTool } from "@/shared/research";
 import { ChatToolPicker } from "./tool-picker";
@@ -20,7 +20,8 @@ interface ComposerProps {
   readonly agentOffer: ReactNode;
 }
 
-export function ChatComposer({
+/** Memoized: its callbacks and agent offer are stable, so only typing and busy changes repaint it, not stream frames. */
+export const ChatComposer = memo(function ChatComposer({
   value,
   busy,
   stopping,
@@ -100,4 +101,4 @@ export function ChatComposer({
       </p>
     </div>
   );
-}
+});

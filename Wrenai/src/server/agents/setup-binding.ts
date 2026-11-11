@@ -12,32 +12,17 @@ export function setupBindingHash(draft: AgentSetupDraft): string {
   return executionHash({ tool: draft.tool, brief: draft.brief, budget: draft.budget ?? null });
 }
 
-/** Owner transaction required. Linking retains the wallet reservation until confirmed inventory takes it over. */
-export async function bindAgentSetup(
-  db: AppDatabase,
-  owner: string,
+/**
+ * The setup linked to its new agent, after checking it is the reviewed setup, unclaimed, funded with the
+ * strategy's spending token and large enough for one order. Pure, so a caller holding the setup in memory can
+ * link it without reading the row back.
+ */
+export function linkedSetupDraft(
+  draft: AgentSetupDraft,
   agentId: string,
-  setupId: string | undefined,
-  expectedHash: string | undefined,
+  expectedHash: string,
   instruction: AgentInstruction,
-  injectedCipher?: ChatCipher,
-): Promise<void> {
-  if (!setupId || !expectedHash) {
-    throw new AgentError("invalid_input", "Create and review a setup before saving this agent.");
-  }
-  const cipher = injectedCipher ?? chatCipher();
-  const [row] = await db
-    .select()
-    .from(chatAgentDrafts)
-    .where(and(eq(chatAgentDrafts.id, setupId), eq(chatAgentDrafts.userId, owner)))
-    .for("update")
-    .limit(1);
-  if (!row) {
-    throw new AgentError("not_found", "The reviewed setup could not be found.");
-  }
-  const draft = agentSetupDraftSchema.parse(
-    JSON.parse(cipher.open(owner, row.id, "agent-setup", row.sealedDraft)),
-  );
+): AgentSetupDraft {
   if (
     draft.tool !== instruction.kind ||
     setupBindingHash(draft) !== expectedHash ||
@@ -71,7 +56,36 @@ export async function bindAgentSetup(
       throw new AgentError("invalid_input", "The configured order exceeds this agent's token allocation.");
     }
   }
-  const linked = agentSetupDraftSchema.parse({ ...draft, agentId, reviewState: "reviewed" });
+  return agentSetupDraftSchema.parse({ ...draft, agentId, reviewState: "reviewed" });
+}
+
+/** Owner transaction required. Linking retains the wallet reservation until confirmed inventory takes it over. */
+export async function bindAgentSetup(
+  db: AppDatabase,
+  owner: string,
+  agentId: string,
+  setupId: string | undefined,
+  expectedHash: string | undefined,
+  instruction: AgentInstruction,
+  injectedCipher?: ChatCipher,
+): Promise<void> {
+  if (!setupId || !expectedHash) {
+    throw new AgentError("invalid_input", "Create and review a setup before saving this agent.");
+  }
+  const cipher = injectedCipher ?? chatCipher();
+  const [row] = await db
+    .select()
+    .from(chatAgentDrafts)
+    .where(and(eq(chatAgentDrafts.id, setupId), eq(chatAgentDrafts.userId, owner)))
+    .for("update")
+    .limit(1);
+  if (!row) {
+    throw new AgentError("not_found", "The reviewed setup could not be found.");
+  }
+  const draft = agentSetupDraftSchema.parse(
+    JSON.parse(cipher.open(owner, row.id, "agent-setup", row.sealedDraft)),
+  );
+  const linked = linkedSetupDraft(draft, agentId, expectedHash, instruction);
   await db
     .update(chatAgentDrafts)
     .set({ sealedDraft: cipher.seal(owner, row.id, "agent-setup", JSON.stringify(linked)) })

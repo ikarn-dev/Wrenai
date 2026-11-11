@@ -1,5 +1,4 @@
 "use server";
-import { refresh } from "next/cache";
 import { z } from "zod";
 import { AgentError } from "@/server/agents/errors";
 import { currentUser, type SessionUser } from "@/server/auth/session";
@@ -54,7 +53,6 @@ export async function loadAgentAllocations(raw: unknown): Promise<AgentResult<Ag
 export async function changeAgentAllocation(raw: unknown): Promise<AgentResult<null>> {
   return protectedAllocation(async (user) => {
     await manageAgentAllocation(database(), user, raw);
-    refresh();
     return null;
   });
 }

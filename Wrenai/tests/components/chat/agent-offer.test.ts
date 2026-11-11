@@ -1,8 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { latestAgentOffer } from "@/components/chat/agent-offer";
 import type { ChatTurn } from "@/shared/chat";
 
-vi.mock("@/server/chat/draft-actions", () => ({ createChatAgentSetup: vi.fn() }));
 const turn: ChatTurn = {
   id: crypto.randomUUID(),
   sequence: 1,

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { nearAccountSchema } from "./agent-budget";
-import { WALLET_SWAP_NATIVE_OUTPUT, WALLET_SWAP_USDC } from "./swap-assets";
+import { WALLET_SWAP_NATIVE_OUTPUT, WALLET_SWAP_RHEA_POOL, WALLET_SWAP_USDC } from "./swap-assets";
 import { positiveTokenUnitsSchema } from "./token-units";
 
 export const instructionAssetSchema = z
@@ -17,10 +17,24 @@ const bps = z.number().int().min(1).max(9999);
 const expiresAt = z.iso.datetime();
 const common = { format: z.literal(2), expiresAt, onExpiry: z.enum(["stop", "close"]).default("stop") };
 const spotAsset = z.union([instructionAssetSchema, z.literal(WALLET_SWAP_NATIVE_OUTPUT)]);
+/**
+ * Set by the server at review, never by the model: a pair with a token outside the private route trades on this
+ * pinned RHEA DCL pool from the user's trading account. The route is fixed for the agent's lifetime because its
+ * funds live there.
+ */
+export const publicRouteSchema = z.strictObject({
+  venue: z.literal("rhea_dcl"),
+  poolId: z
+    .string()
+    .max(200)
+    .regex(/^[a-z0-9._-]{2,64}\|[a-z0-9._-]{2,64}\|[1-9]\d{0,5}$/),
+});
+const route = publicRouteSchema.optional();
 const pair = {
   payAssetId: spotAsset,
   buyAssetId: spotAsset,
   priceUnit: z.enum(["usd", "quote_token"]),
+  route,
 };
 const exits = z.strictObject({
   takeProfitPrice: decimal.nullable(),
@@ -102,6 +116,7 @@ const top = z.strictObject({
   sellAssetId: instructionAssetSchema,
   receiveAssetId: spotAsset,
   priceUnit: z.enum(["usd", "quote_token"]),
+  route,
   quantityUnits: amount,
   confirmedBasisUnits: amount,
   targets: z
@@ -180,7 +195,25 @@ const perps = z.strictObject({
   exits,
 });
 const fields = z.discriminatedUnion("kind", [payment, dca, spot, perps, meme, whale, dip, top]);
+
+/** One kind's schema, so a parse prompt describes only the agent being set up. */
+export function instructionKindSchema(kind: string): z.ZodType | undefined {
+  return fields.options.find((option) => option.shape.kind.value === kind);
+}
 export const agentInstructionSchema = fields.superRefine((instruction, context) => {
+  if ("route" in instruction && instruction.route) {
+    const ids = instructionAssets(instruction);
+    const [x, y] = instruction.route.poolId.split("|");
+    const pairContracts = ids.map((id) => id.slice("nep141:".length)).toSorted();
+    if (
+      ids.length !== 2 ||
+      ids.includes(WALLET_SWAP_NATIVE_OUTPUT) ||
+      pairContracts[0] !== x ||
+      pairContracts[1] !== y
+    ) {
+      context.addIssue({ code: "custom", message: "The public route's pool must trade exactly this pair." });
+    }
+  }
   if (instructionAssets(instruction).includes(WALLET_SWAP_NATIVE_OUTPUT)) {
     const [funding, output] =
       instruction.kind === "sell_the_top"
@@ -336,4 +369,17 @@ export function usesNativeNearPayout(instruction: AgentInstruction): boolean {
     instructionFundingAsset(instruction) === WALLET_SWAP_USDC &&
     instructionAssets(instruction).includes(WALLET_SWAP_NATIVE_OUTPUT)
   );
+}
+
+/** Public RHEA execution: the reviewed USDC → native NEAR payout, or a pair pinned to a reviewed pool. */
+export function usesPublicRoute(instruction: AgentInstruction): boolean {
+  return usesNativeNearPayout(instruction) || ("route" in instruction && instruction.route !== undefined);
+}
+
+/** The RHEA pool a public-route instruction trades on, or null for the private route. */
+export function publicRoutePool(instruction: AgentInstruction): string | null {
+  if ("route" in instruction && instruction.route) {
+    return instruction.route.poolId;
+  }
+  return usesNativeNearPayout(instruction) ? WALLET_SWAP_RHEA_POOL : null;
 }

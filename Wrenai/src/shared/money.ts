@@ -69,3 +69,14 @@ export function formatCompactMicroUsd(amount: bigint): string {
   }
   return formatMicroUsd(amount);
 }
+
+/** A token amount for display: at most four decimals, rounded down so it never reads larger than it is. */
+export function shortTokenAmount(units: string, decimals: number): string {
+  const amount = BigInt(units);
+  const fractionDigits = Math.min(decimals, 4);
+  if (amount > 0n && amount < 10n ** BigInt(decimals - fractionDigits)) {
+    return "<0.0001";
+  }
+  const text = formatUnits(amount, { decimals, fractionDigits });
+  return fractionDigits === 0 ? text : text.replace(/\.?0+$/, "");
+}

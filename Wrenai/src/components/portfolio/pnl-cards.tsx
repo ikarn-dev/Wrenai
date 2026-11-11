@@ -33,9 +33,11 @@ export function AgentPerformanceCard({
         </Link>
       }
     >
-      {/* Sideways only, so no data-lenis-prevent: it would contain vertical wheels and stop the page. */}
-      <div className="flex-1 overflow-x-auto">
-        <table className="h-full w-full min-w-sm border-collapse text-body">
+      {/* Sideways only, so no data-lenis-prevent: it would contain vertical wheels and stop the page. The table
+          keeps its own height, so rows sit under the header from the top however tall the card is; only the
+          empty state centers in the leftover space. */}
+      <div className="flex flex-1 flex-col overflow-x-auto">
+        <table className="w-full min-w-sm border-collapse text-body">
           <caption className="sr-only">Your agents. Performance needs recorded fills.</caption>
           <thead className="h-8">
             <tr className="border-b border-line-card font-mono text-eyebrow uppercase text-fg-subtle">
@@ -54,71 +56,66 @@ export function AgentPerformanceCard({
             </tr>
           </thead>
           <tbody>
-            {agents.length > 0 ? (
-              agents.map((agent) => {
-                const value = performance.agents.find((row) => row.agentId === agent.id);
-                const pnl = value?.realizedPnlMicroUsd;
-                const basis = value?.basisMicroUsd;
-                return (
-                  <tr key={agent.id} className="border-b border-line-card last:border-0">
-                    <th scope="row" className="py-4 text-left font-normal">
-                      <Link
-                        href={`/agents/${agent.id}`}
-                        className="inline-flex items-center gap-3 rounded-xs hover:text-accent-text"
-                      >
-                        <AgentAvatar running={agent.status === "running"} />
-                        {agent.name}
-                      </Link>
-                    </th>
-                    <td className="py-4 pl-4">
-                      <AgentStatus agent={agent} />
-                    </td>
-                    <td className="py-4 pl-4 text-right font-mono text-fg-muted">
-                      {pnl === null || pnl === undefined ? (
-                        <span title={value?.count ? "Incomplete cost or fee data" : "No recorded fills"}>
-                          —
-                        </span>
-                      ) : (
-                        <span className={pnl < 0n ? "text-loss" : pnl > 0n ? "text-gain" : ""}>
-                          {formatCompactMicroUsd(pnl)}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-4 pl-4 text-right font-mono text-fg-muted">
-                      {pnl !== null &&
-                      pnl !== undefined &&
-                      basis !== null &&
-                      basis !== undefined &&
-                      basis > 0n ? (
-                        `${formatUnits((pnl * 10_000n) / basis, { decimals: 2, fractionDigits: 2 })}%`
-                      ) : (
-                        <span title="Unavailable">—</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })
-            ) : (
-              <tr>
-                <td colSpan={4} className="py-8 text-center align-middle">
-                  <div className="mx-auto flex max-w-xs flex-col items-center gap-3">
-                    <BrainCircuit
-                      aria-hidden="true"
-                      size={24}
-                      strokeWidth={1.75}
-                      absoluteStrokeWidth
-                      className="text-fg-subtle"
-                    />
-                    <div className="flex flex-col gap-1.5">
-                      <p className="text-body font-medium text-fg-strong">No agents yet</p>
-                      <p className="text-small text-fg-muted">Create a strategy to see your agents here.</p>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            )}
+            {agents.map((agent) => {
+              const value = performance.agents.find((row) => row.agentId === agent.id);
+              const pnl = value?.realizedPnlMicroUsd;
+              const basis = value?.basisMicroUsd;
+              return (
+                <tr key={agent.id} className="border-b border-line-card last:border-0">
+                  <th scope="row" className="py-4 text-left font-normal">
+                    <Link
+                      href={`/agents/${agent.id}`}
+                      className="inline-flex items-center gap-3 rounded-xs hover:text-accent-text"
+                    >
+                      <AgentAvatar running={agent.status === "running"} />
+                      {agent.name}
+                    </Link>
+                  </th>
+                  <td className="py-4 pl-4">
+                    <AgentStatus agent={agent} />
+                  </td>
+                  <td className="py-4 pl-4 text-right font-mono text-fg-muted">
+                    {pnl === null || pnl === undefined ? (
+                      <span title={value?.count ? "Incomplete cost or fee data" : "No recorded fills"}>
+                        —
+                      </span>
+                    ) : (
+                      <span className={pnl < 0n ? "text-loss" : pnl > 0n ? "text-gain" : ""}>
+                        {formatCompactMicroUsd(pnl)}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-4 pl-4 text-right font-mono text-fg-muted">
+                    {pnl !== null &&
+                    pnl !== undefined &&
+                    basis !== null &&
+                    basis !== undefined &&
+                    basis > 0n ? (
+                      `${formatUnits((pnl * 10_000n) / basis, { decimals: 2, fractionDigits: 2 })}%`
+                    ) : (
+                      <span title="Unavailable">—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
+        {agents.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-center">
+            <BrainCircuit
+              aria-hidden="true"
+              size={24}
+              strokeWidth={1.75}
+              absoluteStrokeWidth
+              className="text-fg-subtle"
+            />
+            <div className="flex max-w-xs flex-col gap-1.5">
+              <p className="text-body font-medium text-fg-strong">No agents yet</p>
+              <p className="text-small text-fg-muted">Create a strategy to see your agents here.</p>
+            </div>
+          </div>
+        ) : null}
       </div>
     </PortfolioPanel>
   );

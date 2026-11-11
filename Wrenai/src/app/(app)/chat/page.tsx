@@ -2,10 +2,12 @@ import { randomUUID } from "node:crypto";
 import type { Metadata } from "next";
 import { z } from "zod";
 import { ChatScreen } from "@/components/chat/screen";
+import { deployedRuntimeReady } from "@/server/agents/readiness";
 import { requireUser } from "@/server/auth/session";
 import { ChatError } from "@/server/chat/errors";
 import { listConversations, readConversationPage } from "@/server/chat/queries";
 import { database } from "@/server/db/client";
+import { tradingAccountSummary } from "@/server/trading-accounts/vault";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
 import { activeAgentToolSchema } from "@/shared/agent-scope";
 
@@ -23,7 +25,7 @@ export default async function ChatPage({
   const user = await requireUser();
   const params = await searchParams;
   const parsed = z.uuid().safeParse(params.conversation);
-  const [conversation, history] = await Promise.all([
+  const [conversation, history, recovery] = await Promise.all([
     parsed.success
       ? readConversationPage(database(), user.id, parsed.data, null).catch((error: unknown) => {
           if (error instanceof ChatError && error.code === "not_found") {
@@ -33,6 +35,7 @@ export default async function ChatPage({
         })
       : Promise.resolve(null),
     listConversations(database(), user.id),
+    tradingAccountSummary(database(), user.id),
   ]);
   const tool = activeAgentToolSchema.safeParse(params.tool);
   return (
@@ -50,6 +53,13 @@ export default async function ChatPage({
       }
       conversation={conversation}
       history={history}
+      launch={{
+        ownerId: user.id,
+        accountId: user.accountId,
+        privateReady: deployedRuntimeReady(),
+        publicReady: deployedRuntimeReady(true),
+        recoveryConfirmed: recovery?.backupConfirmed ?? false,
+      }}
     />
   );
 }

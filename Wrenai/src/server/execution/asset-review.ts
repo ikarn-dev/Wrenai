@@ -8,7 +8,7 @@ import { positionLots } from "@/server/db/position-schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import { type IntentToken, intentTokens } from "@/server/research/intents";
 import { nativeNearAsset, usdcAsset } from "@/server/wallet-swap/rhea-native";
-import { instructionAssets, usesNativeNearPayout } from "@/shared/agent-instructions";
+import { instructionAssets, usesNativeNearPayout, usesPublicRoute } from "@/shared/agent-instructions";
 import { type AssetSymbol, type Strategy, strategySchema, strategySymbols } from "@/shared/agents";
 import {
   type AgentTradeAssets,
@@ -20,6 +20,7 @@ import { WALLET_SWAP_NATIVE_OUTPUT } from "@/shared/wallet-swap";
 import { ExecutionError } from "./contracts";
 import { databaseTime, executionHash } from "./records";
 import { nativeTokenAsset } from "./rhea/inventory";
+import { publicRouteTokens } from "./rhea/pools";
 
 const aliases: Readonly<Record<AssetSymbol, readonly string[]>> = {
   NEAR: ["NEAR", "WNEAR"],
@@ -42,6 +43,19 @@ export function registryTradeAsset(token: IntentToken): TradeAsset {
     decimals: token.decimals,
     contractAddress: token.contractAddress ?? null,
   });
+}
+/** The token list an instruction's assets resolve against: none for the native payout pair, finalized metadata
+ * for a reviewed public pair, otherwise the 1Click registry. */
+export async function instructionRouteTokens(
+  instruction: Extract<Strategy, { format: 2 }>,
+  registryMaxAgeMs?: number,
+): Promise<readonly IntentToken[]> {
+  if (usesNativeNearPayout(instruction)) {
+    return [];
+  }
+  return usesPublicRoute(instruction)
+    ? publicRouteTokens(instructionAssets(instruction))
+    : (await intentTokens(undefined, registryMaxAgeMs)).tokens;
 }
 export function instructionTradeAssets(
   strategy: Extract<Strategy, { format: 2 }>,
@@ -189,11 +203,16 @@ export function resolvedTradeAssets(
   return resolved;
 }
 
+/**
+ * The agent's reviewed token identities and the choices for a new review. `registryMaxAgeMs` lets a display-only
+ * caller accept an older registry copy; reviews and trades keep the default freshness.
+ */
 export async function readAgentTradeAssets(
   db: AppDatabase,
   userId: string,
   agentId: string,
   revision: number,
+  registryMaxAgeMs?: number,
 ): Promise<AgentTradeAssets> {
   const current = await currentAgentStrategy(db, userId, agentId, revision);
   if (current.strategy.kind === "meme_hunter" && current.strategy.payAssetId === "nep141:wrap.near") {
@@ -221,9 +240,9 @@ export async function readAgentTradeAssets(
     }
   }
   const tokens =
-    "format" in current.strategy && usesNativeNearPayout(current.strategy)
-      ? []
-      : (await intentTokens()).tokens;
+    "format" in current.strategy
+      ? await instructionRouteTokens(current.strategy, registryMaxAgeMs)
+      : (await intentTokens(undefined, registryMaxAgeMs)).tokens;
   if ("format" in current.strategy) {
     const ids = instructionAssets(current.strategy);
     const reference =

@@ -1,6 +1,7 @@
 import { testDatabase } from "@tests/server/db/test-database";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { deleteIfNothingHeld } from "@/server/agents/agent-return";
 import { prepareStrategyDraft } from "@/server/agents/drafts";
 import { commandAgent, readAgent, saveAgent, setGlobalStop } from "@/server/agents/mutations";
 import { globalStopRevision, killSwitchEngaged, listAgents, stopUserAgents } from "@/server/agents/records";
@@ -117,6 +118,7 @@ describe("Postgres-backed agent management", () => {
     await expect(command(id, "resume")).rejects.toMatchObject({ code: "not_ready" });
     await expect(command(id, "clone")).rejects.toMatchObject({ code: "not_ready" });
     await command(id, "delete");
+    expect(await deleteIfNothingHeld(context.db, { id: owner, accountId: `${owner}.near` }, id)).toBe(true);
     expect(await listAgents(context.db, owner)).toEqual([]);
   });
 
@@ -379,10 +381,15 @@ describe("Postgres-backed agent management", () => {
     };
     await commandAgent(context.db, owner, input);
     expect(await commandAgent(context.db, owner, input)).toBe(id);
+    // Delete stops the agent and sends nothing; with nothing held it is removed at once.
+    expect(await readAgent(context.db, owner, id)).toMatchObject({ deleting: true, returningFunds: false });
+    expect(await listAgents(context.db, owner)).toHaveLength(0);
+    await expect(command(id, "resume")).rejects.toMatchObject({ code: "conflict" });
+    expect(await deleteIfNothingHeld(context.db, { id: owner, accountId: `${owner}.near` }, id)).toBe(true);
     expect(await listAgents(context.db, owner)).toHaveLength(0);
     await expect(readAgent(context.db, owner, id)).rejects.toThrow("not found");
     expect(await context.db.select().from(tables.strategyVersions)).toHaveLength(1);
-    expect(await context.db.select().from(tables.agentEvents)).toHaveLength(2);
+    expect(await context.db.select().from(tables.agentEvents)).toHaveLength(3);
   });
 
   it("requires releasing allocated capital before lowering a saved strategy budget", async () => {

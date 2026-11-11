@@ -3,7 +3,7 @@ import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { agentEvents, agents, strategyVersions, tradingControls } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { userTransaction } from "@/server/db/user-transaction";
-import { type AgentSummary, policySchema, strategySchema } from "@/shared/agents";
+import { type AgentCardItem, type AgentSummary, policySchema, strategySchema } from "@/shared/agents";
 import { AgentError } from "./errors";
 
 export async function ownedAgent(
@@ -42,6 +42,8 @@ function summarize(
     policy: policySchema.parse(JSON.parse(row.policyJson)),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    returningFunds: row.claimRequestedAt !== null,
+    deleting: row.deleteRequestedAt !== null,
   };
 }
 
@@ -78,12 +80,44 @@ export async function ownedAgentSummary(
   return summarize(row.agent, row.strategy);
 }
 
-/** Fetch versions in one query instead of one network round trip per card. */
+/** Fetch versions in one query instead of one network round trip per card. Deleted agents waiting on a claim are
+ * already gone from the owner's list; their funds show in Claims. */
 export async function listAgents(db: AppDatabase, userId: string): Promise<readonly AgentSummary[]> {
   const rows = await agentsWithVersion(db)
-    .where(and(eq(agents.userId, userId), isNull(agents.deletedAt)))
+    .where(and(eq(agents.userId, userId), isNull(agents.deletedAt), isNull(agents.deleteRequestedAt)))
     .orderBy(desc(agents.createdAt));
   return rows.map(({ agent, strategy }) => summarize(agent, strategy));
+}
+
+/**
+ * The Agents list: only the columns a card shows, without the stored rules or verification receipt, and no rule
+ * parsing per agent.
+ */
+export async function listAgentCards(db: AppDatabase, userId: string): Promise<readonly AgentCardItem[]> {
+  const rows = await db
+    .select({
+      id: agents.id,
+      name: agents.name,
+      pack: agents.pack,
+      status: agents.status,
+      reason: agents.reason,
+      policyJson: agents.policyJson,
+      strategyText: strategyVersions.strategyText,
+      claimRequestedAt: agents.claimRequestedAt,
+    })
+    .from(agents)
+    .innerJoin(
+      strategyVersions,
+      and(eq(strategyVersions.agentId, agents.id), eq(strategyVersions.version, agents.version)),
+    )
+    .where(and(eq(agents.userId, userId), isNull(agents.deletedAt), isNull(agents.deleteRequestedAt)))
+    .orderBy(desc(agents.createdAt))
+    .limit(100);
+  return rows.map(({ policyJson, claimRequestedAt, ...row }) => ({
+    ...row,
+    budgetUsd: policySchema.parse(JSON.parse(policyJson)).budgetUsd,
+    returningFunds: claimRequestedAt !== null,
+  }));
 }
 
 export async function auditAgent(

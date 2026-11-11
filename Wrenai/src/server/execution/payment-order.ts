@@ -21,7 +21,7 @@ import { confirmExecutionPermission } from "./permissions";
 import { assertPublicPaymentRecipient } from "./public-payment-recipient";
 import { databaseTime, executionEvent, executionHash, type LedgerAction } from "./records";
 
-const paymentRecordSchema = z.strictObject({
+export const paymentRecordSchema = z.strictObject({
   format: z.literal(1),
   amountUnits: z.string().regex(/^[1-9]\d{0,77}$/),
   recipient: z.string().min(2).max(64),

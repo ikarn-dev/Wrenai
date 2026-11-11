@@ -1,14 +1,13 @@
 "use client";
 
-import { ArrowDown, ArrowUpRight, LoaderCircle, X } from "lucide-react";
+import { ArrowDown, ArrowUpRight, X } from "lucide-react";
 import { AnimatePresence, m, type Transition } from "motion/react";
-import { useRouter } from "next/navigation";
-import { type ReactElement, type RefObject, useLayoutEffect, useRef, useState, useTransition } from "react";
+import { type ReactElement, type RefObject, useState } from "react";
 import { usePrefersReducedMotion } from "@/components/motion/use-prefers-reduced-motion";
-import { notify } from "@/components/ui/toast";
-import { createChatAgentSetup } from "@/server/chat/draft-actions";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
+import { createRequestPack } from "@/shared/agent-create-request";
 import { isActiveAgentTool } from "@/shared/agent-scope";
+import type { AgentSummary } from "@/shared/agents";
 import type { ChatTurn } from "@/shared/chat";
 import type { ResearchTool } from "@/shared/research";
 
@@ -47,6 +46,7 @@ interface AgentOfferPromptProps {
   readonly visible: boolean;
   readonly inputRef: RefObject<HTMLTextAreaElement | null>;
   readonly jumpToLatest: (() => void) | null;
+  readonly onCreate: (pack: AgentSummary["pack"]) => void;
 }
 
 export function AgentOfferPrompt({
@@ -54,62 +54,17 @@ export function AgentOfferPrompt({
   visible,
   inputRef,
   jumpToLatest,
+  onCreate,
 }: AgentOfferPromptProps): ReactElement {
-  const router = useRouter();
   const reducedMotion = usePrefersReducedMotion();
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
-  const [, setError] = useState<{ readonly key: string; readonly message: string } | null>(null);
-  const [creating, startTransition] = useTransition();
-  const current = useRef<string | null>(offer?.key ?? null);
-  const attempt = useRef<string | null>(null);
   const key = offer?.key ?? null;
-  useLayoutEffect(() => {
-    current.current = key && !dismissed.has(key) ? key : null;
-    return () => {
-      current.current = null;
-    };
-  }, [key, dismissed]);
 
   function dismiss(): void {
     if (key) {
       setDismissed((items) => new Set([...items, key]));
     }
-    current.current = null;
     inputRef.current?.focus({ preventScroll: true });
-  }
-
-  function create(): void {
-    if (!offer || attempt.current) {
-      return;
-    }
-    const source = offer;
-    attempt.current = source.key;
-    setError(null);
-    startTransition(async () => {
-      try {
-        const result = await createChatAgentSetup({
-          conversationId: source.conversationId,
-          turnId: source.turnId,
-          tool: source.tool,
-        });
-        if (current.current !== source.key) {
-          return;
-        }
-        if (!result.ok) {
-          setError({ key: source.key, message: result.message });
-          notify("warn", result.message);
-          return;
-        }
-        router.push(`/agents?setup=${result.value.id}`);
-      } catch {
-        if (current.current === source.key) {
-          setError({ key: source.key, message: "Couldn’t save the setup. Try again." });
-          notify("warn", "Couldn’t save the setup. Try again.");
-        }
-      } finally {
-        attempt.current = null;
-      }
-    });
   }
 
   return (
@@ -149,23 +104,21 @@ export function AgentOfferPrompt({
             }}
             className="pointer-events-auto min-w-0 max-w-full rounded-lg card-shine p-1.5 shadow-float"
           >
-            <legend className="sr-only">Agent setup suggestion</legend>
+            <legend className="sr-only">Agent suggestion</legend>
             <div className="flex items-center gap-1">
+              {/* Opens the create dialog for this type; nothing is saved until the user deploys it there. */}
               <button
                 type="button"
-                disabled={creating}
-                onClick={create}
-                aria-busy={creating}
-                className="inline-flex min-h-10 min-w-0 cursor-pointer items-center gap-2 rounded-sm px-3 text-small font-medium text-fg-strong transition-colors duration-200 ease-ios hover:bg-surface-2 disabled:cursor-default pointer-coarse:min-h-11"
+                onClick={() => {
+                  const pack = createRequestPack(offer.tool);
+                  if (pack) {
+                    onCreate(pack);
+                  }
+                }}
+                className="inline-flex min-h-10 min-w-0 items-center gap-2 rounded-sm px-3 text-small font-medium text-fg-strong transition-colors duration-200 ease-ios hover:bg-surface-2 pointer-coarse:min-h-11"
               >
-                {creating ? (
-                  <LoaderCircle size={16} aria-hidden="true" className="shrink-0 motion-safe:animate-spin" />
-                ) : (
-                  <ArrowUpRight size={16} aria-hidden="true" className="shrink-0 text-accent-text" />
-                )}
-                <span className="truncate">
-                  {creating ? "Saving setup…" : `Create ${AGENT_CATALOG[offer.tool].name}`}
-                </span>
+                <ArrowUpRight size={16} aria-hidden="true" className="shrink-0 text-accent-text" />
+                <span className="truncate">{`Create ${AGENT_CATALOG[offer.tool].name}`}</span>
               </button>
               <button
                 type="button"

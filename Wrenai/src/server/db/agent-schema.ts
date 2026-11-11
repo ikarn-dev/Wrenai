@@ -32,6 +32,13 @@ export const agents = pgTable(
     policyJson: text("policy_json").notNull(),
     createdAt: timestamp("created_at").notNull(),
     updatedAt: timestamp("updated_at").notNull(),
+    // Set when the owner deletes an agent. It leaves the Agents list at once and is deleted once it holds nothing;
+    // funds it still holds wait in Claims. Deleting never sends funds anywhere (user decision, Nov 5 2026).
+    deleteRequestedAt: timestamp("delete_requested_at"),
+    // Set while the owner's claim sends the agent's funds to their wallet; the only authority for a wallet return.
+    claimRequestedAt: timestamp("claim_requested_at"),
+    // The NEAR token the owner chose to receive claimed funds in; null returns every token as held.
+    returnAssetId: text("return_asset_id"),
     deletedAt: timestamp("deleted_at"),
   },
   (table) => [

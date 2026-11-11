@@ -12,6 +12,7 @@ import {
   chatReplySchema,
   chatTurnSchema,
 } from "@/shared/chat";
+import { isPaymentRetry, parseChatPayment } from "@/shared/chat-payment-command";
 import { parseWalletBalanceQuote } from "@/shared/chat-quote";
 import { chatRoutingIssue } from "@/shared/chat-routing";
 import { chatStatus } from "@/shared/chat-status";
@@ -25,6 +26,7 @@ import {
   pendingTradeFundingRequest,
   tradeFundingChoice,
 } from "./manual-answer";
+import { answerChatPayment, retryChatPayment } from "./payment-answer";
 import { chatPrompt } from "./prompt";
 import { conversationHistory } from "./queries";
 import { readChatCache, writeChatCache } from "./redis-cache";
@@ -82,7 +84,9 @@ export async function answerChat(
   let history: readonly ChatTurn[] = [];
   let walletSwap: WalletSwapView | undefined;
   let quoteError: string | undefined;
-  let direct = parseWalletBalanceQuote(input.message);
+  let payment = parseChatPayment(input.message);
+  const paymentRetry = isPaymentRetry(input.message);
+  let direct = payment || paymentRetry ? null : parseWalletBalanceQuote(input.message);
   try {
     const historyRead = async (): Promise<readonly ChatTurn[]> => {
       if (claim.turn.sequence === 1) {
@@ -99,8 +103,11 @@ export async function answerChat(
         : null;
       return cached ?? conversationHistory(db, user.id, input.conversationId, claim.turn.sequence, cipher);
     };
-    const funding = direct ? null : tradeFundingChoice(input.message);
-    const earlier = funding ? await historyRead() : undefined;
+    const funding = direct || payment || paymentRetry ? null : tradeFundingChoice(input.message);
+    const earlier = funding || paymentRetry ? await historyRead() : undefined;
+    if (paymentRetry) {
+      payment = retryChatPayment(earlier ?? [], input.previousTurnId);
+    }
     const continuation = pendingTradeFundingRequest(input.previousTurnId, earlier?.at(-1));
     if (continuation && funding === "wallet") {
       direct = parseWalletBalanceQuote(continuation, true);
@@ -113,24 +120,32 @@ export async function answerChat(
             : `${continuation}\nUse ${funding === "wallet" ? "the connected NEAR wallet" : "the private balance"}.`,
         }
       : input;
-    const [context, previous] = direct
-      ? ([null, []] as const)
-      : await Promise.all([
-          input.includeContext && !continuation
-            ? readChatContext(db, user, { message: input.message, signal: deadline })
-            : Promise.resolve(null),
-          earlier ?? historyRead(),
-          prepareChatInference(deadline),
-        ]);
+    const [context, previous] =
+      direct || payment
+        ? ([null, []] as const)
+        : await Promise.all([
+            input.includeContext && !continuation
+              ? readChatContext(db, user, { message: input.message, signal: deadline })
+              : Promise.resolve(null),
+            earlier ?? historyRead(),
+            prepareChatInference(deadline),
+          ]);
     history = previous;
     const prompt = chatPrompt(history, input.message, context, Date.now(), input.tool ?? null);
     if (direct) {
       emit({ type: "status", message: "Getting a live quote…" });
     }
-    const completion = direct
-      ? await directWalletChatAnswer(db, user, quoteInput, direct, deadline)
-      : ((await manualChatAnswer(db, user, quoteInput, history, deadline, emit)) ??
-        (await researchAnswer(prompt.messages, deadline, emit, input.tool ?? null)));
+    const completion = payment
+      ? await answerChatPayment(
+          user,
+          input.requestId,
+          payment,
+          AbortSignal.any([deadline, AbortSignal.timeout(15_000)]),
+        )
+      : direct
+        ? await directWalletChatAnswer(db, user, quoteInput, direct, deadline)
+        : ((await manualChatAnswer(db, user, quoteInput, history, deadline, emit)) ??
+          (await researchAnswer(prompt.messages, deadline, emit, input.tool ?? null)));
     deadline.throwIfAborted();
     if (completion.receipt) {
       emit({ type: "verified" });
@@ -181,7 +196,7 @@ export async function answerChat(
     ...(walletSwap ? { walletSwap } : {}),
     ...(quoteError ? { quoteError } : {}),
   });
-  if (direct) {
+  if (direct || payment) {
     // Direct quotes skip optional chat metadata. Later turns can reload the full saved history.
     return saved;
   }

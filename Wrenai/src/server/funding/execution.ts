@@ -1,14 +1,18 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { AppDatabase } from "@/server/db/client";
-import { executionActions, executionEvents } from "@/server/db/execution-schema";
+import { executionActions } from "@/server/db/execution-schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import { submitConfidentialTransfer } from "@/server/execution/confidential-transfer";
 import { ExecutionError } from "@/server/execution/contracts";
 import { settleDefiExecution } from "@/server/execution/defi-accounting";
 import { defiPlanSchema } from "@/server/execution/defi-contracts";
-import { intentsStatusSchema, readIntentsProviderStatus } from "@/server/execution/intents-reconciliation";
+import {
+  confirmedStatusQuote,
+  intentsStatusSchema,
+  readIntentsProviderStatus,
+} from "@/server/execution/intents-reconciliation";
 import { markInventoryUncertain } from "@/server/execution/inventory-state";
 import { synchronizePrivateInventory } from "@/server/execution/private-inventory";
 import {
@@ -80,7 +84,13 @@ export async function reconcileWalletConversion(
   const status = intentsStatusSchema.parse(await readIntentsProviderStatus(saved.order.depositAddress));
   verifiedWalletQuote(
     action,
-    { ...saved, order: { ...saved.order, providerQuote: status.quoteResponse } },
+    {
+      ...saved,
+      order: {
+        ...saved.order,
+        providerQuote: confirmedStatusQuote(saved.order.providerQuote, status.quoteResponse),
+      },
+    },
     owner,
     saved.order.quotedAt,
   );
@@ -120,25 +130,6 @@ export async function reconcileWalletConversion(
     intentHashes: details.intentHashes.toSorted(),
     occurredAt,
   };
-  const [ack] = await db
-    .select({ detail: executionEvents.detailJson })
-    .from(executionEvents)
-    .where(
-      and(
-        eq(executionEvents.userId, userId),
-        eq(executionEvents.actionId, actionId),
-        eq(executionEvents.kind, "wallet_conversion_submitted"),
-      ),
-    )
-    .limit(1);
-  if (
-    ack &&
-    !details.intentHashes.includes(
-      z.object({ intentHash: z.string() }).parse(JSON.parse(ack.detail)).intentHash,
-    )
-  ) {
-    throw new ExecutionError("conflict", "The funding receipt excludes its acknowledged transfer.");
-  }
   await userTransaction(db, userId, async (tx) => {
     const row = await ownedLedgerAction(tx, userId, actionId),
       now = await databaseTime(tx);

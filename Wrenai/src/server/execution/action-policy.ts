@@ -37,7 +37,8 @@ export async function recheckLedgerAction(
   if (mode === "claim") {
     return;
   }
-  await checkSubmissionRate(db, action, current.policy, now, current.riskReducingExit);
+  // Returning several held tokens to the owner is not trading; the cooldown would only delay the delete.
+  await checkSubmissionRate(db, action, current.policy, now, current.riskReducingExit || current.ownerReturn);
   for (const cash of plan.cash) {
     if ((await availableInventory(db, action.userId, cash.scope ?? action.scope, cash.assetId, now)) < 0n) {
       throw new ExecutionError(

@@ -82,7 +82,6 @@ export async function prepareDelegation(): Promise<PrepareDelegationResult> {
   return withNear(async (): Promise<PrepareDelegationResult> => {
     const state = await syncDelegatedKey(user);
     if (state.kind === "active") {
-      refresh();
       return { ok: true, kind: "active" };
     }
     // Registering is a transaction from the user's account, which must exist on chain to pay its gas.
@@ -104,7 +103,6 @@ export async function confirmDelegation(): Promise<DelegationResult> {
     if ((await syncDelegatedKey(user, "registered")).kind !== "active") {
       return failure("not_registered_yet");
     }
-    refresh();
     return { ok: true };
   });
 }

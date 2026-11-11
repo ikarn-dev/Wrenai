@@ -1,33 +1,51 @@
 import type { ReactElement } from "react";
+import { Badge } from "@/components/ui/badge";
 import { budgetTokenAmount } from "@/shared/agent-budget";
 import {
   type AgentInstruction,
   instructionAssets,
   instructionFundingAsset,
   usesNativeNearPayout,
+  usesPublicRoute,
 } from "@/shared/agent-instructions";
+import { shortTokenAmount } from "@/shared/money";
 import type { TradeAsset } from "@/shared/trade-preview";
-import { WALLET_SWAP_INPUT, WALLET_SWAP_NATIVE_OUTPUT } from "@/shared/wallet-swap";
+import { WALLET_SWAP_INPUT, WALLET_SWAP_NATIVE_OUTPUT, WALLET_SWAP_USDC } from "@/shared/wallet-swap";
 
 function percentage(basisPoints: number): string {
   return `${Math.trunc(basisPoints / 100)}.${String(basisPoints % 100).padStart(2, "0")}%`;
 }
 
+// Agents hold NEAR in the private balance as 1Click's NEAR asset (wrap.near), funded from native NEAR, so both
+// read as NEAR here. Well-known tokens keep readable amounts even when the registry couldn't be read.
+const KNOWN: Readonly<Record<string, { readonly symbol: string; readonly decimals: number }>> = {
+  [WALLET_SWAP_INPUT]: { symbol: "NEAR", decimals: 24 },
+  [WALLET_SWAP_NATIVE_OUTPUT]: { symbol: "NEAR", decimals: 24 },
+  [WALLET_SWAP_USDC]: { symbol: "USDC", decimals: 6 },
+};
+
 function tokenName(asset: TradeAsset): string {
-  return asset.assetId === WALLET_SWAP_INPUT ? "wNEAR" : asset.tokenSymbol;
+  return KNOWN[asset.assetId]?.symbol ?? asset.tokenSymbol;
 }
 
-function tokenAmount(units: string, token: TradeAsset | undefined): string {
-  return token
-    ? `${budgetTokenAmount(units, token.decimals)} ${tokenName(token)}`
-    : `${units} smallest units`;
+function idName(id: string): string {
+  return KNOWN[id]?.symbol ?? id.replace(/^nep141:/, "");
+}
+
+function tokenAmount(units: string, token: TradeAsset | undefined, id: string | null): string {
+  const known = id ? KNOWN[id] : undefined;
+  if (token) {
+    return `${shortTokenAmount(units, token.decimals)} ${tokenName(token)}`;
+  }
+  return known ? `${shortTokenAmount(units, known.decimals)} ${known.symbol}` : `${units} smallest units`;
 }
 
 function rows(
   instruction: AgentInstruction,
   assets: readonly TradeAsset[],
 ): readonly { readonly label: string; readonly value: string }[] {
-  const funding = assets.find((asset) => asset.assetId === instructionFundingAsset(instruction));
+  const fundingId = instructionFundingAsset(instruction);
+  const funding = assets.find((asset) => asset.assetId === fundingId);
   const quoteId =
     instruction.kind === "sell_the_top"
       ? instruction.receiveAssetId
@@ -39,7 +57,9 @@ function rows(
     "priceUnit" in instruction && instruction.priceUnit === "quote_token"
       ? quote
         ? tokenName(quote)
-        : "in the pair’s quote token"
+        : quoteId
+          ? idName(quoteId)
+          : "of the paired token"
       : "USD";
   const ids = instructionAssets(instruction);
   const items = [
@@ -49,28 +69,17 @@ function rows(
         ids
           .map((id) => {
             const asset = assets.find((candidate) => candidate.assetId === id);
-            return asset
-              ? tokenName(asset)
-              : id === WALLET_SWAP_NATIVE_OUTPUT
-                ? "NEAR"
-                : id === WALLET_SWAP_INPUT
-                  ? "wNEAR"
-                  : id.replace(/^nep141:/, "");
+            return asset ? tokenName(asset) : idName(id);
           })
-          .join(" / ") || "Account watchlist",
+          .join(" and ") || "Account watchlist",
     },
     {
-      label: "Expires (UTC)",
-      value: new Date(instruction.expiresAt).toISOString().slice(0, 16).replace("T", " "),
+      label: "Ends",
+      value: `${new Date(instruction.expiresAt).toISOString().slice(0, 16).replace("T", " ")} UTC`,
     },
-    {
-      label: "At expiry",
-      value: instruction.onExpiry === "close" ? "Close the owned position" : "Stop and keep holdings",
-    },
+    // Stopping and keeping holdings is the default, so only the reviewed exception is worth a row.
+    ...(instruction.onExpiry === "close" ? [{ label: "When it ends", value: "Sells what it holds" }] : []),
   ];
-  if ("priceUnit" in instruction && instruction.kind !== "dca") {
-    items.unshift({ label: "Price unit", value: unit });
-  }
   if ("amountUnits" in instruction) {
     const amount =
       instruction.kind === "private_payments"
@@ -78,7 +87,7 @@ function rows(
         : instruction.kind === "dca"
           ? "Amount per purchase"
           : "Amount";
-    items.push({ label: amount, value: tokenAmount(instruction.amountUnits, funding) });
+    items.push({ label: amount, value: tokenAmount(instruction.amountUnits, funding, fundingId) });
   }
   switch (instruction.kind) {
     case "dca":
@@ -96,13 +105,13 @@ function rows(
       break;
     case "spot_trader":
       items.push(
-        { label: "Action", value: instruction.side },
+        { label: "Action", value: instruction.side === "buy" ? "Buy" : "Sell" },
         {
-          label: "Entry",
+          label: "When",
           value:
             instruction.entry.type === "market"
-              ? "Current bounded quote"
-              : `${instruction.entry.direction} ${instruction.entry.price} ${unit}`,
+              ? "Right away, at the current price"
+              : `When the price is ${instruction.entry.direction} ${instruction.entry.price} ${unit}`,
         },
       );
       break;
@@ -146,13 +155,13 @@ function rows(
       break;
     case "sell_the_top":
       items.push(
-        { label: "Quantity", value: tokenAmount(instruction.quantityUnits, funding) },
+        { label: "Quantity", value: tokenAmount(instruction.quantityUnits, funding, fundingId) },
         {
           label: "Total cost",
           value:
             instruction.priceUnit === "usd"
               ? `$${budgetTokenAmount(instruction.confirmedBasisUnits, 6)}`
-              : tokenAmount(instruction.confirmedBasisUnits, quote),
+              : tokenAmount(instruction.confirmedBasisUnits, quote, quoteId ?? null),
         },
         {
           label: "Profit exits",
@@ -191,22 +200,18 @@ function rows(
       return impossible;
     }
   }
+  // Only exits the user set are listed; an empty row per unset exit was noise.
   if ("exits" in instruction) {
-    items.push(
-      {
-        label: "Take profit",
-        value: instruction.exits.takeProfitPrice ? `${instruction.exits.takeProfitPrice} ${unit}` : "None",
-      },
-      {
-        label: "Protective stop",
-        value: instruction.exits.stopLossPrice ? `${instruction.exits.stopLossPrice} ${unit}` : "None",
-      },
-      {
-        label: "Trailing stop",
-        value:
-          instruction.exits.trailingStopBps === null ? "None" : percentage(instruction.exits.trailingStopBps),
-      },
-    );
+    const { takeProfitPrice, stopLossPrice, trailingStopBps } = instruction.exits;
+    if (takeProfitPrice) {
+      items.push({ label: "Take profit at", value: `${takeProfitPrice} ${unit}` });
+    }
+    if (stopLossPrice) {
+      items.push({ label: "Stop loss at", value: `${stopLossPrice} ${unit}` });
+    }
+    if (trailingStopBps !== null) {
+      items.push({ label: "Trailing stop", value: percentage(trailingStopBps) });
+    }
   }
   return items;
 }
@@ -219,10 +224,15 @@ export function InstructionSummary({
 }): ReactElement {
   return (
     <div>
-      {usesNativeNearPayout(instruction) ? (
-        <p className="mb-2 text-small text-fg-muted">
-          Public RHEA swap. Native NEAR is paid into your backed-up trading account.
-        </p>
+      {usesPublicRoute(instruction) ? (
+        <div className="mb-3 flex flex-col items-start gap-1.5 rounded-sm bg-sunken p-3">
+          <Badge tone="warn">Public route</Badge>
+          <p className="text-small text-fg-muted">
+            {usesNativeNearPayout(instruction)
+              ? "Buys native NEAR with a public RHEA swap from your trading account. The swaps are visible on-chain."
+              : "A token here has no private route, so this agent swaps on RHEA from your trading account. Its trades are visible on-chain."}
+          </p>
+        </div>
       ) : null}
       <dl className="divide-y divide-line/60">
         {rows(instruction, assets).map((item) => (
@@ -234,20 +244,6 @@ export function InstructionSummary({
           </div>
         ))}
       </dl>
-      {assets.some((asset) => asset.contractAddress !== null) ? (
-        <details className="mt-2 text-caption text-fg-muted">
-          <summary className="cursor-pointer">Token contracts</summary>
-          <ul className="mt-2 space-y-1">
-            {assets
-              .filter((asset) => asset.contractAddress !== null)
-              .map((asset) => (
-                <li key={asset.assetId} className="break-all">
-                  {tokenName(asset)} · {asset.contractAddress}
-                </li>
-              ))}
-          </ul>
-        </details>
-      ) : null}
     </div>
   );
 }

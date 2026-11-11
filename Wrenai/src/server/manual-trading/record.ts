@@ -8,13 +8,21 @@ import { defiPlanSchema } from "@/server/execution/defi-contracts";
 import { hlOrderRecordSchema } from "@/server/execution/hyperliquid/order-record";
 import { returnRecordSchema } from "@/server/execution/hyperliquid/return-record";
 import { preparedOrderSchema } from "@/server/execution/intents-record";
+import { paymentRecordSchema } from "@/server/execution/payment-order";
 import { fundingRecordSchema } from "@/server/execution/perps-funding-record";
 import { executionHash } from "@/server/execution/records";
 import { rheaPreparedSchema } from "@/server/execution/rhea/contracts";
+import { walletReturnRecordSchema } from "@/server/execution/wallet-return";
 import { agentInstructionSchema } from "@/shared/agent-instructions";
 import { manualIntentSchema, manualPreviewSchema } from "@/shared/manual-trading";
 
 export const manualEnvelopeSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("payment"),
+    preview: manualPreviewSchema,
+    plan: defiPlanSchema,
+    prepared: paymentRecordSchema,
+  }),
   z.strictObject({
     kind: z.literal("perps_funding"),
     preview: manualPreviewSchema,
@@ -45,6 +53,12 @@ export const manualEnvelopeSchema = z.discriminatedUnion("kind", [
     plan: defiPlanSchema,
     prepared: hlOrderRecordSchema,
     instruction: agentInstructionSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("wallet_return"),
+    preview: manualPreviewSchema,
+    plan: defiPlanSchema,
+    prepared: walletReturnRecordSchema,
   }),
 ]);
 export type ManualEnvelope = z.infer<typeof manualEnvelopeSchema>;

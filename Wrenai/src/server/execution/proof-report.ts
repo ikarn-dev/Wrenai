@@ -41,6 +41,8 @@ export interface ProofReport {
   readonly walletSwaps: readonly {
     readonly id: string;
     readonly directRhea: boolean;
+    readonly payment: boolean;
+    readonly privateTopUp: boolean;
     readonly state: WalletSwap["state"];
     readonly transactionHash: string | null;
     readonly createdAt: number;
@@ -88,6 +90,8 @@ export async function readProofReport(db: AppDatabase, userId: string): Promise<
       .select({
         id: walletSwaps.id,
         directRhea: sql<boolean>`${walletSwaps.depositAddress} is null`,
+        payment: sql<boolean>`coalesce(${walletSwaps.quoteJson}::jsonb ->> 'kind' = 'payment', false)`,
+        privateTopUp: sql<boolean>`${walletSwaps.quoteJson}::jsonb ? 'privateTopUp'`,
         state: walletSwaps.state,
         transactionHash: walletSwaps.transactionHash,
         createdAt: walletSwaps.createdAt,

@@ -29,16 +29,20 @@ export async function submitConfidentialTransfer(
   saved: z.infer<typeof preparedOrderSchema>,
   quoteForOwner: (accountId: string) => TradeQuote,
   validateState: (tx: AppDatabase) => Promise<void>,
-  eventKind: "payment_submitted" | "perps_funding_submitted" | "wallet_conversion_submitted",
+  eventKind:
+    | "payment_submitted"
+    | "perps_funding_submitted"
+    | "wallet_conversion_submitted"
+    | "wallet_return_submitted",
   checkRecipient?: () => Promise<void>,
 ): Promise<void> {
   const userId = action.userId,
     actionId = action.id,
     plan = defiPlanSchema.parse(JSON.parse(action.planJson));
-  if (
-    plan.scope !== "confidential" &&
-    (plan.scope !== "intents" || !plan.walletFundingId || eventKind !== "wallet_conversion_submitted")
-  ) {
+  const ownedPublicSource =
+    (plan.walletFundingId !== undefined && eventKind === "wallet_conversion_submitted") ||
+    (plan.walletReturn === true && eventKind === "wallet_return_submitted");
+  if (plan.scope !== "confidential" && (plan.scope !== "intents" || !ownedPublicSource)) {
     throw new ExecutionError(
       "not_ready",
       "This transport requires a verified private transfer or owned wallet funding.",

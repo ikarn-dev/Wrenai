@@ -6,7 +6,7 @@ import { CopyButton } from "@/components/chat/copy-button";
 import { TradingRecovery } from "@/components/settings/trading-recovery";
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { Button } from "@/components/ui/button";
-import { prepareManualAccount, requestManualQuote } from "@/server/manual-trading/actions";
+import { prepareManualAccount } from "@/server/manual-trading/actions";
 import { budgetTokenAmount } from "@/shared/agent-budget";
 import { DEFAULT_SPOT_FEE_BPS, type ManualPreview } from "@/shared/manual-trading";
 import { type ManualAccountView, spotMarketViewSchema } from "@/shared/market-pages";
@@ -18,6 +18,7 @@ import { displaySymbol, networkName } from "./spot-markets-table";
 import { Segment, UnitField } from "./ticket-fields";
 import { TradeCard } from "./trade-card";
 import { readTrading } from "./trading-api";
+import { requestManualQuote } from "./trading-mutations";
 import { useManualAccount } from "./use-manual-account";
 
 type Direction = "deposit" | "return";

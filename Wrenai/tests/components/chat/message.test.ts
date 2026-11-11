@@ -4,8 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 import { ChatMessage } from "@/components/chat/message";
 import type { ChatTurn } from "@/shared/chat";
 
-vi.mock("@/server/chat/draft-actions", () => ({ createChatAgentSetup: vi.fn() }));
-vi.mock("@/server/manual-trading/actions", () => ({
+vi.mock("@/components/chat/payment-card", () => ({
+  PaymentCard: () => createElement("section", { "aria-label": "Payment review" }),
+}));
+
+vi.mock("@/components/trading/trading-mutations", () => ({
   readManualOrder: vi.fn(),
   confirmManualOrder: vi.fn(),
   dismissManualOrder: vi.fn(),

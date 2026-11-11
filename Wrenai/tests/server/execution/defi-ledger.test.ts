@@ -8,6 +8,7 @@ import {
   permissionFixture,
 } from "@tests/server/execution/defi-test-context";
 import { executionPlan, fundTestAgent, observeInventory } from "@tests/server/execution/test-context";
+import { readAgentPositions } from "@tests/server/positions/report";
 import { and, eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -30,7 +31,6 @@ import { databaseTime, ownedLedgerAction } from "@/server/execution/records";
 import { cancelReservedExecution, reserveExecution } from "@/server/execution/reservations";
 import { readSpendingUsage } from "@/server/execution/usage";
 import { attributedPrincipal } from "@/server/positions/capital-records";
-import { readAgentPositions } from "@/server/positions/report";
 
 vi.mock("server-only", () => ({}));
 let context: Awaited<ReturnType<typeof defiTestContext>>;

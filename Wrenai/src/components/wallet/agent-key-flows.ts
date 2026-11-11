@@ -70,8 +70,8 @@ async function sendKeyCall(
 }
 
 /**
- * Registers the user's agent key on intents.near from their wallet (Spec §3). Null means it is active: the confirm
- * action has already refreshed the page to show it.
+ * Registers the user's agent key on intents.near from their wallet (Spec §3). Null means it is active. Nothing refreshes
+ * the page here: the caller updates its own view, so a funding step in progress isn't re-rendered.
  */
 export async function authorizeAgentKey(accountId: string, show: ShowProgress): Promise<Notice | null> {
   const prepared = await attempt(prepareDelegation, () => requestFailed("authorize"));

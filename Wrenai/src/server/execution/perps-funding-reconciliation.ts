@@ -1,8 +1,8 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { AppDatabase } from "@/server/db/client";
-import { executionActions, executionEvents } from "@/server/db/execution-schema";
+import { executionActions } from "@/server/db/execution-schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import { previewFifoLots } from "@/server/positions/lots";
 import { minimumUnits } from "@/shared/token-units";
@@ -10,7 +10,11 @@ import { ExecutionError } from "./contracts";
 import { settleDefiExecution } from "./defi-accounting";
 import { defiPlanSchema } from "./defi-contracts";
 import { synchronizePerpsInventory } from "./hyperliquid/account-state";
-import { intentsStatusSchema, readIntentsProviderStatus } from "./intents-reconciliation";
+import {
+  confirmedStatusQuote,
+  intentsStatusSchema,
+  readIntentsProviderStatus,
+} from "./intents-reconciliation";
 import { markInventoryUncertain } from "./inventory-state";
 import { quoteMicroUsd } from "./oneclick-quote";
 import { paymentTerminalSchema } from "./payment-reconciliation";
@@ -55,7 +59,13 @@ export async function reconcilePerpsFunding(
   const status = intentsStatusSchema.parse(await readIntentsProviderStatus(saved.order.depositAddress));
   verifiedFundingQuote(
     action,
-    { ...saved, order: { ...saved.order, providerQuote: status.quoteResponse } },
+    {
+      ...saved,
+      order: {
+        ...saved.order,
+        providerQuote: confirmedStatusQuote(saved.order.providerQuote, status.quoteResponse),
+      },
+    },
     owner,
     saved.order.quotedAt,
   );
@@ -82,19 +92,6 @@ export async function reconcilePerpsFunding(
       "not_ready",
       "The venue deposit does not fully account for its source, destination and refund.",
     );
-  }
-  const [ack] = await db
-    .select()
-    .from(executionEvents)
-    .where(and(eq(executionEvents.actionId, action.id), eq(executionEvents.kind, "perps_funding_submitted")))
-    .limit(1);
-  if (
-    ack &&
-    !details.intentHashes.includes(
-      z.object({ intentHash: z.string() }).parse(JSON.parse(ack.detailJson)).intentHash,
-    )
-  ) {
-    throw new ExecutionError("conflict", "The funding receipt excludes its acknowledged transfer.");
   }
   const evidence = paymentTerminalSchema.parse({
     amountIn: details.amountIn,

@@ -1,11 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  changeGlobalStop,
-  manageAgent,
-  parseAgentStrategy,
-  saveAgentStrategy,
-} from "@/server/agents/actions";
+import { saveAgentStrategy } from "@/server/agents/actions";
+import { setStop as changeGlobalStop, runAgentCommand as manageAgent } from "@/server/agents/commands";
 import { AgentError } from "@/server/agents/errors";
+import { reviewStrategy as parseAgentStrategy } from "@/server/agents/review";
 import { DEFAULT_POLICY } from "@/shared/agents";
 
 const calls = vi.hoisted(() => ({
@@ -105,7 +102,20 @@ describe("agent action authorization and fail-closed launch", () => {
     const requestId = crypto.randomUUID();
     const input = { requestId, draftId, policy: DEFAULT_POLICY, agentId: null, expectedRevision: null };
     calls.save.mockReturnValue("created-agent");
-    calls.draft.mockResolvedValue([{ pack: "spot_trader" }]);
+    calls.draft.mockResolvedValue([
+      {
+        pack: "spot_trader",
+        configJson: JSON.stringify({
+          kind: "rebalancer",
+          targets: [
+            { symbol: "NEAR", weightBps: 5000 },
+            { symbol: "USDC", weightBps: 5000 },
+          ],
+          driftBps: 500,
+          intervalSeconds: 300,
+        }),
+      },
+    ]);
     expect(await saveAgentStrategy(input)).toEqual({ ok: true, value: { agentId: "created-agent" } });
     expect(calls.save).toHaveBeenCalledWith(expect.any(Object), "owner", input, undefined, []);
     expect(await saveAgentStrategy({ ...input, userId: "someone-else" })).toMatchObject({

@@ -7,6 +7,7 @@ import { parseAttestedStrategy } from "@/server/ai/strategy-parser";
 import { strategyDrafts, strategyParseJobs } from "@/server/db/agent-schema";
 import { type AppDatabase, database } from "@/server/db/client";
 import { userTransaction } from "@/server/db/user-transaction";
+import { budgetFundingAsset } from "@/shared/agent-budget";
 import { instructionFundingAsset } from "@/shared/agent-instructions";
 import { type parseStrategyInputSchema, type StrategyDraft, strategySchema } from "@/shared/agents";
 import { AgentError } from "./errors";
@@ -21,7 +22,9 @@ function toDraft(row: typeof strategyDrafts.$inferSelect, input: ParseInput): St
   if (
     row.pack !== input.pack ||
     row.strategyText !== input.strategyText ||
-    (input.budget && "format" in strategy && instructionFundingAsset(strategy) !== input.budget.assetId) ||
+    (input.budget &&
+      "format" in strategy &&
+      instructionFundingAsset(strategy) !== budgetFundingAsset(input.budget.assetId)) ||
     row.consumedAt !== null ||
     row.expiresAt <= Date.now()
   ) {

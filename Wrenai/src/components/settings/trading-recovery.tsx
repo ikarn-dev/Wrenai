@@ -1,6 +1,8 @@
 "use client";
 import { base64urlnopad } from "@scure/base";
-import { type FormEvent, type ReactElement, useState, useTransition } from "react";
+import { ChevronDown, Download } from "lucide-react";
+import { type FormEvent, type ReactElement, useId, useState, useTransition } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { notify, useToastState } from "@/components/ui/toast";
 import { walletForAccount } from "@/components/wallet/near-connector";
@@ -12,6 +14,16 @@ import {
 } from "@/server/trading-accounts/actions";
 import { recoveryFileHash, sealRecoveryFile } from "@/shared/recovery-file";
 import type { TradingAccountSummary } from "@/shared/trading-recovery";
+import { FIELD, PasswordField } from "./password-field";
+
+const ICON = { "aria-hidden": true, size: 16, strokeWidth: 1.75, absoluteStrokeWidth: true } as const;
+
+interface Confirmation {
+  readonly accountId: string;
+  readonly token: string;
+  readonly fileHash: string;
+  readonly file: string;
+}
 
 function downloadBackup(text: string): void {
   const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
@@ -21,6 +33,49 @@ function downloadBackup(text: string): void {
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+/** The trading account to back up. With no agents there is only the manual account, so no picker is shown. */
+function AccountPicker({
+  agents,
+  disabled,
+}: {
+  readonly agents: readonly { readonly id: string; readonly name: string }[];
+  readonly disabled: boolean;
+}): ReactElement {
+  const id = useId();
+  if (agents.length === 0) {
+    return <input type="hidden" name="agentId" value="manual" />;
+  }
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-small text-fg-muted">
+        Account
+      </label>
+      <div className="relative">
+        <select
+          id={id}
+          name="agentId"
+          required
+          disabled={disabled}
+          defaultValue="manual"
+          className={`${FIELD} cursor-pointer appearance-none pr-10`}
+        >
+          <option value="manual">Manual Spot and Perps</option>
+          {agents.map((agent) => (
+            <option key={agent.id} value={agent.id}>
+              {agent.name}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          {...ICON}
+          className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-fg-subtle"
+        />
+      </div>
+    </div>
+  );
+}
+
 export function TradingRecovery({
   accountId,
   agents,
@@ -34,12 +89,7 @@ export function TradingRecovery({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useToastState("warn");
   const [confirmed, setConfirmed] = useState(initial?.derivedBackupConfirmed ?? false);
-  const [confirmation, setConfirmation] = useState<{
-    readonly accountId: string;
-    readonly token: string;
-    readonly fileHash: string;
-    readonly file: string;
-  } | null>(null);
+  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     const form = event.currentTarget;
@@ -52,7 +102,7 @@ export function TradingRecovery({
     const agentId = String(data.get("agentId") ?? "");
     startTransition(async () => {
       setError(null);
-      setMessage("Preparing ownership check…");
+      setMessage("Checking ownership…");
       try {
         const context = agentId === "manual" ? { manual: true as const } : { agentId };
         const challenge = await requestRecoveryBackup(context);
@@ -67,7 +117,7 @@ export function TradingRecovery({
           setError(wallet.notice.text);
           return;
         }
-        setMessage("Confirm recovery export in your wallet…");
+        setMessage("Approve in your wallet…");
         const signed = await attempt(
           () =>
             wallet.value.signMessage({
@@ -91,7 +141,7 @@ export function TradingRecovery({
           setError(exported.message);
           return;
         }
-        setMessage("Encrypting on your device…");
+        setMessage("Encrypting on this device…");
         const file = await sealRecoveryFile(exported.value.payload, password);
         downloadBackup(file);
         setConfirmation({
@@ -101,7 +151,7 @@ export function TradingRecovery({
           file,
         });
         form.reset();
-        setMessage("Keep your password separate from the backup. Confirm after saving it.");
+        setMessage("Downloaded. Keep the password apart from the file.");
       } catch {
         setError("The recovery backup could not be completed. Retry the ownership check.");
       }
@@ -130,101 +180,74 @@ export function TradingRecovery({
         }
         setConfirmed(true);
         setConfirmation(null);
-        setMessage("Recovery backup confirmed.");
+        setMessage(null);
         notify("success", "Recovery backup confirmed.");
       } catch {
         setError("Confirmation could not be verified. Retry the same confirmation.");
       }
     });
   }
-  const field =
-    "min-h-11 w-full rounded-sm border border-line-strong bg-sunken px-3 text-small disabled:text-fg-disabled";
   return (
-    <div className="space-y-4">
-      <p className="text-small text-fg-muted">
-        Vercel controls these funded accounts. Your encrypted backup lets you recover their keys without the
-        app.
-      </p>
-      {confirmed ? <p className="text-small text-accent-text">Recovery backup confirmed.</p> : null}
-      {!confirmed && initial?.backupConfirmed ? (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-small text-fg-muted">
-          Download the updated backup before funding separate Perps agent addresses. Your existing
-          native-account backup remains valid.
+          The server holds these keys. This file recovers them without the app.
         </p>
-      ) : null}
+        {confirmed ? (
+          <Badge tone="accent" dot>
+            Backed up
+          </Badge>
+        ) : initial?.backupConfirmed ? (
+          <Badge tone="warn" dot>
+            Update needed
+          </Badge>
+        ) : null}
+      </div>
       {!confirmation ? (
-        <form onSubmit={submit} className="space-y-4" aria-busy={busy}>
-          <label className="flex flex-col gap-2 text-small">
-            <span>Trading account</span>
-            <select name="agentId" required disabled={busy} defaultValue="manual" className={field}>
-              <option value="manual">Manual Spot and Perps</option>
-              {agents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name}
-                </option>
-              ))}
-            </select>
-          </label>
+        <form onSubmit={submit} className="flex flex-col gap-4" aria-busy={busy}>
+          <AccountPicker agents={agents} disabled={busy} />
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="flex flex-col gap-2 text-small">
-              <span>Backup password · 12+ characters</span>
-              <input
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={12}
-                maxLength={1024}
-                disabled={busy}
-                className={field}
-              />
-            </label>
-            <label className="flex flex-col gap-2 text-small">
-              <span>Repeat password</span>
-              <input
-                name="repeatPassword"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={12}
-                maxLength={1024}
-                disabled={busy}
-                className={field}
-              />
-            </label>
+            <PasswordField name="password" label="Password" placeholder="12+ characters" disabled={busy} />
+            <PasswordField name="repeatPassword" label="Repeat password" disabled={busy} />
           </div>
-          <Button type="submit" disabled={busy}>
-            {busy ? "Preparing…" : confirmed ? "Download new backup" : "Save encrypted backup"}
-          </Button>
+          <div>
+            <Button type="submit" variant="primary" busy={busy}>
+              <Download {...ICON} />
+              {confirmed ? "Download new backup" : "Save backup"}
+            </Button>
+          </div>
         </form>
       ) : (
-        <form onSubmit={confirm} className="space-y-4" aria-busy={busy}>
-          <Button type="button" disabled={busy} onClick={() => downloadBackup(confirmation.file)}>
-            Download backup again
-          </Button>
+        <form onSubmit={confirm} className="flex flex-col gap-4" aria-busy={busy}>
+          <label className="flex cursor-pointer items-start gap-3 text-small text-fg">
+            <input type="checkbox" required disabled={busy} className="mt-0.5 size-4 accent-accent" />
+            <span>I saved the file and its password.</span>
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="submit" variant="primary" busy={busy}>
+              Confirm backup
+            </Button>
+            <Button variant="ghost" disabled={busy} onClick={() => downloadBackup(confirmation.file)}>
+              <Download {...ICON} />
+              Download again
+            </Button>
+          </div>
           <details className="text-small text-fg-muted">
-            <summary className="cursor-pointer text-accent-text">Offline recovery</summary>
+            <summary className="w-fit cursor-pointer rounded-xs text-fg-muted transition-colors duration-200 ease-ios hover:text-fg-strong">
+              Recover offline
+            </summary>
             <p className="mt-2">
-              Keep a copy of the project. From its app directory, run{" "}
-              <code>pnpm recover backup.json recovered.key</code>. Add your agent index to recover a separate
-              Perps address. The command asks for your password locally and saves private keys without signing
-              in.
+              From a copy of the project, run{" "}
+              <code className="font-mono">pnpm recover backup.json recovered.key</code>. Add an agent index
+              for its Perps address. It asks for the password locally.
             </p>
           </details>
-          <label className="flex items-start gap-3 text-small">
-            <input type="checkbox" required disabled={busy} className="mt-1 size-5 accent-accent" />
-            <span>I saved the encrypted backup and password and can access the recovery command.</span>
-          </label>
-          <Button type="submit" disabled={busy}>
-            {busy ? "Confirming…" : "Confirm saved backup"}
-          </Button>
         </form>
       )}
-      {message && !error ? (
-        <p role="status" className="text-small text-fg-muted">
-          {message}
-        </p>
-      ) : null}
+      {/* Always present, so screen readers announce each step. */}
+      <p role="status" aria-live="polite" className="min-h-0 text-small text-fg-muted empty:hidden">
+        {message && !error ? message : ""}
+      </p>
     </div>
   );
 }

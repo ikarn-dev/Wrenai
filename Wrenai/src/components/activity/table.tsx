@@ -2,13 +2,12 @@ import type { ReactElement, ReactNode } from "react";
 import { CELL, STICKY_CELL } from "./row";
 
 const COLUMNS = [
-  { id: "type", label: "Type", end: false },
-  { id: "details", label: "Details", end: false },
-  { id: "by", label: "By", end: false },
-  { id: "transaction", label: "Transaction", end: false },
-  { id: "amount", label: "Amount", end: true },
-  { id: "status", label: "Status", end: false },
-  { id: "time", label: "Time (UTC)", end: true },
+  { id: "type", label: "Type" },
+  { id: "details", label: "Details" },
+  { id: "transaction", label: "Transaction" },
+  { id: "amount", label: "Amount" },
+  { id: "status", label: "Status" },
+  { id: "time", label: "Time (UTC)" },
 ] as const;
 
 interface ActivityTableProps {
@@ -17,9 +16,14 @@ interface ActivityTableProps {
   readonly children: ReactNode;
 }
 
+/** First column left, last column right, everything between centered (user choice, Nov 5 2026). */
+export function columnAlign(position: number, count: number): string {
+  return position === 0 ? "text-left" : position === count - 1 ? "text-right" : "text-center";
+}
+
 /**
- * The activity table, indexer style: mono eyebrow headers over full-width rows. It scrolls sideways inside the
- * card on narrow screens and never vertically, so the page keeps one scroll (no data-lenis-prevent needed).
+ * The activity table, indexer style: mono eyebrow headers over full-width rows, aligned by `columnAlign`. It scrolls sideways inside the card on narrow screens and never vertically, so the page
+ * keeps one scroll (no data-lenis-prevent needed).
  */
 export function ActivityTable({ label, hidden = false, children }: ActivityTableProps): ReactElement {
   return (
@@ -31,7 +35,7 @@ export function ActivityTable({ label, hidden = false, children }: ActivityTable
               <th
                 key={column.id}
                 scope="col"
-                className={`${CELL} py-2.5 font-mono text-eyebrow font-medium whitespace-nowrap text-fg-subtle uppercase ${column.end ? "text-right" : "text-left"} ${position === 0 ? STICKY_CELL : ""}`}
+                className={`${CELL} py-2.5 font-mono text-eyebrow font-medium whitespace-nowrap text-fg-subtle uppercase ${columnAlign(position, COLUMNS.length)} ${position === 0 ? STICKY_CELL : ""}`}
               >
                 {column.label}
               </th>

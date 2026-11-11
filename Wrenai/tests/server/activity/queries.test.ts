@@ -93,6 +93,32 @@ describe("owner activity read model", () => {
     expect(serialized).not.toContain("private");
     expect(serialized).not.toContain("future");
   });
+  it("shows agent lifecycle events as badges and leaves out workflow poll fences", async () => {
+    const event = (id: string, kind: string, message: string, createdAt: number) => ({
+      id,
+      userId: "owner",
+      agentId: "owner-agent",
+      kind,
+      message,
+      detailJson: "{}",
+      createdAt,
+    });
+    await context.db
+      .insert(agentEvents)
+      .values([
+        event("created", "agent_creation_review", "Created the reviewed agent.", snapshot - 5),
+        event("fence", "wallet_funding_poll_t1_0", "Checking the deposit.", snapshot - 4),
+        event("returning", "delete_requested", "Delete requested. Returning funds first.", snapshot - 3),
+        event("return-fence", "agent_return_poll_t2_1", "Checking the fund return.", snapshot - 2),
+        event("deleted", "delete", "Agent deleted after its funds were returned.", snapshot - 1),
+      ]);
+    const rows = await appActivityPage(context.db, "owner", cursor());
+    expect(rows.map(({ id, title, status }) => ({ id, title, status }))).toEqual([
+      { id: "agent:deleted", title: "Agent deleted", status: "deleted" },
+      { id: "agent:returning", title: "Delete requested", status: "deleting" },
+      { id: "agent:created", title: "Agent created", status: "created" },
+    ]);
+  });
   it("shows recorded fills rather than reservation ceilings and identifies refunds", async () => {
     await context.db.insert(executionWallets).values({ userId: "owner", scope: "intents" });
     await context.db.insert(executionActions).values({

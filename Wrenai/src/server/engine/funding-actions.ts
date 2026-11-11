@@ -1,5 +1,4 @@
 "use server";
-import { refresh } from "next/cache";
 import { z } from "zod";
 import { AgentError } from "@/server/agents/errors";
 import { currentUser } from "@/server/auth/session";
@@ -24,7 +23,6 @@ export async function allocateAgentBalance(raw: unknown): Promise<AgentResult<nu
   }
   try {
     await allocatePreviewBalance(database(), user.id, raw);
-    refresh();
     return { ok: true, value: null };
   } catch (error) {
     if (error instanceof AgentError) {

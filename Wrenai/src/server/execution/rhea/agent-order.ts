@@ -4,11 +4,15 @@ import type { z } from "zod";
 import type { AppDatabase } from "@/server/db/client";
 import { executionActions } from "@/server/db/execution-schema";
 import { userTransaction } from "@/server/db/user-transaction";
-import { isNativeNearPayoutPair, usesNativeNearPayout } from "@/shared/agent-instructions";
+import { isNativeNearPayoutPair, publicRoutePool, usesNativeNearPayout } from "@/shared/agent-instructions";
 import { policySchema } from "@/shared/agents";
 import type { TradeAsset } from "@/shared/trade-preview";
-import { WALLET_SWAP_RHEA_POOL } from "@/shared/wallet-swap";
-import { currentAgentStrategy, resolvedInstructionAssets, resolvedTradeAssets } from "../asset-review";
+import {
+  currentAgentStrategy,
+  instructionRouteTokens,
+  resolvedInstructionAssets,
+  resolvedTradeAssets,
+} from "../asset-review";
 import { ExecutionError, executionPlanSchema } from "../contracts";
 import { instructionSubmissionCheck } from "../instruction-reference";
 import { swapSignalSchema } from "../intents-order";
@@ -25,14 +29,24 @@ async function reviewedRheaPair(
   signal: z.infer<typeof swapSignalSchema>,
 ): Promise<{ input: TradeAsset; output: TradeAsset; poolId: string }> {
   const instruction = current.strategy;
-  if ("format" in instruction && usesNativeNearPayout(instruction)) {
-    const assets = resolvedTradeAssets(instruction, current.version.resolvedAssetsJson, []);
+  const poolId = "format" in instruction ? publicRoutePool(instruction) : null;
+  if ("format" in instruction && poolId) {
+    const assets = resolvedTradeAssets(
+      instruction,
+      current.version.resolvedAssetsJson,
+      await instructionRouteTokens(instruction),
+    );
     const input = assets.find((asset) => asset.assetId === signal.inputAssetId);
     const output = assets.find((asset) => asset.assetId === signal.outputAssetId);
-    if (!input || !output || !isNativeNearPayoutPair(input.assetId, output.assetId)) {
-      throw new ExecutionError("conflict", "The public swap must match the reviewed USDC to NEAR pair.");
+    if (
+      !input ||
+      !output ||
+      input.assetId === output.assetId ||
+      (usesNativeNearPayout(instruction) && !isNativeNearPayoutPair(input.assetId, output.assetId))
+    ) {
+      throw new ExecutionError("conflict", "The public swap must match the reviewed pair.");
     }
-    return { input, output, poolId: WALLET_SWAP_RHEA_POOL };
+    return { input, output, poolId };
   }
   if (instruction.kind !== "meme_hunter") {
     throw new ExecutionError("not_ready", "This agent has no reviewed public RHEA route.");

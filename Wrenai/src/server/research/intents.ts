@@ -18,11 +18,13 @@ const tokenSchema = z.object({
 });
 export type IntentToken = z.infer<typeof tokenSchema>;
 
+/** The 1Click registry, no older than `maxAgeMs` (15 s by default; trading checks rely on that freshness). */
 export async function intentTokens(
   signal?: AbortSignal,
+  maxAgeMs = 15_000,
 ): Promise<{ readonly tokens: readonly IntentToken[]; readonly source: ResearchSource }> {
   const response = await marketJson("NEAR Intents", "https://1click.chaindefuser.com/v0/tokens", {
-    cacheMs: 15_000,
+    cacheMs: maxAgeMs,
     ...(signal ? { signal } : {}),
   });
   return {

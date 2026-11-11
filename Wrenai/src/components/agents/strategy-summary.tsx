@@ -108,29 +108,17 @@ export function PolicySummary({
   readonly policy: AgentPolicy;
 }): ReactElement {
   const profile = agentSetupProfile(pack);
-  const payment = pack === "private_payments";
   return (
     <dl className="divide-y divide-line/60">
-      <Detail label="Capital ceiling">{formatExactMicroUsd(parseUsd(policy.budgetUsd))}</Detail>
-      <Detail label={`Per ${profile.action}`}>{formatExactMicroUsd(parseUsd(policy.maxTradeUsd))}</Detail>
-      <Detail label="24-hour cap">{formatExactMicroUsd(parseUsd(policy.dailyCapUsd))}</Detail>
-      <Detail label="Approval">{APPROVAL_LABELS[policy.approvalMode]}</Detail>
-      {policy.approvalMode === "above_size" ? (
-        <Detail label="Approval threshold">
-          {formatExactMicroUsd(parseUsd(policy.approvalThresholdUsd))}
-        </Detail>
-      ) : null}
-      <Detail label={payment ? "Quote tolerance" : "Slippage cap"}>{policy.maxSlippageBps / 100}%</Detail>
-      <Detail label="Provider fee cap">{policy.maxProviderFeeBps} bps</Detail>
-      {payment ? null : (
-        <>
-          <Detail label={`Max ${profile.actions} per hour`}>{policy.maxTradesPerHour}</Detail>
-          <Detail label="Cooldown">{policy.cooldownSeconds} seconds</Detail>
-        </>
+      <Detail label={`Most per ${profile.action}`}>
+        {formatExactMicroUsd(parseUsd(policy.maxTradeUsd))}
+      </Detail>
+      <Detail label="Most per day">{formatExactMicroUsd(parseUsd(policy.dailyCapUsd))}</Detail>
+      <Detail label="Most in total">{formatExactMicroUsd(parseUsd(policy.budgetUsd))}</Detail>
+      {policy.approvalMode === "autonomous" ? null : (
+        <Detail label="Approval">{APPROVAL_LABELS[policy.approvalMode]}</Detail>
       )}
-      {profile.protectiveExits && policy.allowRiskReducingExits === true ? (
-        <Detail label="Protective exits">Owned position only · independent of entry spending caps</Detail>
-      ) : null}
+      <Detail label="Price protection">{policy.maxSlippageBps / 100}%</Detail>
     </dl>
   );
 }

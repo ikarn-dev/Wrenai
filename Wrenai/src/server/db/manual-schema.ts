@@ -14,7 +14,7 @@ export const manualTrades = pgTable(
     intentJson: text("intent_json").notNull(),
     previewJson: text("preview_json").notNull(),
     bindingHash: text("binding_hash").notNull(),
-    source: text("source", { enum: ["jarvis", "spot", "perps"] }).notNull(),
+    source: text("source", { enum: ["jarvis", "spot", "perps", "portfolio"] }).notNull(),
     status: text("status", { enum: ["quoted", "confirmed", "cancelled", "expired"] }).notNull(),
     revision: integer("revision").notNull().default(1),
     actionId: text("action_id"),

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, notInArray, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { chatCipher } from "@/server/chat/cipher";
 import { chatAgentDrafts } from "@/server/db/chat-schema";
@@ -36,6 +36,10 @@ export function walletFundingView(row: typeof walletFundings.$inferSelect): Wall
     expiresAt: row.expiresAt,
   };
 }
+/** A wallet funding that is still open: not complete, and not abandoned after a declined wallet request. */
+export function openWalletFunding(): SQL {
+  return notInArray(walletFundings.state, ["complete", "abandoned"]);
+}
 export async function linkedAgentBudget(
   db: AppDatabase,
   owner: string,
@@ -60,13 +64,7 @@ export async function assertNoWalletFunding(db: AppDatabase, owner: string, agen
   const [row] = await db
     .select({ id: walletFundings.id })
     .from(walletFundings)
-    .where(
-      and(
-        eq(walletFundings.userId, owner),
-        eq(walletFundings.agentId, agentId),
-        ne(walletFundings.state, "complete"),
-      ),
-    )
+    .where(and(eq(walletFundings.userId, owner), eq(walletFundings.agentId, agentId), openWalletFunding()))
     .limit(1);
   const native = await activeNativeFunding(db, owner);
   if (row || native?.snapshot.agentId === agentId) {

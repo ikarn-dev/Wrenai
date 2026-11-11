@@ -3,14 +3,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, RefreshCw, X } from "lucide-react";
 import { m, useReducedMotion } from "motion/react";
 import Link from "next/link";
-import { type ReactElement, useState, useTransition } from "react";
+import { type ReactElement, useEffect, useRef, useState, useTransition } from "react";
 import { ActivityIndicator } from "@/components/ui/activity-indicator";
 import { Button } from "@/components/ui/button";
-import { confirmManualOrder, dismissManualOrder, requestManualQuote } from "@/server/manual-trading/actions";
+import { notify } from "@/components/ui/toast";
 import { type ManualPreview, manualPreviewSchema } from "@/shared/manual-trading";
 import { formatUnits } from "@/shared/money";
 import { QuoteTimer, SwapSummary, tokenAmount } from "./swap-summary";
 import { readTrading } from "./trading-api";
+import { confirmManualOrder, dismissManualOrder, requestManualQuote } from "./trading-mutations";
 
 export function TradeCard({
   id,
@@ -42,6 +43,22 @@ export function TradeCard({
     retry: false,
   });
   const trade = query.data;
+  const lastPayment = useRef<{ id: string; status: ManualPreview["status"] } | null>(null);
+  useEffect(() => {
+    if (trade?.intent.kind !== "payment") {
+      return;
+    }
+    const previous = lastPayment.current;
+    lastPayment.current = { id: trade.id, status: trade.status };
+    if (previous?.id !== trade.id || previous.status === trade.status) {
+      return;
+    }
+    if (trade.status === "settled") {
+      notify("success", "Payment sent.");
+    } else if (trade.status === "refunded") {
+      notify("info", "Payment refunded.");
+    }
+  }, [trade]);
   function run(kind: "confirm" | "dismiss" | "refresh"): void {
     // Busy buttons stay readable and enabled (Docs/DESIGN.md → Buttons); further clicks are ignored here.
     if (!trade || busy) {
@@ -74,7 +91,7 @@ export function TradeCard({
               })
             : await requestManualQuote({
                 requestId: crypto.randomUUID(),
-                source: "jarvis",
+                source: snapshot.intent.kind === "wallet_return" ? "portfolio" : "jarvis",
                 intent: snapshot.intent,
               });
         if (!r.ok) {
@@ -105,6 +122,8 @@ export function TradeCard({
     trade.intent.kind === "spot" && trade.input && trade.output
       ? { input: trade.input, output: trade.output }
       : null;
+  const walletReturn = trade.intent.kind === "wallet_return";
+  const payment = trade.intent.kind === "payment";
   return (
     <m.section
       initial={reduced ? false : { opacity: 0, y: 8, scale: 0.985 }}
@@ -162,6 +181,10 @@ export function TradeCard({
                 <ActivityIndicator size={18} label="Confirming" />
               ) : swap ? (
                 "Confirm swap"
+              ) : walletReturn ? (
+                "Confirm return"
+              ) : payment ? (
+                "Confirm payment"
               ) : (
                 "Confirm trade"
               )}
@@ -170,6 +193,10 @@ export function TradeCard({
         ) : trade.status === "expired" && trade.intent.kind === "spot" && !trade.pairVerified ? (
           <p role="status" className="text-small text-fg-muted">
             Request a new quote with the exact tokens.
+          </p>
+        ) : trade.status === "expired" && payment ? (
+          <p role="status" className="text-small text-fg-muted">
+            Payment expired. Ask for a fresh payment.
           </p>
         ) : trade.status === "expired" ? (
           <div className="grid">
@@ -195,7 +222,22 @@ export function TradeCard({
                 className="text-accent-text"
               />
             ) : null}
-            {STATUS_TEXT[trade.status] ?? "Trade submitted · waiting for confirmation"}
+            {(payment
+              ? PAYMENT_STATUS_TEXT[trade.status]
+              : walletReturn
+                ? RETURN_STATUS_TEXT[trade.status]
+                : STATUS_TEXT[trade.status]) ?? "Trade submitted · waiting for confirmation"}
+            {trade.transactionHash ? (
+              <a
+                href={`https://nearblocks.io/txns/${trade.transactionHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={trade.transactionHash}
+                className="font-mono text-accent-text underline-offset-4 hover:underline"
+              >
+                View transaction
+              </a>
+            ) : null}
           </p>
         )}
         {!quoted && !terminal && trade.status !== "expired" ? (
@@ -237,6 +279,26 @@ const STATUS_TEXT: Readonly<Partial<Record<ManualPreview["status"], string>>> = 
   cancelled: "Quote dismissed",
 };
 
+const RETURN_STATUS_TEXT: Readonly<Partial<Record<ManualPreview["status"], string>>> = {
+  settled: "Returned to your wallet",
+  refunded: "Return refunded to your private balance",
+  reserved: "Returning funds",
+  submitting: "Returning funds",
+  submitted: "Returning funds · waiting for delivery",
+  unknown: "Checking the transfer",
+  cancelled: "Return dismissed",
+};
+
+const PAYMENT_STATUS_TEXT: Readonly<Partial<Record<ManualPreview["status"], string>>> = {
+  reserved: "Preparing payment",
+  submitting: "Sending payment",
+  submitted: "Waiting for delivery",
+  settled: "Payment sent",
+  refunded: "Payment refunded",
+  unknown: "Checking payment",
+  cancelled: "Payment dismissed",
+};
+
 /** Perps and other non-swap trades: their terms as label and value rows. */
 function TradeRows({ trade }: { readonly trade: ManualPreview }): ReactElement {
   const unitsOut = trade.execution?.receivedUnits ?? trade.minimumOutputUnits;
@@ -252,7 +314,20 @@ function TradeRows({ trade }: { readonly trade: ManualPreview }): ReactElement {
           ? `${tokenAmount(trade.execution.spentUnits, trade.input)} ${trade.input.tokenSymbol}`
           : trade.maximumDebit,
     },
-    ...(output ? [{ label: trade.execution ? "Received" : "Receive at least", value: output }] : []),
+    ...(trade.intent.kind === "payment" ? [{ label: "Recipient", value: trade.intent.recipient }] : []),
+    ...(output
+      ? [
+          {
+            label:
+              trade.intent.kind === "payment"
+                ? "Payment amount"
+                : trade.execution
+                  ? "Received"
+                  : "Receive at least",
+            value: output,
+          },
+        ]
+      : []),
     ...(trade.limitPrice ? [{ label: "Limit price", value: trade.limitPrice }] : []),
     ...(trade.intent.kind === "perps" && trade.intent.action === "open"
       ? [

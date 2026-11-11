@@ -57,7 +57,24 @@ export const activityEntrySchema = z.strictObject({
   category: z.enum(["wallet", "agent", "trade", "funding", "settings", "security"]),
   title: z.string().min(1).max(160),
   description: z.string().max(500),
-  status: z.enum(["completed", "pending", "failed", "recorded", "cancelled", "refunded"]),
+  // Outcome states, then agent lifecycle states shown as the agent event's badge (server/activity/agent-events.ts).
+  status: z.enum([
+    "completed",
+    "pending",
+    "failed",
+    "recorded",
+    "cancelled",
+    "refunded",
+    "created",
+    "reviewed",
+    "saved",
+    "funded",
+    "started",
+    "paused",
+    "stopped",
+    "deleting",
+    "deleted",
+  ]),
   occurredAt: time,
   agent: z
     .strictObject({ id: z.string().min(1).max(128), name: z.string().max(160), deleted: z.boolean() })

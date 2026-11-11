@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, sql } from "drizzle-orm";
 import type { AppDatabase } from "@/server/db/client";
 import { positionLots } from "@/server/db/position-schema";
-import { delegatedKeys } from "@/server/db/schema";
+import { delegatedKeys, users } from "@/server/db/schema";
 import { ExecutionError, type ExecutionScope } from "@/server/execution/contracts";
 import { availableInventory, observedInventoryBalance } from "@/server/execution/inventory";
 import { executionHash, type LedgerAction } from "@/server/execution/records";
@@ -100,6 +100,42 @@ export async function guardManualAction(
       action.kind !== "swap"
     ) {
       throw new ExecutionError("not_ready", "The backed-up native trading account changed or was revoked.");
+    }
+  } else if (envelope.kind === "payment") {
+    const intent = envelope.preview.intent;
+    if (
+      intent.kind !== "payment" ||
+      action.scope !== "confidential" ||
+      action.kind !== "defi" ||
+      action.signingPublicKey !== key.publicKey ||
+      envelope.plan.operation !== "transfer" ||
+      envelope.prepared.recipient !== intent.recipient ||
+      envelope.plan.recipient !== intent.recipient ||
+      envelope.plan.cash[0]?.assetId !== intent.assetId ||
+      envelope.prepared.destination !== "confidential"
+    ) {
+      throw new ExecutionError(
+        "conflict",
+        "The payment differs from its confirmed recipient, token or permission.",
+      );
+    }
+  } else if (envelope.kind === "wallet_return") {
+    // Only to the owner's own wallet, from the private balance, with the shared key the card was confirmed with.
+    const [owner] = await db
+      .select({ accountId: users.accountId })
+      .from(users)
+      .where(eq(users.id, action.userId))
+      .limit(1);
+    if (
+      action.scope !== "confidential" ||
+      action.kind !== "defi" ||
+      action.signingPublicKey !== key.publicKey ||
+      !envelope.plan.walletReturn ||
+      owner?.accountId !== envelope.plan.recipient ||
+      envelope.prepared.recipient !== envelope.plan.recipient ||
+      envelope.prepared.payoutAssetId !== envelope.plan.payoutAssetId
+    ) {
+      throw new ExecutionError("conflict", "The return differs from its confirmed wallet or permission.");
     }
   } else if (envelope.kind === "perps_funding" || envelope.kind === "perps_return") {
     const root = await activeTradingAccount(db, action.userId),

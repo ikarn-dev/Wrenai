@@ -4,6 +4,7 @@ import {
   observeInventory,
   startTestSubmission,
 } from "@tests/server/execution/test-context";
+import { readAgentPositions } from "@tests/server/positions/report";
 import { assignTestInventory, observeTestAssets, TEST_ASSET } from "@tests/server/positions/test-context";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,7 +14,6 @@ import { recordExecutionFill, settleExecution } from "@/server/execution/account
 import { reserveExecution } from "@/server/execution/reservations";
 import { assignInventory } from "@/server/positions/attribution";
 import { proportionalCost } from "@/server/positions/lots";
-import { readAgentPositions } from "@/server/positions/report";
 
 vi.mock("server-only", () => ({}));
 let context: Awaited<ReturnType<typeof executionTestContext>>;

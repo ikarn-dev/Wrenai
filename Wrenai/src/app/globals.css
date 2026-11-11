@@ -302,6 +302,31 @@
 
 /* Primary raised button: the accent face on a mint-600 lip, a soft shadow below, and the hover glow and full
    sheen, both faded by opacity only instead of repainting box-shadow. */
+/* The raised destructive action in a confirm dialog: loss text on a loss-soft face (6.40:1), a loss ring at 70%
+   (3.55:1 on surface-2) so the face reads off the dialog, and an 8% loss hover tint (5.32:1 under the sheen). */
+@utility button-danger {
+  --button-face-color: var(--color-loss-soft);
+  --button-face-edge: inset 0 0 0 1px color-mix(in oklab, var(--color-loss) 70%, transparent);
+  --button-lip-color: color-mix(in oklab, var(--color-loss-soft) 55%, var(--void-950));
+  --button-lip-edge: inset 0 0 0 1px color-mix(in oklab, var(--color-loss) 40%, transparent);
+  --button-sheen: 0.06;
+  & > .button-face::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    border-radius: inherit;
+    pointer-events: none;
+    background-color: color-mix(in oklab, var(--color-loss) 8%, var(--color-loss-soft));
+    opacity: 0;
+    transition: opacity 560ms var(--ease-ios);
+  }
+  @media (hover: hover) {
+    &:not(:disabled):hover > .button-face::after {
+      opacity: 1;
+    }
+  }
+}
 @utility button-glow {
   --button-face-color: var(--color-accent);
   --button-face-edge:

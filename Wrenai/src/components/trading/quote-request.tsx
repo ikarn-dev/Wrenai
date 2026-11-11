@@ -1,12 +1,17 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
+import { LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import type { ReactElement } from "react";
 import { Button } from "@/components/ui/button";
-import { requestChatSpotQuote } from "@/server/manual-trading/actions";
 import type { ChatQuoteRequest } from "@/shared/chat-quote";
 import { TradeCard } from "./trade-card";
+import { requestChatSpotQuote } from "./trading-mutations";
 
+/**
+ * A Jarvis quote request, priced once when its reply first shows. The quote is a POST to a route handler, so the
+ * chat page stays responsive while it runs (a Server Action here held the router and stalled the whole screen).
+ */
 export function QuoteRequest({ request }: { readonly request: ChatQuoteRequest }): ReactElement {
   const quote = useQuery({
     queryKey: ["chat-spot-quote", request.requestId],
@@ -30,30 +35,37 @@ export function QuoteRequest({ request }: { readonly request: ChatQuoteRequest }
     <section
       aria-label="Trade quote"
       aria-busy={quote.isFetching}
-      className="flex min-h-48 flex-col justify-center gap-4 rounded-lg border border-line-card bg-surface-card p-5"
+      className="flex w-full max-w-sm flex-col gap-3 card-shine rounded-lg p-3.5"
     >
-      <p role={quote.error ? "alert" : "status"} className="text-small text-fg-muted">
-        {quote.error?.message ?? "Getting a live quote…"}
-      </p>
       {quote.error ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            type="button"
-            disabled={quote.isFetching}
-            onClick={async () => {
-              await quote.refetch();
-            }}
-          >
-            {quote.isFetching ? "Getting quote…" : "Retry quote"}
-          </Button>
-          <Link
-            href="/spot"
-            className="inline-flex min-h-10 items-center rounded-sm px-2 text-small text-accent-text"
-          >
-            Open Spot
-          </Link>
-        </div>
-      ) : null}
+        <>
+          <p role="alert" className="text-small text-warn">
+            {quote.error.message}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="soft" busy={quote.isFetching} onClick={() => void quote.refetch()}>
+              Retry quote
+            </Button>
+            <Link
+              href="/spot"
+              className="inline-flex min-h-10 items-center rounded-sm px-2 text-small text-accent-text hover:underline"
+            >
+              Open Spot
+            </Link>
+          </div>
+        </>
+      ) : (
+        <p role="status" className="flex items-center gap-1.5 text-small text-fg-muted">
+          <LoaderCircle
+            aria-hidden="true"
+            size={14}
+            strokeWidth={1.75}
+            absoluteStrokeWidth
+            className="shrink-0 motion-safe:animate-spin"
+          />
+          Getting a live quote…
+        </p>
+      )}
     </section>
   );
 }

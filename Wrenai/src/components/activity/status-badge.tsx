@@ -1,4 +1,21 @@
-import { Ban, CircleCheck, CircleX, Clock3, FileCheck2, type LucideIcon, Undo2 } from "lucide-react";
+import {
+  Ban,
+  CircleCheck,
+  CirclePause,
+  CirclePlay,
+  CirclePlus,
+  CircleStop,
+  CircleX,
+  Clock3,
+  FileCheck2,
+  Hourglass,
+  type LucideIcon,
+  Save,
+  ShieldCheck,
+  Trash2,
+  Undo2,
+  Wallet,
+} from "lucide-react";
 import type { ReactElement } from "react";
 import type { ActivityEntry } from "@/shared/activity";
 
@@ -26,6 +43,17 @@ const STATUS: Readonly<
   recorded: { label: "Recorded", tone: "neutral", icon: FileCheck2 },
   cancelled: { label: "Cancelled", tone: "neutral", icon: Ban },
   refunded: { label: "Refunded", tone: "neutral", icon: Undo2 },
+  // Agent lifecycle. Mint for what adds or runs, warn while a delete is returning funds, loss once deleted
+  // (DESIGN.md → Status: destructive actions), neutral for steps in between.
+  created: { label: "Created", tone: "success", icon: CirclePlus },
+  reviewed: { label: "Reviewed", tone: "neutral", icon: ShieldCheck },
+  saved: { label: "Saved", tone: "neutral", icon: Save },
+  funded: { label: "Funded", tone: "success", icon: Wallet },
+  started: { label: "Started", tone: "success", icon: CirclePlay },
+  paused: { label: "Paused", tone: "neutral", icon: CirclePause },
+  stopped: { label: "Stopped", tone: "neutral", icon: CircleStop },
+  deleting: { label: "Deleting", tone: "warn", icon: Hourglass },
+  deleted: { label: "Deleted", tone: "loss", icon: Trash2 },
 };
 
 /**

@@ -11,17 +11,12 @@ export default async function NewAgentPage({
   await requireUser();
   const query = await searchParams;
   const next = new URLSearchParams();
-  const setup = query["setup"];
-  if (typeof setup === "string") {
-    next.set("setup", setup);
-  } else {
-    const tool = query["tool"];
-    next.set("create", typeof tool === "string" ? tool : ANY_AGENT_TYPE);
-    for (const name of ["manual", "brief"] as const) {
-      const value = query[name];
-      if (typeof value === "string") {
-        next.set(name, value);
-      }
+  const tool = query["tool"];
+  next.set("create", typeof tool === "string" ? tool : ANY_AGENT_TYPE);
+  for (const name of ["manual", "brief"] as const) {
+    const value = query[name];
+    if (typeof value === "string") {
+      next.set(name, value);
     }
   }
   redirect(`/agents?${next.toString()}`);

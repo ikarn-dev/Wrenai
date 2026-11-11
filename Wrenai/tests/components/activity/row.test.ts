@@ -25,19 +25,26 @@ describe("activity timeline rows", () => {
     expect(html).toContain("UTC");
     expect(html).not.toMatch(/overflow-y|data-lenis-prevent/);
   });
-  it("retains deleted agent names without linking to a removed screen", () => {
+  it("shows an app event on one line without an origin column or a link to its agent", () => {
     const html = renderToStaticMarkup(
       createElement(ActivityRow, {
         item: {
           ...base,
           source: "agents",
+          category: "agent",
+          title: "Agent deleted",
+          description: "Funds returned, history kept",
+          status: "deleted",
           agent: { id: "deleted", name: "Old agent", deleted: true },
           transactionHash: null,
+          amount: null,
         },
       }),
     );
-    expect(html).toContain("Old agent");
-    expect(html).toContain("Deleted agent");
+    expect(html).toContain("Funds returned, history kept");
+    expect(html).toContain("truncate");
+    expect(html).toContain("Deleted");
+    expect(html).not.toContain("Old agent");
     expect(html).not.toContain("href=");
   });
 });

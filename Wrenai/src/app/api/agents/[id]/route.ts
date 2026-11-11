@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { runAgentCommand } from "@/server/agents/commands";
 import { database } from "@/server/db/client";
 import { readAgentRuntimeStatus } from "@/server/engine/status-access";
 import { fundingAction } from "@/server/funding/access";
 import { readFundingState } from "@/server/funding/progress";
+import { agentPost } from "@/server/http/agent-route";
 
 export const runtime = "nodejs";
 const PRIVATE = { "Cache-Control": "private, no-store" };
@@ -33,4 +35,17 @@ export async function GET(
           ? 429
           : 503;
   return Response.json(result, { status, headers: PRIVATE });
+}
+
+/** An agent command (start, pause, stop, delete) without re-rendering the page that sent it. */
+export async function POST(
+  request: Request,
+  { params }: { readonly params: Promise<{ readonly id: string }> },
+): Promise<Response> {
+  const id = (await params).id;
+  // The agent is the one in the URL; any agentId in the body is replaced, so a request can't target another.
+  return agentPost(request, (body) => {
+    const fields = z.record(z.string(), z.unknown()).safeParse(body);
+    return runAgentCommand(fields.success ? { ...fields.data, agentId: id } : body);
+  });
 }

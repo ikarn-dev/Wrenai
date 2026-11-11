@@ -15,19 +15,25 @@ import { synchronizeNativeInventory } from "@/server/execution/rhea/inventory";
 import { assertNoWalletFunding } from "@/server/funding/records";
 import { allocationCeiling } from "@/server/positions/capital-records";
 import { activeTradingAccount } from "@/server/trading-accounts/vault";
-import { instructionFundingAsset, usesNativeNearPayout } from "@/shared/agent-instructions";
+import { instructionFundingAsset, publicRoutePool, usesPublicRoute } from "@/shared/agent-instructions";
 import { isRemovedExecutablePack, REMOVED_AGENT_MESSAGE } from "@/shared/agent-scope";
 import type { AgentSummary } from "@/shared/agents";
 import { AgentError } from "./errors";
 import { assertPerpsReady } from "./perps-readiness";
 
+/**
+ * Whether this process can fund and run agents: on Vercel, or locally only after the owner sets
+ * WRENAI_LOCAL_EXECUTION=1. Locally, agents use the workflow runtime of `pnpm dev`, so they move real mainnet funds
+ * and keep running only while that server does. The private route also needs the 1Click trading credential.
+ */
 export function deployedRuntimeReady(publicRhea = false): boolean {
-  if (publicRhea) {
-    return z.object({ VERCEL: z.literal("1") }).safeParse(process.env).success;
-  }
-  return z
-    .object({ VERCEL: z.literal("1"), ONECLICK_JWT: z.string().trim().min(1).max(8000) })
+  const runtime = z
+    .union([z.object({ VERCEL: z.literal("1") }), z.object({ WRENAI_LOCAL_EXECUTION: z.literal("1") })])
     .safeParse(process.env).success;
+  if (!runtime || publicRhea) {
+    return runtime;
+  }
+  return z.object({ ONECLICK_JWT: z.string().trim().min(1).max(8000) }).safeParse(process.env).success;
 }
 
 /** Never mark an agent running without an execution worker and verified trading access. */
@@ -44,11 +50,11 @@ export async function assertAgentReady(user: SessionUser, agent: AgentSummary): 
       "Live activation currently requires autonomous mode within your reviewed limits. Per-order approval is not connected yet.",
     );
   }
-  const publicRhea = "format" in agent.strategy && usesNativeNearPayout(agent.strategy);
+  const publicRhea = "format" in agent.strategy && usesPublicRoute(agent.strategy);
   if (!deployedRuntimeReady(publicRhea)) {
     throw new AgentError(
       "not_ready",
-      "Deploy this app with Vercel Workflows and its trading credential before activating agents.",
+      "Run this app on Vercel, or set WRENAI_LOCAL_EXECUTION=1 locally, with its trading credential before starting agents.",
     );
   }
   const key = await readDelegatedKey(user);
@@ -175,6 +181,7 @@ export async function assertAgentReady(user: SessionUser, agent: AgentSummary): 
         instruction.kind !== "sell_the_top" &&
           !(instruction.kind === "spot_trader" && instruction.side === "sell"),
         instruction.priceUnit,
+        publicRoutePool(instruction),
       );
     }
   }

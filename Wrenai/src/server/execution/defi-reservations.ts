@@ -60,6 +60,7 @@ export async function reserveDefiExecution(
     }
     const approved =
       plan.returnFunds === true ||
+      plan.walletReturn === true ||
       current.policy.approvalMode === "autonomous" ||
       (current.policy.approvalMode === "above_size" &&
         BigInt(plan.notionalMicroUsd) <= parseUsd(current.policy.approvalThresholdUsd));

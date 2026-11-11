@@ -13,7 +13,7 @@ export const walletFundings = pgTable(
     inputHash: text("input_hash").notNull(),
     snapshotJson: text("snapshot_json").notNull(),
     state: text("state", {
-      enum: ["prepared", "wallet_pending", "deposited", "converting", "complete"],
+      enum: ["prepared", "wallet_pending", "deposited", "converting", "complete", "abandoned"],
     }).notNull(),
     transactionHash: text("transaction_hash"),
     actionId: text("action_id"),
@@ -31,10 +31,12 @@ export const walletFundings = pgTable(
     }),
     uniqueIndex("wallet_funding_transaction_idx").on(t.transactionHash),
     index("wallet_funding_agent_idx").on(t.userId, t.agentId, t.createdAt),
-    uniqueIndex("wallet_funding_active_agent_idx").on(t.agentId).where(sql`${t.state} != 'complete'`),
+    uniqueIndex("wallet_funding_active_agent_idx")
+      .on(t.agentId)
+      .where(sql`${t.state} NOT IN ('complete', 'abandoned')`),
     check(
       "wallet_funding_state_valid",
-      sql`${t.state} IN ('prepared','wallet_pending','deposited','converting','complete')`,
+      sql`${t.state} IN ('prepared','wallet_pending','deposited','converting','complete','abandoned')`,
     ),
     check(
       "wallet_funding_dates_valid",
@@ -42,7 +44,7 @@ export const walletFundings = pgTable(
     ),
     check(
       "wallet_funding_confirmation_valid",
-      sql`(${t.state} IN ('prepared','wallet_pending') AND ${t.confirmedAt} IS NULL AND ${t.transactionHash} IS NULL AND ${t.actionId} IS NULL) OR (${t.state} IN ('deposited','converting','complete') AND ${t.confirmedAt} IS NOT NULL AND ${t.transactionHash} IS NOT NULL AND ${t.walletAttemptAt} IS NOT NULL)`,
+      sql`(${t.state} IN ('prepared','wallet_pending','abandoned') AND ${t.confirmedAt} IS NULL AND ${t.transactionHash} IS NULL AND ${t.actionId} IS NULL) OR (${t.state} IN ('deposited','converting','complete') AND ${t.confirmedAt} IS NOT NULL AND ${t.transactionHash} IS NOT NULL AND ${t.walletAttemptAt} IS NOT NULL)`,
     ),
   ],
 ).enableRLS();

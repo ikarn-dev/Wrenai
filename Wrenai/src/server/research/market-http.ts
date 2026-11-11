@@ -2,9 +2,17 @@ import "server-only";
 import { parse } from "lossless-json";
 
 const MAX_BODY = 3_000_000;
+// One entry per URL and body. Each caller states the oldest copy it accepts (cacheMs); an entry is kept for the
+// longest age any caller asked for, so a display read with a long allowance never makes a trading read accept
+// an older copy than its own limit.
 const cache = new Map<
   string,
-  { readonly value: unknown; readonly capturedAt: number; readonly expiresAt: number }
+  {
+    readonly value: unknown;
+    readonly capturedAt: number;
+    readonly expiresAt: number;
+    readonly keepMs: number;
+  }
 >();
 export class MarketUnavailable extends Error {
   constructor(readonly provider: string) {
@@ -35,8 +43,9 @@ export async function marketJson(
       cache.delete(id);
     }
   }
-  const cached = (options.cacheMs ?? 0) > 0 ? cache.get(key) : undefined;
-  if (cached) {
+  const maxAge = options.cacheMs ?? 0;
+  const cached = maxAge > 0 ? cache.get(key) : undefined;
+  if (cached && now - cached.capturedAt < maxAge) {
     return { value: cached.value, capturedAt: cached.capturedAt };
   }
   try {
@@ -76,7 +85,9 @@ export async function marketJson(
     }
     const value: unknown = parse(Buffer.concat(chunks).toString("utf8"), null, (number: string) => number);
     const capturedAt = Date.now();
-    if ((options.cacheMs ?? 0) > 0) {
+    if (maxAge > 0) {
+      const keepMs = Math.max(maxAge, cache.get(key)?.keepMs ?? 0);
+      cache.delete(key);
       while (cache.size >= 12) {
         const oldest = cache.keys().next().value;
         if (oldest === undefined) {
@@ -84,7 +95,7 @@ export async function marketJson(
         }
         cache.delete(oldest);
       }
-      cache.set(key, { value, capturedAt, expiresAt: capturedAt + (options.cacheMs ?? 0) });
+      cache.set(key, { value, capturedAt, expiresAt: capturedAt + keepMs, keepMs });
     }
     return { value, capturedAt };
   } catch (error) {

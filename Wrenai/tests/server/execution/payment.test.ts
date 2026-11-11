@@ -1,4 +1,5 @@
 import { createSecretKey } from "node:crypto";
+import { exercisePaymentTopUp } from "@tests/server/execution/payment-top-up-cases";
 import { executionTestContext, fundTestAgent, observeInventory } from "@tests/server/execution/test-context";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,6 +14,7 @@ import { privateTokenId } from "@/server/execution/confidential-intents";
 import { preparePaymentExecution } from "@/server/execution/payment-order";
 import { synchronizePrivateInventory } from "@/server/execution/private-inventory";
 import { executionHash, ownedLedgerAction } from "@/server/execution/records";
+import { confirmManualTrade, quoteManualTrade, readManualPreview } from "@/server/manual-trading/service";
 import { unreservedOwnedUnits } from "@/server/positions/lots";
 import { agentInstructionSchema } from "@/shared/agent-instructions";
 
@@ -28,6 +30,18 @@ vi.mock("@/server/execution/private-inventory", () => ({ synchronizePrivateInven
 vi.mock("@/server/execution/public-payment-recipient", () => ({
   assertPublicPaymentRecipient: async () => undefined,
 }));
+vi.mock("@/server/near/rpc", async (original) => ({
+  ...(await original<typeof import("@/server/near/rpc")>()),
+  readFinalTransaction: vi.fn(),
+  callViewFunction: async () => ({ value: { min: "1250000000000000000000" } }),
+}));
+vi.mock("@/server/portfolio/wallet-tokens", () => ({
+  walletTokenHolding: async (_: string, assetId: string) => ({
+    assetId,
+    decimals: assetId === "native:near" ? 24 : 6,
+    spendableUnits: assetId === "native:near" ? "1000000000000000000000000" : "3000000",
+  }),
+}));
 vi.mock("@defuse-protocol/one-click-sdk-typescript", async (original) => ({
   ...(await original<typeof import("@defuse-protocol/one-click-sdk-typescript")>()),
   verifyQuoteSignature: () => true,
@@ -39,6 +53,11 @@ vi.mock("@/server/execution/oneclick-quote", async (original) => ({
 }));
 const asset = "nep141:usdc.test-fixture.near",
   deposit = "a".repeat(64);
+vi.mock("@/server/research/intents", () => ({
+  intentTokens: async () => ({
+    tokens: [{ assetId: asset, symbol: "USDC", blockchain: "near", decimals: 6 }],
+  }),
+}));
 let context: Awaited<ReturnType<typeof executionTestContext>>;
 let rawQuote: unknown;
 let remainingBalance: string;
@@ -147,7 +166,7 @@ beforeEach(async () => {
       if (!String(url).startsWith("https://1click.chaindefuser.com/v0/status?")) {
         throw new Error("Unexpected network request");
       }
-      return Response.json(provider.status());
+      return Response.json(provider.status(new URL(url).searchParams.get("depositAddress")));
     }),
   );
 });
@@ -230,6 +249,57 @@ function finalStatus(
   }));
 }
 describe("exact-amount confidential payments with offline provider assertions", () => {
+  it.each([
+    { startBalance: "20000000", shortfall: "1000000", freshDebit: "1000000", expected: "confirmed" },
+    { startBalance: "20500000", shortfall: "500000", freshDebit: "1001000", expected: "done" },
+  ])("funds an exact shortfall and enforces the original debit cap ($shortfall)", async (scenario) => {
+    await exercisePaymentTopUp(
+      context,
+      asset,
+      provider,
+      (balance) => {
+        remainingBalance = balance;
+      },
+      () => finalStatus("SUCCESS", "1000000", "1000000", "0"),
+      scenario,
+    );
+  });
+
+  it("confirms a Jarvis payment once and settles it without spending the agent's allocation", async () => {
+    remainingBalance = "30000000";
+    const card = await quoteManualTrade(context.db, "owner", {
+      requestId: crypto.randomUUID(),
+      source: "jarvis",
+      intent: {
+        kind: "payment",
+        assetId: asset,
+        amount: "1",
+        recipient: "recipient.near",
+        slippageBps: 50,
+        maximumFeeBps: 20,
+      },
+    });
+    expect(card).toMatchObject({ status: "quoted", actionId: null, visibility: "confidential" });
+    expect(provider.request.mock.calls.some(([path]) => path === "/v0/submit-intent")).toBe(false);
+    const confirmation = { id: card.id, revision: card.revision, bindingHash: card.bindingHash };
+    const approved = await confirmManualTrade(context.db, "owner", confirmation);
+    expect((await confirmManualTrade(context.db, "owner", confirmation)).actionId).toBe(approved.actionId);
+    if (!approved.actionId) {
+      throw new Error("Missing confirmed payment");
+    }
+    await advanceLedgerAction(context.db, "owner", approved.actionId);
+    finalStatus("SUCCESS", "1000000", "1000000", "0");
+    remainingBalance = "29000000";
+    await advanceLedgerAction(context.db, "owner", approved.actionId);
+    expect(await readManualPreview(context.db, "owner", card.id)).toMatchObject({
+      status: "settled",
+      execution: { receivedUnits: "1000000" },
+    });
+    expect(await unreservedOwnedUnits(context.db, "owner", context.agentId, "confidential", asset)).toBe(
+      20000000n,
+    );
+    expect(provider.request.mock.calls.filter(([path]) => path === "/v0/submit-intent")).toHaveLength(1);
+  });
   it("reconciles the recipient amount without inventing an owned output lot", async () => {
     const action = await prepare();
     expect(await advanceLedgerAction(context.db, "owner", action.id)).toBe(5);

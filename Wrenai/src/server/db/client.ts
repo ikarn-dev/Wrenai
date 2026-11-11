@@ -17,7 +17,6 @@ import * as previewSchema from "./preview-schema";
 import * as riskSchema from "./risk-schema";
 import * as baseSchema from "./schema";
 import * as subjectSchema from "./subject-schema";
-import * as telegramSchema from "./telegram-schema";
 import * as tradingAccountSchema from "./trading-account-schema";
 import * as walletSwapSchema from "./wallet-swap-schema";
 
@@ -34,7 +33,6 @@ export const schema = {
   ...positionSchema,
   ...previewSchema,
   ...riskSchema,
-  ...telegramSchema,
   ...tradingAccountSchema,
   ...fundingSchema,
   ...portfolioSchema,

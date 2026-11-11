@@ -8,7 +8,7 @@ import { quoteRheaNative } from "@/server/wallet-swap/rhea-native";
 import { isNativeNearPayoutPair } from "@/shared/agent-instructions";
 import { positiveTokenUnitsSchema } from "@/shared/token-units";
 import type { TradeAsset, TradeQuote } from "@/shared/trade-preview";
-import { WALLET_SWAP_NATIVE_OUTPUT, WALLET_SWAP_RHEA_POOL } from "@/shared/wallet-swap";
+import { WALLET_SWAP_NATIVE_OUTPUT, WALLET_SWAP_RHEA_POOL, WALLET_SWAP_USDC } from "@/shared/wallet-swap";
 import { ExecutionError } from "../contracts";
 import { executionHash } from "../records";
 import { RHEA_DCL, rheaQuoteSchema } from "./contracts";
@@ -100,19 +100,7 @@ export async function quoteRhea(
       reading.blockHash,
     ),
     minimum = (amount * BigInt(10000 - slippageBps) + 9999n) / 10000n;
-  const nearUnits =
-    input.assetId === "nep141:wrap.near"
-      ? BigInt(units)
-      : output.assetId === "nep141:wrap.near"
-        ? amount
-        : 0n;
-  const price = await assetUsdPrice("nep141:wrap.near"),
-    numerator = nearUnits * price.n * 1000000n,
-    denominator = 10n ** 24n * price.d,
-    value = (numerator + denominator - 1n) / denominator;
-  if (Date.now() - price.observedAt >= 5000 || value <= 0n) {
-    throw new ExecutionError("not_ready", "The native trade's independent value could not be verified.");
-  }
+  const { inputMicroUsd, outputMicroUsd } = await pairValue(input, output, BigInt(units), amount);
   return rheaQuoteSchema.parse({
     poolId,
     input,
@@ -120,17 +108,44 @@ export async function quoteRhea(
     inputUnits: units,
     outputUnits: amount.toString(),
     minimumOutputUnits: minimum.toString(),
-    inputMicroUsd: value.toString(),
-    // Risk debits round up; independently priced cash proceeds round down.
-    outputMicroUsd:
-      output.assetId === "nep141:wrap.near" && numerator >= denominator
-        ? (numerator / denominator).toString()
-        : null,
+    inputMicroUsd: inputMicroUsd.toString(),
+    outputMicroUsd: outputMicroUsd === null ? null : outputMicroUsd.toString(),
     blockHash: reading.blockHash,
     observedAt: Date.now(),
     expiresAt: Date.now() + 60_000,
     slippageBps,
   });
+}
+/**
+ * USD values for a public pair, from whichever leg has an independent price: USDC at face value (6 decimals are
+ * micro-USD), or wNEAR at the timestamped NEAR book. The debit is the input's value, or the expected proceeds
+ * when only the output is priced; risk debits round up and priced proceeds round down.
+ */
+async function pairValue(
+  input: TradeAsset,
+  output: TradeAsset,
+  units: bigint,
+  amount: bigint,
+): Promise<{ inputMicroUsd: bigint; outputMicroUsd: bigint | null }> {
+  if (input.assetId === WALLET_SWAP_USDC || output.assetId === WALLET_SWAP_USDC) {
+    return input.assetId === WALLET_SWAP_USDC
+      ? { inputMicroUsd: units, outputMicroUsd: null }
+      : { inputMicroUsd: amount, outputMicroUsd: amount };
+  }
+  const nearUnits =
+    input.assetId === "nep141:wrap.near" ? units : output.assetId === "nep141:wrap.near" ? amount : 0n;
+  const price = await assetUsdPrice("nep141:wrap.near"),
+    numerator = nearUnits * price.n * 1000000n,
+    denominator = 10n ** 24n * price.d,
+    value = (numerator + denominator - 1n) / denominator;
+  if (Date.now() - price.observedAt >= 5000 || value <= 0n) {
+    throw new ExecutionError("not_ready", "The native trade's independent value could not be verified.");
+  }
+  return {
+    inputMicroUsd: value,
+    outputMicroUsd:
+      output.assetId === "nep141:wrap.near" && numerator >= denominator ? numerator / denominator : null,
+  };
 }
 export function rheaTradeQuote(quote: z.infer<typeof rheaQuoteSchema>, accountId: string): TradeQuote {
   return {
@@ -143,7 +158,9 @@ export function rheaTradeQuote(quote: z.infer<typeof rheaQuoteSchema>, accountId
     minOutputUnits: quote.minimumOutputUnits,
     inputMicroUsd: quote.inputMicroUsd,
     // Historical envelopes without a proceeds valuation remain unknown, never inferred from a debit.
-    outputMicroUsd: ["nep141:wrap.near", WALLET_SWAP_NATIVE_OUTPUT].includes(quote.output.assetId)
+    outputMicroUsd: ["nep141:wrap.near", WALLET_SWAP_NATIVE_OUTPUT, WALLET_SWAP_USDC].includes(
+      quote.output.assetId,
+    )
       ? (quote.outputMicroUsd ?? null)
       : null,
     slippageBps: quote.slippageBps,

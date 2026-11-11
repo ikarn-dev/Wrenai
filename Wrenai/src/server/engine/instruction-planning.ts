@@ -3,7 +3,11 @@ import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { AppDatabase } from "@/server/db/client";
 import { users } from "@/server/db/schema";
-import { type currentAgentStrategy, resolvedTradeAssets } from "@/server/execution/asset-review";
+import {
+  type currentAgentStrategy,
+  instructionRouteTokens,
+  resolvedTradeAssets,
+} from "@/server/execution/asset-review";
 import { privateBalanceToken } from "@/server/execution/balance-session";
 import { ExecutionError } from "@/server/execution/contracts";
 import { freshDryQuote } from "@/server/execution/oneclick-quote";
@@ -11,11 +15,9 @@ import { synchronizePrivateInventory } from "@/server/execution/private-inventor
 import { synchronizeNativeInventory } from "@/server/execution/rhea/inventory";
 import { quoteRhea, rheaTradeQuote } from "@/server/execution/rhea/quote";
 import { unreservedOwnedUnits } from "@/server/positions/lots";
-import { intentTokens } from "@/server/research/intents";
 import { activeTradingAccount } from "@/server/trading-accounts/vault";
-import { usesNativeNearPayout } from "@/shared/agent-instructions";
+import { publicRoutePool, usesPublicRoute } from "@/shared/agent-instructions";
 import { policySchema } from "@/shared/agents";
-import { WALLET_SWAP_RHEA_POOL } from "@/shared/wallet-swap";
 import { instructionPrice } from "./instruction-price";
 import { applyInstructionReceipt } from "./instruction-receipt";
 import { initialInstructionState, instructionStateSchema } from "./instruction-state";
@@ -81,9 +83,10 @@ export async function planSpotInstruction(
       progress: { strategyState: observation.state, completed: observation.state.phase === "completed" },
     };
   }
-  const native = usesNativeNearPayout(instruction);
+  const native = usesPublicRoute(instruction);
+  const pool = publicRoutePool(instruction);
   const scope = native ? "native_near" : "confidential";
-  const tokens = native ? [] : (await intentTokens()).tokens;
+  const tokens = await instructionRouteTokens(instruction);
   const assets = resolvedTradeAssets(instruction, current.version.resolvedAssetsJson, tokens);
   const base = assets.find(
     (asset) =>
@@ -112,7 +115,7 @@ export async function planSpotInstruction(
     instruction.kind !== "dca" &&
     !(instruction.kind === "spot_trader" && state.phase === "waiting" && instruction.entry.type === "market");
   const price = needsPrice
-    ? await instructionPrice(base, cash, order.units, order.buy, instruction.priceUnit)
+    ? await instructionPrice(base, cash, order.units, order.buy, instruction.priceUnit, pool)
     : null;
   const snapshot: SpotSnapshot = { base, cash, baseOwned, cashOwned, price, quote: null };
   const observed = observeSpotInstruction(instruction, state, snapshot, Date.now());
@@ -136,7 +139,7 @@ export async function planSpotInstruction(
   }
   const input = sized.buy ? cash : base;
   const output = sized.buy ? base : cash;
-  const quote = native
+  const quote = pool
     ? await nativeSpotQuote(
         db,
         current.agent.userId,
@@ -144,6 +147,7 @@ export async function planSpotInstruction(
         output,
         sized.units.toString(),
         policy.maxSlippageBps,
+        pool,
       )
     : await privateSpotQuote(
         db,
@@ -185,12 +189,13 @@ async function nativeSpotQuote(
   output: SpotSnapshot["base"],
   units: string,
   slippageBps: number,
+  poolId: string,
 ): Promise<Awaited<ReturnType<typeof freshDryQuote>>> {
   const root = await activeTradingAccount(db, userId);
   if (!root?.backupConfirmedAt) {
     throw new ExecutionError("not_ready", "Confirm the trading account recovery backup.");
   }
-  const quote = await quoteRhea(input, output, units, slippageBps, WALLET_SWAP_RHEA_POOL);
+  const quote = await quoteRhea(input, output, units, slippageBps, poolId);
   return rheaTradeQuote(quote, root.nativeAccountId);
 }
 

@@ -1,30 +1,38 @@
 "use client";
 
-import { Ban, Eye, History, Info, Lock, MessageSquare, Plus, X } from "lucide-react";
-import { AlertDialog, Dialog, ScrollArea, Tooltip } from "radix-ui";
+import { Ban, Eye, History, Info, Lock, Plus, X } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Dialog, ScrollArea, Tooltip } from "radix-ui";
 import {
   type ReactElement,
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   useTransition,
 } from "react";
-import { Button } from "@/components/ui/button";
+import type { LaunchContext } from "@/components/agents/deploy-launch";
 import { notify, useToastState } from "@/components/ui/toast";
 import { removeConversation } from "@/server/chat/actions";
+import type { CreateAgentRequest } from "@/shared/agent-create-request";
 import { type Conversation, type ConversationSummary, MAX_CHAT_TURNS } from "@/shared/chat";
 import { chatStatus } from "@/shared/chat-status";
 import { AgentOfferPrompt, latestAgentOffer } from "./agent-offer";
 import { loadChatHistory } from "./chat-api";
 import { ChatComposer } from "./composer";
+import { DeleteChatDialog } from "./delete-chat-dialog";
 import { ChatEmptyState } from "./empty-state";
 import { ChatHistory } from "./history";
 import { ChatHistoryPanel } from "./history-panel";
 import { JarvisLoading, JarvisMark } from "./jarvis-mark";
 import { ChatMessage } from "./message";
 import { useChat } from "./use-chat";
+
+const CreateAgentDialog = dynamic(() =>
+  import("@/components/agents/create-agent-dialog").then((module) => module.CreateAgentDialog),
+);
 
 const INFO_LINES = [
   { icon: Eye, text: "Sees your wallet and agents" },
@@ -38,6 +46,7 @@ interface ChatScreenProps {
   readonly initialPrompt?: string;
   readonly conversation: Conversation | null;
   readonly history: readonly ConversationSummary[];
+  readonly launch: LaunchContext;
 }
 
 export function ChatScreen({
@@ -45,9 +54,14 @@ export function ChatScreen({
   initialPrompt = "",
   conversation,
   history,
+  launch,
 }: ChatScreenProps): ReactElement {
   const chat = useChat(initialId, conversation, history, initialPrompt);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [agentSetup, setAgentSetup] = useState<{
+    readonly pack: CreateAgentRequest["pack"];
+    readonly open: boolean;
+  } | null>(null);
   const [deletion, setDeletion] = useState<ConversationSummary | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [refreshing, startTransition] = useTransition();
@@ -117,16 +131,22 @@ export function ChatScreen({
     return () => observer.disconnect();
   }, [chat.conversationId, chat.loading]);
 
-  function setFollowing(value: boolean): void {
+  const setFollowing = useCallback((value: boolean): void => {
     following.current = value;
     setAtBottom(value);
-  }
+  }, []);
+
+  // Read when Refresh runs, so the callback (and the memoized history list) doesn't change with every saved reply.
+  const historyNow = useRef(chat.history);
+  useLayoutEffect(() => {
+    historyNow.current = chat.history;
+  }, [chat.history]);
 
   const refreshHistory = useCallback((): void => {
     historyRead.current?.abort();
     const request = new AbortController();
     historyRead.current = request;
-    const before = new Map(chat.history.map((item) => [item.id, item]));
+    const before = new Map(historyNow.current.map((item) => [item.id, item]));
     startTransition(async () => {
       try {
         const result = await loadChatHistory(request.signal);
@@ -143,7 +163,7 @@ export function ChatScreen({
         }
       }
     });
-  }, [chat.history, chat.setHistory, chat.setError]);
+  }, [chat.setHistory, chat.setError]);
 
   async function deleteChat(): Promise<void> {
     if (!deletion || deleting) {
@@ -187,6 +207,39 @@ export function ChatScreen({
     [deleting],
   );
   const closeHistory = useCallback((): void => setHistoryOpen(false), []);
+  const cancelDeletion = useCallback((): void => setDeletion(null), []);
+  const confirmDeletion = (): void => void deleteChat();
+  const collapseHistory = useCallback((): void => setHistoryCollapsed(true), []);
+  const toggleHistory = useCallback((): void => setHistoryCollapsed((value) => !value), []);
+  const { submit, stop, inputRef } = chat;
+  const sendDraft = useCallback((): void => {
+    setFollowing(true);
+    submit();
+  }, [setFollowing, submit]);
+  const stopReply = useCallback((): void => void stop(), [stop]);
+  const openSetup = useCallback(
+    (pack: CreateAgentRequest["pack"]): void => setAgentSetup({ pack, open: true }),
+    [],
+  );
+  const jumpToLatest = useCallback((): void => {
+    setFollowing(true);
+    scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "instant" });
+  }, [setFollowing]);
+  // Built only when what it shows changes, so streaming frames and keystrokes don't rebuild the composer's props.
+  const offerVisible = !chat.busy && !chat.loading;
+  const canJump = !atBottom && chat.turns.length > 0;
+  const agentOffer = useMemo(
+    () => (
+      <AgentOfferPrompt
+        offer={latestAgentOffer(chat.conversationId, last)}
+        visible={offerVisible}
+        inputRef={inputRef}
+        onCreate={openSetup}
+        jumpToLatest={canJump ? jumpToLatest : null}
+      />
+    ),
+    [chat.conversationId, last, offerVisible, inputRef, openSetup, canJump, jumpToLatest],
+  );
 
   const historyProps = {
     items: deleting ? chat.history.filter((item) => item.id !== deleting) : chat.history,
@@ -204,8 +257,8 @@ export function ChatScreen({
       className="flex h-[calc(100dvh-12rem-env(safe-area-inset-bottom))] min-h-96 min-w-0 gap-6 lg:h-[calc(100dvh-9rem)] xl:gap-8"
     >
       {/* History is a card like the Portfolio cards; the thread sits on the page beside it, no divider line. */}
-      <ChatHistoryPanel collapsed={historyCollapsed} onToggle={() => setHistoryCollapsed((value) => !value)}>
-        <ChatHistory {...historyProps} onCollapse={() => setHistoryCollapsed(true)} />
+      <ChatHistoryPanel collapsed={historyCollapsed} onToggle={toggleHistory}>
+        <ChatHistory {...historyProps} onCollapse={collapseHistory} />
       </ChatHistoryPanel>
       <div className="relative flex min-w-0 flex-1 flex-col">
         <span role="status" className="sr-only">
@@ -400,77 +453,26 @@ export function ChatScreen({
               disabled={(last?.sequence ?? 0) >= MAX_CHAT_TURNS && !chat.busy}
               inputRef={chat.inputRef}
               onChange={chat.setDraft}
-              onSend={() => {
-                setFollowing(true);
-                chat.submit();
-              }}
-              onStop={() => void chat.stop()}
+              onSend={sendDraft}
+              onStop={stopReply}
               tool={chat.tool}
               onToolChange={chat.setTool}
-              agentOffer={
-                <AgentOfferPrompt
-                  offer={latestAgentOffer(chat.conversationId, last)}
-                  visible={!chat.busy && !chat.loading}
-                  inputRef={chat.inputRef}
-                  jumpToLatest={
-                    !atBottom && chat.turns.length
-                      ? () => {
-                          setFollowing(true);
-                          scroller.current?.scrollTo({
-                            top: scroller.current.scrollHeight,
-                            behavior: "instant",
-                          });
-                        }
-                      : null
-                  }
-                />
-              }
+              agentOffer={agentOffer}
             />
           </div>
         </div>
       </div>
-      <AlertDialog.Root
-        open={deletion !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDeletion(null);
-          }
-        }}
-      >
-        <AlertDialog.Portal>
-          <AlertDialog.Overlay className="fixed inset-0 z-50 bg-bg/80" />
-          {/* The confirm dialog layout (Docs/DESIGN.md → Typography → Layouts): rounded title, one line on the
-              consequence, the chat named in its own well, then the actions on one row. */}
-          <AlertDialog.Content className="card-shine fixed top-1/2 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-sm -translate-1/2 flex-col rounded-xl p-5 shadow-float">
-            <AlertDialog.Title className="font-rounded text-h2 font-bold">
-              Delete this chat?
-            </AlertDialog.Title>
-            <AlertDialog.Description className="mt-1.5 text-small text-fg-muted">
-              Its messages are deleted for good.
-            </AlertDialog.Description>
-            <p className="mt-4 flex min-w-0 items-center gap-2 rounded-lg-inset bg-sunken px-3 py-2.5 text-small text-fg ring-1 ring-line-card ring-inset">
-              <MessageSquare
-                size={14}
-                strokeWidth={1.75}
-                absoluteStrokeWidth
-                aria-hidden="true"
-                className="shrink-0 text-fg-subtle"
-              />
-              <span className="truncate" title={deletion?.title}>
-                {deletion?.title}
-              </span>
-            </p>
-            <div className="mt-5 grid grid-cols-2 gap-2">
-              <AlertDialog.Cancel asChild>
-                <Button>Keep chat</Button>
-              </AlertDialog.Cancel>
-              <Button variant="destructive" onClick={() => void deleteChat()}>
-                Delete
-              </Button>
-            </div>
-          </AlertDialog.Content>
-        </AlertDialog.Portal>
-      </AlertDialog.Root>
+      {agentSetup ? (
+        <CreateAgentDialog
+          request={agentSetup.open ? { pack: agentSetup.pack, brief: "" } : null}
+          launch={launch}
+          onClose={() => {
+            setAgentSetup((current) => (current ? { ...current, open: false } : null));
+            chat.inputRef.current?.focus({ preventScroll: true });
+          }}
+        />
+      ) : null}
+      <DeleteChatDialog chat={deletion} onCancel={cancelDeletion} onConfirm={confirmDeletion} />
     </section>
   );
 }

@@ -10,7 +10,7 @@ import {
   nearAccountSchema,
   walletBudgetViewSchema,
 } from "@/shared/agent-budget";
-import { formatUnits } from "@/shared/money";
+import { shortTokenAmount } from "@/shared/money";
 import { middleTruncate } from "@/shared/truncate";
 import { WALLET_SWAP_INPUT, WALLET_SWAP_NATIVE_OUTPUT } from "@/shared/wallet-swap";
 import { INPUT_CLASS, Select } from "./policy-fields";
@@ -26,17 +26,6 @@ interface TokenBudgetProps {
 const ICON = { size: 14, strokeWidth: 1.75, absoluteStrokeWidth: true, "aria-hidden": true } as const;
 const LINK =
   "cursor-pointer rounded-xs text-caption text-fg-muted underline-offset-4 transition-colors duration-200 ease-ios hover:text-fg-strong hover:underline disabled:cursor-not-allowed disabled:text-fg-disabled";
-
-/** Available units for display: four decimals at most, rounded down, so it never reads larger than it is. */
-function shortAmount(units: string, decimals: number): string {
-  const amount = BigInt(units);
-  const fractionDigits = Math.min(decimals, 4);
-  if (amount > 0n && amount < 10n ** BigInt(decimals - fractionDigits)) {
-    return "<0.0001";
-  }
-  const text = formatUnits(amount, { decimals, fractionDigits });
-  return fractionDigits === 0 ? text : text.replace(/\.?0+$/, "");
-}
 
 /**
  * The agent's budget on one row: a held token and an exact amount, with what is still available under it. The
@@ -72,7 +61,11 @@ export function TokenBudget({
   const tokens = query.data?.tokens ?? [];
   const selected = tokens.find((token) => token.assetId === value?.assetId);
   const symbol = (token: (typeof tokens)[number]): string =>
-    token.assetId === WALLET_SWAP_INPUT ? "wNEAR" : token.symbol;
+    token.assetId === WALLET_SWAP_NATIVE_OUTPUT
+      ? "NEAR"
+      : token.assetId === WALLET_SWAP_INPUT
+        ? "wNEAR"
+        : token.symbol;
 
   function lookup(): void {
     const parsed = nearAccountSchema.safeParse(contract.trim());
@@ -106,7 +99,7 @@ export function TokenBudget({
       <span title={query.data?.note}>
         Available{" "}
         <span className="font-mono tabular-nums text-fg">
-          {shortAmount(selected.availableUnits, selected.decimals)} {symbol(selected)}
+          {shortTokenAmount(selected.availableUnits, selected.decimals)} {symbol(selected)}
         </span>
       </span>
     );
@@ -143,19 +136,18 @@ export function TokenBudget({
           {value && !selected ? (
             <option value={value.assetId}>{value.assetId.replace(/^nep141:/, "")}</option>
           ) : null}
-          {tokens.map((token) => (
-            <option
-              key={token.assetId}
-              value={token.assetId}
-              disabled={token.assetId === WALLET_SWAP_NATIVE_OUTPUT}
-            >
-              {token.assetId === WALLET_SWAP_NATIVE_OUTPUT
-                ? "NEAR · payout only"
-                : tokens.some((other) => other.assetId !== token.assetId && symbol(other) === symbol(token))
-                  ? `${symbol(token)} · ${middleTruncate(token.assetId.slice(7), 10, 8)}`
-                  : symbol(token)}
-            </option>
-          ))}
+          {tokens.map((token) => {
+            const name =
+              token.assetId !== WALLET_SWAP_NATIVE_OUTPUT &&
+              tokens.some((other) => other.assetId !== token.assetId && symbol(other) === symbol(token))
+                ? `${symbol(token)} · ${middleTruncate(token.assetId.slice(7), 10, 8)}`
+                : symbol(token);
+            return (
+              <option key={token.assetId} value={token.assetId}>
+                {`${name} — ${shortTokenAmount(token.availableUnits, token.decimals)} available`}
+              </option>
+            );
+          })}
         </Select>
         {value ? (
           <span className="relative w-40 shrink-0">

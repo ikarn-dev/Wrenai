@@ -1,6 +1,10 @@
 import { base64 } from "@scure/base";
 import { z } from "zod";
-import { type WalletFundingSnapshot, walletFundingTransaction } from "@/shared/wallet-funding";
+import {
+  directNativeFunding,
+  type WalletFundingSnapshot,
+  walletFundingTransaction,
+} from "@/shared/wallet-funding";
 import { ExecutionError } from "./contracts";
 
 const statusSchema = z.object({ SuccessValue: z.string().max(1024) });
@@ -18,6 +22,30 @@ export function verifyWalletDeposit(
   snapshot: WalletFundingSnapshot,
   transactionHash: string,
 ): void {
+  if (directNativeFunding(snapshot)) {
+    // One plain NEAR transfer of the exact amount from the owner to the reviewed 1Click deposit address.
+    const transfer = z
+      .object({
+        final_execution_status: z.literal("FINAL"),
+        transaction: z.object({
+          hash: z.literal(transactionHash),
+          signer_id: z.literal(snapshot.accountId),
+          receiver_id: z.literal(snapshot.depositAddress),
+          actions: z
+            .array(z.object({ Transfer: z.object({ deposit: z.string().regex(/^\d+$/) }) }))
+            .length(1),
+        }),
+        status: statusSchema,
+      })
+      .safeParse(raw);
+    if (!transfer.success || transfer.data.transaction.actions[0]?.Transfer.deposit !== snapshot.units) {
+      throw new ExecutionError(
+        "conflict",
+        "The wallet transaction isn't the reviewed NEAR deposit, or it didn't succeed.",
+      );
+    }
+    return;
+  }
   const value = z
     .object({
       final_execution_status: z.literal("FINAL"),
@@ -35,7 +63,8 @@ export function verifyWalletDeposit(
     throw new ExecutionError("conflict", "The wallet transaction changed the reviewed deposit actions.");
   }
   for (const [index, action] of value.transaction.actions.entries()) {
-    const wanted = expected.actions[index]?.params;
+    const expectedAction = expected.actions[index],
+      wanted = expectedAction?.type === "FunctionCall" ? expectedAction.params : undefined;
     const call = action.FunctionCall;
     const args: unknown = JSON.parse(new TextDecoder().decode(base64.decode(call.args)));
     const expectedKeys = Object.keys(wanted?.args ?? {}).sort();

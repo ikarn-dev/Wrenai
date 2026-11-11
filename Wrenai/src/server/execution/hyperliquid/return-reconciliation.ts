@@ -6,7 +6,11 @@ import { minimumUnits } from "@/shared/token-units";
 import { ExecutionError } from "../contracts";
 import { settleDefiExecution } from "../defi-accounting";
 import { defiPlanSchema } from "../defi-contracts";
-import { intentsStatusSchema, readIntentsProviderStatus } from "../intents-reconciliation";
+import {
+  confirmedStatusQuote,
+  intentsStatusSchema,
+  readIntentsProviderStatus,
+} from "../intents-reconciliation";
 import { quoteMicroUsd } from "../oneclick-quote";
 import { synchronizePrivateInventory } from "../private-inventory";
 import { databaseTime, executionEvent, executionHash, ownedLedgerAction, requireLease } from "../records";
@@ -54,7 +58,11 @@ export async function reconcilePerpsReturn(
     throw new ExecutionError("conflict", "The signed return differs from its preview.");
   }
   const status = intentsStatusSchema.parse(await readIntentsProviderStatus(saved.depositAddress));
-  validateReturnPlan(plan, { ...saved, providerQuote: status.quoteResponse }, saved.quotedAt);
+  validateReturnPlan(
+    plan,
+    { ...saved, providerQuote: confirmedStatusQuote(saved.providerQuote, status.quoteResponse) },
+    saved.quotedAt,
+  );
   if (status.status !== "SUCCESS" && status.status !== "REFUNDED") {
     return "pending";
   }

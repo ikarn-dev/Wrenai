@@ -1,6 +1,6 @@
 import "server-only";
 import { QuoteRequest } from "@defuse-protocol/one-click-sdk-typescript";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { agentSummary, killSwitchEngaged, ownedAgent } from "@/server/agents/records";
 import type { SessionUser } from "@/server/auth/session";
@@ -9,20 +9,101 @@ import { walletFundings } from "@/server/db/funding-schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import { readDelegatedKey } from "@/server/delegation/delegated-key";
 import { ExecutionError } from "@/server/execution/contracts";
-import { dryQuoteRequest, oneClickJson, verifiedDryQuote } from "@/server/execution/oneclick-quote";
+import {
+  dryQuoteRequest,
+  oneClickJson,
+  providerSlippageBps,
+  verifiedDryQuote,
+  verifiedProviderQuote,
+} from "@/server/execution/oneclick-quote";
 import { databaseTime, executionHash } from "@/server/execution/records";
 import { walletTokenHolding } from "@/server/portfolio/wallet-tokens";
 import { intentTokens } from "@/server/research/intents";
-import { instructionFundingAsset, usesNativeNearPayout } from "@/shared/agent-instructions";
+import { nearAccountSchema } from "@/shared/agent-budget";
+import { instructionFundingAsset, usesPublicRoute } from "@/shared/agent-instructions";
 import { parseUsd, policySchema } from "@/shared/agents";
+import type { TradeQuote } from "@/shared/trade-preview";
 import { type WalletFundingView, walletFundingSnapshotSchema } from "@/shared/wallet-funding";
-import { linkedAgentBudget, walletFundingView } from "./records";
+import { linkedAgentBudget, openWalletFunding, walletFundingView } from "./records";
 
 export const prepareWalletFundingSchema = z.strictObject({
   requestId: z.uuid(),
   agentId: z.uuid(),
   expectedRevision: z.number().int().positive(),
 });
+
+// A 1Click deposit address stays valid for this long, well past the five-minute review, so a slow wallet still lands.
+const DEPOSIT_WINDOW_MS = 30 * 60_000;
+
+/** The exact live request for native NEAR sent from the wallet straight into the owner's private balance. */
+export function nativeDepositRequest(
+  accountId: string,
+  units: string,
+  slippageBps: number,
+  deadline: string,
+): QuoteRequest {
+  return {
+    dry: false,
+    swapType: QuoteRequest.swapType.EXACT_INPUT,
+    slippageTolerance: providerSlippageBps(slippageBps),
+    // 1Click's NEAR asset. The wallet sends plain NEAR; nothing is wrapped in the wallet.
+    originAsset: "nep141:wrap.near",
+    destinationAsset: "nep141:wrap.near",
+    amount: units,
+    depositType: QuoteRequest.depositType.ORIGIN_CHAIN,
+    recipientType: QuoteRequest.recipientType.CONFIDENTIAL_INTENTS,
+    // A failed delivery refunds to the wallet that sent it.
+    refundType: QuoteRequest.refundType.ORIGIN_CHAIN,
+    recipient: accountId,
+    refundTo: accountId,
+    deadline,
+    quoteWaitingTimeMs: 0,
+    appFees: [],
+  };
+}
+
+async function nativeDepositQuote(
+  accountId: string,
+  units: string,
+  slippageBps: number,
+): Promise<{
+  readonly quote: TradeQuote;
+  readonly direct: { readonly depositAddress: string; readonly requestDeadline: string };
+}> {
+  const deadline = new Date(Date.now() + DEPOSIT_WINDOW_MS).toISOString(),
+    request = nativeDepositRequest(accountId, units, slippageBps, deadline);
+  const raw = await oneClickJson("/v0/quote", request);
+  const quote = verifiedProviderQuote(raw, request, "intents", Date.now(), slippageBps);
+  const deposit = z
+    .object({
+      quote: z.object({
+        depositAddress: nearAccountSchema,
+        depositMemo: z.union([z.literal(""), z.null()]).optional(),
+      }),
+    })
+    .parse(raw).quote;
+  return { quote, direct: { depositAddress: deposit.depositAddress, requestDeadline: deadline } };
+}
+
+async function tokenDepositQuote(
+  accountId: string,
+  assetId: string,
+  units: string,
+  slippageBps: number,
+): Promise<{ readonly quote: TradeQuote; readonly direct: null }> {
+  const request = {
+    ...dryQuoteRequest(accountId, assetId, assetId, units, slippageBps, "intents", Date.now()),
+    recipientType: QuoteRequest.recipientType.CONFIDENTIAL_INTENTS,
+  };
+  const quote = verifiedDryQuote(
+    await oneClickJson("/v0/quote", request),
+    request,
+    "intents",
+    Date.now(),
+    slippageBps,
+  );
+  return { quote, direct: null };
+}
 
 export async function prepareWalletFunding(
   db: AppDatabase,
@@ -41,13 +122,7 @@ export async function prepareWalletFunding(
   const [existing] = await db
     .select()
     .from(walletFundings)
-    .where(
-      and(
-        eq(walletFundings.userId, user.id),
-        eq(walletFundings.agentId, agent.id),
-        ne(walletFundings.state, "complete"),
-      ),
-    )
+    .where(and(eq(walletFundings.userId, user.id), eq(walletFundings.agentId, agent.id), openWalletFunding()))
     .limit(1);
   if (existing) {
     return walletFundingView(existing);
@@ -68,7 +143,7 @@ export async function prepareWalletFunding(
     registry = await intentTokens();
   const assetId = budget.assetId === "native:near" ? "nep141:wrap.near" : budget.assetId;
   const summary = await agentSummary(db, agent);
-  if ("format" in summary.strategy && usesNativeNearPayout(summary.strategy)) {
+  if ("format" in summary.strategy && usesPublicRoute(summary.strategy)) {
     throw new ExecutionError("not_ready", "Fund this agent's public RHEA trading balance.");
   }
   if (!("format" in summary.strategy) || instructionFundingAsset(summary.strategy) !== assetId) {
@@ -98,17 +173,10 @@ export async function prepareWalletFunding(
       "Authorize the shared agent key before funding. It is reused by your agents.",
     );
   }
-  const request = {
-    ...dryQuoteRequest(user.accountId, assetId, assetId, units, policy.maxSlippageBps, "intents", Date.now()),
-    recipientType: QuoteRequest.recipientType.CONFIDENTIAL_INTENTS,
-  };
-  const quote = verifiedDryQuote(
-    await oneClickJson("/v0/quote", request),
-    request,
-    "intents",
-    Date.now(),
-    policy.maxSlippageBps,
-  );
+  const { quote, direct } =
+    budget.assetId === "native:near"
+      ? await nativeDepositQuote(user.accountId, units, policy.maxSlippageBps)
+      : await tokenDepositQuote(user.accountId, assetId, units, policy.maxSlippageBps);
   const minimum =
     (BigInt(units) * BigInt(10000 - policy.maxSlippageBps - policy.maxProviderFeeBps) + 9999n) / 10000n;
   if (
@@ -134,6 +202,7 @@ export async function prepareWalletFunding(
     principalMicroUsd: quote.inputMicroUsd,
     maximumSlippageBps: policy.maxSlippageBps,
     maximumProviderFeeBps: policy.maxProviderFeeBps,
+    ...(direct ?? {}),
   });
   return userTransaction(db, user.id, async (tx) => {
     const current = await ownedAgent(tx, user.id, agent.id),
@@ -143,11 +212,7 @@ export async function prepareWalletFunding(
       .select()
       .from(walletFundings)
       .where(
-        and(
-          eq(walletFundings.userId, user.id),
-          eq(walletFundings.agentId, agent.id),
-          ne(walletFundings.state, "complete"),
-        ),
+        and(eq(walletFundings.userId, user.id), eq(walletFundings.agentId, agent.id), openWalletFunding()),
       )
       .limit(1);
     if (pending) {

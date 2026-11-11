@@ -62,33 +62,95 @@ interface PolicyFieldsProps {
   readonly disabled: boolean;
 }
 
-/** The user's risk limits as one collapsed row (its summary on the right) that opens into a two-column form. */
+const UNIT = "pointer-events-none absolute top-1/2 -translate-y-1/2 text-body text-fg-subtle";
+
+function usd(value: string): string | null {
+  const parsed = usdInputSchema.safeParse(value);
+  return parsed.success ? formatExactMicroUsd(parseUsd(parsed.data)) : null;
+}
+
+/** A dollar amount with its "$" inside the control. */
+function MoneyInput({
+  value,
+  onChange,
+  ...field
+}: {
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly id?: string;
+  readonly "aria-describedby"?: string;
+}): ReactElement {
+  return (
+    <span className="relative flex">
+      <span aria-hidden="true" className={`${UNIT} left-3`}>
+        $
+      </span>
+      <input
+        {...field}
+        className={`${INPUT_CLASS} pl-7 font-mono tabular-nums`}
+        inputMode="decimal"
+        autoComplete="off"
+        required
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </span>
+  );
+}
+
+/** A whole number with its unit after it. Percent fields store basis points (1% = 100 bps). */
+function NumberInput({
+  value,
+  onChange,
+  unit,
+  min,
+  max,
+  percent = false,
+  ...field
+}: {
+  readonly value: number;
+  readonly onChange: (value: number) => void;
+  readonly unit: string;
+  readonly min: number;
+  readonly max: number;
+  readonly percent?: boolean;
+  readonly id?: string;
+  readonly "aria-describedby"?: string;
+}): ReactElement {
+  const scale = percent ? 100 : 1;
+  return (
+    <span className="relative flex">
+      <input
+        {...field}
+        type="number"
+        step={percent ? 0.01 : 1}
+        min={min / scale}
+        max={max / scale}
+        required
+        className={`${INPUT_CLASS} pr-20 font-mono tabular-nums`}
+        value={Number.isNaN(value) ? "" : value / scale}
+        onChange={(event) => onChange(Math.round(event.target.valueAsNumber * scale))}
+      />
+      <span aria-hidden="true" className={`${UNIT} right-3`}>
+        {unit}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * The agent's limits as one collapsed row with a plain summary. Opening it shows the three spending limits; the
+ * price, fee and pacing settings sit one step further under "More settings", already filled with safe defaults.
+ */
 export function PolicyFields({ pack, policy, onChange, disabled }: PolicyFieldsProps): ReactElement {
   const profile = agentSetupProfile(pack);
   const payment = pack === "private_payments";
-  const amount = usdInputSchema.safeParse(policy.maxTradeUsd);
-  const summary = amount.success
-    ? `${formatExactMicroUsd(parseUsd(amount.data))} per ${profile.action}`
+  const perAction = usd(policy.maxTradeUsd);
+  const perDay = usd(policy.dailyCapUsd);
+  const summary = perAction
+    ? `${perAction} per ${profile.action}${perDay ? ` · ${perDay} a day` : ""}`
     : `Set a ${profile.action} limit`;
-  const moneyFields = [
-    { key: "maxTradeUsd", label: `Per ${profile.action}, USD` },
-    { key: "dailyCapUsd", label: "Per 24 hours, USD" },
-    { key: "budgetUsd", label: "Capital ceiling, USD" },
-  ] as const;
-  const quoteFields = [
-    {
-      key: "maxSlippageBps",
-      label: payment ? "Quote tolerance, bps" : "Slippage cap, bps",
-      min: 1,
-      max: 500,
-    },
-    { key: "maxProviderFeeBps", label: "Provider fee cap, bps", min: 0, max: 2000 },
-  ] as const;
-  const frequencyFields = [
-    { key: "maxTradesPerHour", label: `Max ${profile.actions} per hour`, min: 1, max: 60 },
-    { key: "cooldownSeconds", label: `Seconds between ${profile.actions}`, min: 0, max: 86400 },
-  ] as const;
-  const countFields = payment ? quoteFields : [...quoteFields, ...frequencyFields];
+  const set = (changes: Partial<AgentPolicy>): void => onChange({ ...policy, ...changes });
   return (
     <details className="group rounded-sm border border-line">
       <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
@@ -101,63 +163,102 @@ export function PolicyFields({ pack, policy, onChange, disabled }: PolicyFieldsP
           />
         </span>
       </summary>
-      <fieldset disabled={disabled} className="grid min-w-0 gap-4 border-t border-line p-3 sm:grid-cols-2">
+      <fieldset disabled={disabled} className="flex min-w-0 flex-col gap-4 border-t border-line p-3">
         <legend className="sr-only">{profile.limits}</legend>
-        {moneyFields.map(({ key, label }) => (
-          <Field key={key} label={label}>
-            <input
-              className={`${INPUT_CLASS} font-mono tabular-nums`}
-              inputMode="decimal"
-              autoComplete="off"
-              required
-              value={policy[key]}
-              onChange={(event) => onChange({ ...policy, [key]: event.target.value })}
-            />
+        <p className="text-caption text-fg-subtle">
+          The agent never goes over these. Only you can change them.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label={`Most per ${profile.action}`}>
+            <MoneyInput value={policy.maxTradeUsd} onChange={(value) => set({ maxTradeUsd: value })} />
           </Field>
-        ))}
-        {countFields.map(({ key, label, min, max }) => (
-          <Field key={key} label={label}>
-            <input
-              type="number"
-              step="1"
-              min={min}
-              max={max}
-              required
-              className={`${INPUT_CLASS} font-mono tabular-nums`}
-              value={Number.isNaN(policy[key]) ? "" : policy[key]}
-              onChange={(event) => onChange({ ...policy, [key]: event.target.valueAsNumber })}
-            />
+          <Field label="Most per day">
+            <MoneyInput value={policy.dailyCapUsd} onChange={(value) => set({ dailyCapUsd: value })} />
           </Field>
-        ))}
-        <div className="flex flex-col gap-2.5 sm:col-span-2">
-          {policy.approvalMode !== "autonomous" ? (
-            <label className="flex items-center gap-2.5 text-small text-fg">
-              <input
-                type="checkbox"
-                checked={false}
-                required
-                onChange={() => onChange({ ...policy, approvalMode: "autonomous" })}
-                className="size-4 accent-accent"
-              />
-              Run this agent automatically within these limits
-            </label>
-          ) : null}
-          {profile.protectiveExits ? (
-            <label className="flex items-center gap-2.5 text-small text-fg">
-              <input
-                type="checkbox"
-                checked={policy.allowRiskReducingExits === true}
-                onChange={(event) => onChange({ ...policy, allowRiskReducingExits: event.target.checked })}
-                className="size-4 accent-accent"
-              />
-              Allow position-reducing exits after spending limits are reached
-            </label>
-          ) : null}
-          <p className="text-caption text-fg-subtle">
-            {payment ? "Quote tolerance and the fee cap apply to the exact-amount payment. " : ""}
-            100 bps = 1%.
-          </p>
+          <Field label="Most in total">
+            <MoneyInput value={policy.budgetUsd} onChange={(value) => set({ budgetUsd: value })} />
+          </Field>
         </div>
+        {policy.approvalMode !== "autonomous" ? (
+          <label className="flex items-center gap-2.5 text-small text-fg">
+            <input
+              type="checkbox"
+              checked={false}
+              required
+              onChange={() => set({ approvalMode: "autonomous" })}
+              className="size-4 accent-accent"
+            />
+            Run this agent automatically within these limits
+          </label>
+        ) : null}
+        <details className="group/more">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-xs text-small text-fg-muted transition-colors duration-200 ease-ios hover:text-fg-strong [&::-webkit-details-marker]:hidden">
+            More settings
+            <ChevronDown
+              {...ICON}
+              size={14}
+              className="transition-transform duration-200 ease-ios group-open/more:rotate-180"
+            />
+          </summary>
+          <div className="grid gap-4 pt-4 sm:grid-cols-2">
+            <Field
+              label="Price protection"
+              hint={`Skips the ${profile.action} if the price moves more than this.`}
+            >
+              <NumberInput
+                percent
+                unit="%"
+                min={1}
+                max={500}
+                value={policy.maxSlippageBps}
+                onChange={(value) => set({ maxSlippageBps: value })}
+              />
+            </Field>
+            <Field label="Extra fee limit" hint="0% means no extra provider fee is allowed.">
+              <NumberInput
+                percent
+                unit="%"
+                min={0}
+                max={2000}
+                value={policy.maxProviderFeeBps}
+                onChange={(value) => set({ maxProviderFeeBps: value })}
+              />
+            </Field>
+            {payment ? null : (
+              <>
+                <Field label={`Most ${profile.actions} per hour`}>
+                  <NumberInput
+                    unit="per hour"
+                    min={1}
+                    max={60}
+                    value={policy.maxTradesPerHour}
+                    onChange={(value) => set({ maxTradesPerHour: value })}
+                  />
+                </Field>
+                <Field label={`Wait between ${profile.actions}`}>
+                  <NumberInput
+                    unit="seconds"
+                    min={0}
+                    max={86400}
+                    value={policy.cooldownSeconds}
+                    onChange={(value) => set({ cooldownSeconds: value })}
+                  />
+                </Field>
+              </>
+            )}
+            {profile.protectiveExits ? (
+              <label className="flex items-center gap-2.5 text-small text-fg sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={policy.allowRiskReducingExits === true}
+                  onChange={(event) => set({ allowRiskReducingExits: event.target.checked })}
+                  className="size-4 accent-accent"
+                />
+                Allow safety sells even after the limits above are reached
+              </label>
+            ) : null}
+          </div>
+        </details>
       </fieldset>
     </details>
   );

@@ -16,7 +16,7 @@ export const nativeSubmissions = pgTable(
   "native_submissions",
   {
     actionId: text("action_id").notNull(),
-    role: text("role", { enum: ["registration", "swap"] }).notNull(),
+    role: text("role", { enum: ["registration", "swap", "transfer"] }).notNull(),
     userId: text("user_id").notNull(),
     rootId: text("root_id").notNull(),
     accountId: text("account_id").notNull(),
@@ -32,7 +32,7 @@ export const nativeSubmissions = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.actionId, t.role] }),
-    check("native_submission_role_valid", sql`${t.role} IN ('registration', 'swap')`),
+    check("native_submission_role_valid", sql`${t.role} IN ('registration', 'swap', 'transfer')`),
     foreignKey({
       columns: [t.userId, t.actionId],
       foreignColumns: [executionActions.userId, executionActions.id],

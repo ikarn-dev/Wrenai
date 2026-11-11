@@ -3,6 +3,7 @@ import { and, eq, gt, inArray, isNull, ne, or } from "drizzle-orm";
 import { killSwitchEngaged, ownedAgent } from "@/server/agents/records";
 import type { AppDatabase } from "@/server/db/client";
 import { defiPositionClaims, defiPositions } from "@/server/db/defi-schema";
+import { users } from "@/server/db/schema";
 import { allocationCeiling, committedCapital } from "@/server/positions/capital-records";
 import { type AgentPolicy, parseUsd, policySchema } from "@/shared/agents";
 import { minimumUnits } from "@/shared/token-units";
@@ -93,13 +94,35 @@ export async function currentDefiPolicy(
   plan: DefiPlan,
   now: number,
   action?: LedgerAction,
-): Promise<{ policy: AgentPolicy; policyHash: string; publicKey: string; riskReducingExit: boolean }> {
+): Promise<{
+  policy: AgentPolicy;
+  policyHash: string;
+  publicKey: string;
+  riskReducingExit: boolean;
+  ownerReturn: boolean;
+}> {
   const agent = await ownedAgent(db, userId, plan.agentId);
   if (
-    (agent.status !== "running" && !plan.returnFunds && !plan.walletFundingId) ||
+    (agent.status !== "running" && !plan.returnFunds && !plan.walletFundingId && !plan.walletReturn) ||
     (await killSwitchEngaged(db, userId))
   ) {
     throw new ExecutionError("not_ready", "The agent must be running and the global stop must be off.");
+  }
+  // Only the owner's claim authorizes a wallet return, and only to the owner's own account.
+  const ownerReturn = plan.walletReturn === true;
+  if (ownerReturn) {
+    const [owner] = await db
+      .select({ accountId: users.accountId })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (
+      agent.status === "running" ||
+      agent.claimRequestedAt === null ||
+      owner?.accountId !== plan.recipient
+    ) {
+      throw new ExecutionError("not_ready", "Funds can only go to your own wallet when you claim them.");
+    }
   }
   if (agent.revision !== plan.agentRevision || agent.version !== plan.strategyVersion) {
     throw new ExecutionError("conflict", "The agent revision changed.");
@@ -130,6 +153,13 @@ export async function currentDefiPolicy(
   if (plan.expiresAt <= now || plan.expiresAt > now + 300_000) {
     throw new ExecutionError("not_ready", "The execution quote is expired or too far in the future.");
   }
+  if (ownerReturn) {
+    // A return is not spending: trade, daily and pending caps don't apply. Fee and slippage caps still do.
+    if (plan.slippageBps > policy.maxSlippageBps || plan.providerFeeBps > policy.maxProviderFeeBps) {
+      throw new ExecutionError("limit", "The return route exceeds this agent's fee or slippage limit.");
+    }
+    return { policy, policyHash, publicKey: permission.signingPublicKey, riskReducingExit, ownerReturn };
+  }
   const usage = await readSpendingUsage(db, userId, agent.id, now, action?.id);
   const proposed = BigInt(plan.notionalMicroUsd);
   const ceiling = minimumUnits(await allocationCeiling(db, userId, agent.id), parseUsd(policy.budgetUsd));
@@ -151,5 +181,5 @@ export async function currentDefiPolicy(
     throw new ExecutionError("limit", "The action exceeds its fee, slippage, capital or spending limit.");
   }
   await checkDefiPositions(db, userId, plan, action?.id);
-  return { policy, policyHash, publicKey: permission.signingPublicKey, riskReducingExit };
+  return { policy, policyHash, publicKey: permission.signingPublicKey, riskReducingExit, ownerReturn };
 }

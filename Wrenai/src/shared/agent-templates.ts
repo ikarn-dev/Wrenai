@@ -31,8 +31,7 @@ const PERPS_LIMIT_HINT = `Allow up to $${PERPS_TEMPLATE_ENTRY.suggestedOrderCapU
 const SETUPS = {
   private_payments: {
     instructions: "Payment instructions",
-    guidance:
-      "Specify the recipient, token, amount, and send time. Choose a confidential balance or a public NEAR wallet.",
+    guidance: "Who to pay, how much, and when.",
     templates: [
       {
         name: "Send privately now",
@@ -53,7 +52,7 @@ const SETUPS = {
   },
   dca: {
     instructions: "Purchase schedule",
-    guidance: "Specify the token pair, amount per purchase, schedule and time zone, and maximum purchases.",
+    guidance: "What to buy, how much each time, how often, and how many times.",
     templates: [
       {
         name: "Buy NEAR daily",
@@ -74,8 +73,7 @@ const SETUPS = {
   },
   spot_trader: {
     instructions: "Spot order instructions",
-    guidance:
-      "Specify buy or sell, the exact pair, size, and entry. For buys, include any take-profit or stop-loss prices.",
+    guidance: "Buy or sell, which tokens, how much, and when. Add a take-profit or stop-loss if you like.",
     templates: [
       {
         name: "Market buy with price exits",
@@ -101,8 +99,7 @@ const SETUPS = {
   },
   perps: {
     instructions: "Position instructions",
-    guidance:
-      "Specify the market, action, side, quantity, collateral token, and leverage. Opening a position requires a stop.",
+    guidance: "Which market, long or short, size and leverage. New positions need a stop-loss.",
     templates: [
       {
         name: "ETH long with price exits",
@@ -123,8 +120,7 @@ const SETUPS = {
   },
   meme_hunter: {
     instructions: "Discovery and entry rules",
-    guidance:
-      "Specify the pay token, buy size, listing age, liquidity, holder concentration, quote loss, and maximum positions.",
+    guidance: "How much to spend per coin, and the safety checks a new coin must pass.",
     templates: [
       {
         name: "Fresh listings with one position",
@@ -145,8 +141,7 @@ const SETUPS = {
   },
   buy_the_dip: {
     instructions: "Dip and buy rules",
-    guidance:
-      "Specify the pair, size, and a target price or drawdown from a rolling high. Include the entry count and cooldown.",
+    guidance: "What to buy, how much, and how far the price should drop first.",
     templates: [
       {
         name: "Buy below a fixed price",
@@ -167,8 +162,7 @@ const SETUPS = {
   },
   sell_the_top: {
     instructions: "Profit-taking rules",
-    guidance:
-      "Specify the owned token and quantity, the receive token, confirmed cost basis, and how much to sell at each net-profit target.",
+    guidance: "What you hold, what you paid, and how much to sell at each profit level.",
     templates: [
       {
         name: "Single net-profit target",
@@ -191,7 +185,7 @@ const SETUPS = {
 
 const LEGACY_SETUP: AgentSetupProfile = {
   instructions: "Strategy instructions",
-  guidance: "Specify the assets, amounts, and conditions.",
+  guidance: "Which tokens, how much, and when.",
   templates: [],
   budget: "Token budget",
   limits: "Trading limits",

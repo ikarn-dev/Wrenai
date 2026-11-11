@@ -83,6 +83,86 @@
   }
 }
 
+/* A Radix dialog locks scroll with `overflow: hidden` on body while the stopped Lenis sets `overflow: clip` on html.
+   With both, body stops propagating its overflow to the viewport and becomes its own scroll container, so the
+   sticky sidebar snaps to the document top and is cropped. Keep html visible during the lock: Radix and the
+   stopped Lenis already block scrolling. */
+html.lenis.lenis-stopped:has(body[data-scroll-locked]) {
+  overflow: visible;
+}
+
+/* NEAR Connect mounts its wallet picker and approval frames on body (z-index 100000000). An open modal Radix dialog
+   sets pointer-events: none on body, so a wallet opened from inside a dialog (funding, agent key) showed but could
+   not be clicked and the request waited forever. */
+.hot-connector-popup {
+  pointer-events: auto;
+}
+
+/* Radix dialogs: the scrim fades and the panel rises from 97% with a fade; closing is shorter than opening.
+   Animates `scale` and `opacity` only, so the panel's `translate` centering is untouched and it stays on the
+   compositor. Radix keeps the content mounted until the exit animation ends. */
+@utility dialog-scrim {
+  &[data-state="open"] {
+    animation: dialog-fade-in 180ms var(--ease-ios);
+  }
+
+  &[data-state="closed"] {
+    animation: dialog-fade-out 140ms ease-in forwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &[data-state="open"],
+    &[data-state="closed"] {
+      animation: none;
+    }
+  }
+}
+
+@utility dialog-panel {
+  will-change: opacity, scale;
+
+  &[data-state="open"] {
+    animation: dialog-panel-in 220ms var(--ease-ios);
+  }
+
+  &[data-state="closed"] {
+    animation: dialog-panel-out 140ms ease-in forwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &[data-state="open"],
+    &[data-state="closed"] {
+      animation: none;
+    }
+  }
+}
+
+@keyframes dialog-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes dialog-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes dialog-panel-in {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
+}
+
+@keyframes dialog-panel-out {
+  to {
+    opacity: 0;
+    scale: 0.98;
+  }
+}
+
 @keyframes menu-in {
   from {
     opacity: 0;

@@ -2,9 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
+import Link from "next/link";
 import type { ReactElement } from "react";
 import { readTrading } from "@/components/trading/trading-api";
 import { Button } from "@/components/ui/button";
+import { ElapsedBadge } from "@/components/ui/elapsed-badge";
 import { recoverAgentOrders } from "@/server/engine/status-actions";
 import { type AgentRuntimeStatus, agentRuntimeStatusSchema } from "@/shared/agent-runtime";
 import type { AgentSummary } from "@/shared/agents";
@@ -35,7 +37,11 @@ export function AgentRuntimePanel({
       ),
     refetchInterval: (query) => {
       const state = query.state.data;
+      if (state?.agent.deleted) {
+        return false;
+      }
       return state?.agent.status === "running" ||
+        state?.agent.returningFunds ||
         state?.runtime?.state === "starting" ||
         state?.pending.length
         ? 5000
@@ -59,16 +65,39 @@ export function AgentRuntimePanel({
   const snapshot = query.data;
   const current = { ...agent, ...snapshot.agent };
   const starting = snapshot.runtime?.state === "starting";
+  if (snapshot.agent.deleted || (snapshot.agent.deleting && !snapshot.agent.returningFunds)) {
+    return (
+      <section aria-label="Trading status" className="flex flex-col items-start gap-3">
+        <p role="status" className="text-small text-fg-muted">
+          {snapshot.agent.deleted
+            ? "This agent is deleted."
+            : "This agent is deleted. Its funds wait in Claims."}
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <Link href="/claims" className="text-small text-accent-text underline underline-offset-4">
+            Open Claims
+          </Link>
+          <Link href="/agents" className="text-small text-accent-text underline underline-offset-4">
+            Back to agents
+          </Link>
+        </div>
+      </section>
+    );
+  }
   return (
     <section aria-label="Trading status" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
-        <AgentStatus agent={current} />
+        {snapshot.agent.returningSince === null ? (
+          <AgentStatus agent={current} />
+        ) : (
+          <ElapsedBadge label="Claiming funds" since={snapshot.agent.returningSince} />
+        )}
         <p role="status" className="text-small text-fg-muted">
           {starting ? "Waiting for the trading workflow to start." : current.reason}
         </p>
       </div>
       <AgentControls agent={current} executionAvailable={executionAvailable && !starting && !query.isError} />
-      {snapshot.pending.length > 0 ? (
+      {snapshot.pending.length > 0 && !snapshot.agent.returningFunds ? (
         <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="ghost"

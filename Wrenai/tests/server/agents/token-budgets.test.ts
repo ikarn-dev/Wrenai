@@ -1,14 +1,14 @@
 import { createSecretKey } from "node:crypto";
-import { testDatabase } from "@tests/server/db/test-database";
-import { executionTestContext, fundTestAgent, observeInventory } from "@tests/server/execution/test-context";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { readWalletBudgets } from "@/server/agents/token-budgets";
 import {
   createManualAgentSetup,
   deleteAgentSetup,
   readAgentSetup,
   updateAgentSetup,
-} from "@/server/chat/agent-drafts";
+} from "@tests/server/agents/setup-fixture";
+import { testDatabase } from "@tests/server/db/test-database";
+import { executionTestContext, fundTestAgent, observeInventory } from "@tests/server/execution/test-context";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readWalletBudgets } from "@/server/agents/token-budgets";
 import { chatCipher } from "@/server/chat/cipher";
 import { walletTokenHolding, walletTokenHoldings } from "@/server/portfolio/wallet-tokens";
 import type { AgentBudgetInput, WalletHolding } from "@/shared/agent-budget";

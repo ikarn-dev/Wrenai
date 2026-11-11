@@ -1,4 +1,5 @@
 import { isActiveAgentTool, REMOVED_AGENT_MESSAGE } from "./agent-scope";
+import { isPaymentRetry, parseChatPayment } from "./chat-payment-command";
 import { RESEARCH_TOOLS, type ResearchTool } from "./research";
 
 // Deliberately explicit cues only. Ambiguous follow-ups stay with the selected tool and history.
@@ -95,6 +96,9 @@ function clauseTools(clause: string): readonly ResearchTool[] {
 }
 
 export function requestedResearchTools(message: string): readonly ResearchTool[] {
+  if (parseChatPayment(message) || isPaymentRetry(message)) {
+    return ["private_payments"];
+  }
   const text = message
     .normalize("NFKC")
     .replace(/```[\s\S]*?```|`[^`]*`|https?:\/\/\S+/g, " ")

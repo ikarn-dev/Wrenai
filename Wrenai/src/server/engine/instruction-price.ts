@@ -1,11 +1,13 @@
 import "server-only";
 import { z } from "zod";
 import { ExecutionError } from "@/server/execution/contracts";
+import { RHEA_DCL } from "@/server/execution/rhea/contracts";
 import { callViewFunction } from "@/server/near/rpc";
 import { type Decimal, decimal } from "@/server/research/decimal";
 import { rheaPools, rheaQuote } from "@/server/research/rhea";
 import { quoteRheaNative } from "@/server/wallet-swap/rhea-native";
 import { isNativeNearPayoutPair } from "@/shared/agent-instructions";
+import { positiveTokenUnitsSchema } from "@/shared/token-units";
 import type { TradeAsset } from "@/shared/trade-preview";
 import { freshAssetUsdPrice } from "./market-price";
 
@@ -19,6 +21,10 @@ const USD_FEEDS = new Map([
   ["nep141:eth.omft.near", "ETH"],
   ["nep141:sol.omft.near", "SOL"],
 ] as const);
+/** Whether a token has an independent USD book, so USD price rules can be checked for it. */
+export function hasUsdFeed(assetId: string): boolean {
+  return [...USD_FEEDS].some(([id]) => id === assetId);
+}
 export async function assetUsdPrice(assetId: string): Promise<InstructionPrice> {
   const entry = [...USD_FEEDS].find(([id]) => id === assetId);
   if (!entry) {
@@ -44,6 +50,7 @@ export async function instructionPrice(
   inputUnits: bigint,
   inputIsQuote: boolean,
   unit: "usd" | "quote_token",
+  poolId: string | null = null,
 ): Promise<InstructionPrice> {
   if (unit === "usd") {
     return assetUsdPrice(base.assetId);
@@ -70,6 +77,32 @@ export async function instructionPrice(
   }
   const baseContract = base.assetId.slice(7),
     quoteContract = quote.assetId.slice(7);
+  if (poolId) {
+    // A public-route pair is priced on the same reviewed pool it trades on, at the order's size.
+    const output = BigInt(
+      z.object({ amount: positiveTokenUnitsSchema }).parse(
+        (
+          await callViewFunction(RHEA_DCL, "quote", {
+            pool_ids: [poolId],
+            input_token: inputIsQuote ? quoteContract : baseContract,
+            output_token: inputIsQuote ? baseContract : quoteContract,
+            input_amount: inputUnits.toString(),
+          })
+        ).value,
+      ).amount,
+    );
+    return inputIsQuote
+      ? {
+          n: inputUnits * 10n ** BigInt(base.decimals),
+          d: output * 10n ** BigInt(quote.decimals),
+          observedAt: Date.now(),
+        }
+      : {
+          n: output * 10n ** BigInt(base.decimals),
+          d: inputUnits * 10n ** BigInt(quote.decimals),
+          observedAt: Date.now(),
+        };
+  }
   const pools = (await rheaPools()).pools
     .filter(
       (pool) =>

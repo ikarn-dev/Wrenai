@@ -11,9 +11,12 @@ import { InferenceError } from "@/server/ai/verified-completion";
 import { chatCipher } from "@/server/chat/cipher";
 import { readConversation } from "@/server/chat/queries";
 import { answerChat } from "@/server/chat/service";
+import { claimChatTurn, finishChatTurn } from "@/server/chat/turns";
 import { executionActions } from "@/server/db/execution-schema";
 import { manualTrades } from "@/server/db/manual-schema";
+import { walletSwaps } from "@/server/db/wallet-swap-schema";
 import type { ChatInput } from "@/shared/chat";
+import { WALLET_SWAP_NATIVE_OUTPUT } from "@/shared/wallet-swap";
 
 const cloud = vi.hoisted(() => ({ stream: vi.fn(), prepare: vi.fn(), context: vi.fn(), quote: vi.fn() }));
 vi.mock("server-only", () => ({}));
@@ -102,6 +105,101 @@ afterEach(async () => {
   await store.postgres.close();
 });
 describe("verified Jarvis manual quote persistence", () => {
+  it("saves a native payment card when the request starts with a greeting", async () => {
+    const turn = await answerChat(
+      store.db,
+      { id: "owner", accountId: "owner.near" },
+      { ...input, message: "hey jarvis send 0.02 near to recipient.tg", includeContext: true },
+      cipher,
+    );
+    const reopened = await readConversation(store.db, "owner", input.conversationId, cipher);
+    expect(reopened.turns[0]?.reply?.manual?.payment).toEqual({
+      id: turn.id,
+      recipient: "recipient.tg",
+      amount: "0.02",
+      symbol: "NEAR",
+      assetId: WALLET_SWAP_NATIVE_OUTPUT,
+      routes: ["wallet"],
+    });
+    expect(cloud.stream).not.toHaveBeenCalled();
+    expect(await store.db.select().from(walletSwaps)).toHaveLength(0);
+  });
+
+  it("recovers a payment request from an older chat without opening a second card on repeated retries", async () => {
+    const user = { id: "owner", accountId: "owner.near" };
+    let previousTurnId: string | null = null;
+    for (const message of ["Hey Jarvis, send 0.02 NEAR to recipient.tg", "Now try to send again"]) {
+      const legacy: ChatInput = { ...input, message, previousTurnId, requestId: crypto.randomUUID() };
+      const claim = await claimChatTurn(store.db, user.id, legacy, { cipher });
+      if (claim.kind !== "claimed") {
+        throw new Error("Expected a new chat turn");
+      }
+      await finishChatTurn(
+        store.db,
+        user.id,
+        legacy,
+        claim.token,
+        {
+          state: "complete",
+          receipt,
+          reply: {
+            content: "Review and confirm the payment in the app.",
+            receipt: {
+              model: receipt.model,
+              completionId: receipt.completionId,
+              signatureKind: receipt.signatureKind,
+              verifiedAt: receipt.verifiedAt,
+              evidenceHash: receipt.evidenceHash,
+            },
+            context: null,
+            historyTrimmed: false,
+          },
+        },
+        cipher,
+      );
+      previousTurnId = legacy.requestId;
+    }
+    const retry = {
+      ...input,
+      previousTurnId,
+      message: "Hi, Jarvis! Now try to send again",
+      includeContext: true,
+    };
+    const review = await answerChat(store.db, user, retry, cipher);
+    const reopened = await readConversation(store.db, user.id, input.conversationId, cipher);
+    expect(reopened.turns.at(-1)?.reply?.manual?.payment).toEqual({
+      id: review.id,
+      recipient: "recipient.tg",
+      amount: "0.02",
+      symbol: "NEAR",
+      assetId: WALLET_SWAP_NATIVE_OUTPUT,
+      routes: ["wallet"],
+    });
+    const repeat = await answerChat(
+      store.db,
+      user,
+      { ...retry, requestId: crypto.randomUUID(), previousTurnId: review.id },
+      cipher,
+    );
+    expect(repeat.reply?.manual?.payment).toBeUndefined();
+    expect(repeat.reply?.manual?.text).toContain("existing payment card");
+    expect(await store.db.select().from(walletSwaps)).toHaveLength(0);
+    expect(await store.db.select().from(executionActions)).toHaveLength(0);
+  });
+
+  it("asks for exact payment details when a retry has no prior request", async () => {
+    const turn = await answerChat(
+      store.db,
+      { id: "owner", accountId: "owner.near" },
+      { ...input, message: "Please send it again" },
+      cipher,
+    );
+    expect(turn.reply?.manual).toEqual({
+      text: "What amount and token should I send, and to which account?",
+      tradeIds: [],
+    });
+  });
+
   it.each(["Quote 10 USDC", "Quote 10 USDC to NEAR with 0.5% slippage", "Quote 10 USDC on Solana for wNEAR"])(
     "rejects an extracted pair that the user did not request: %s",
     async (message) => {

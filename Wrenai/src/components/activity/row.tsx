@@ -10,7 +10,6 @@ import {
   SlidersHorizontal,
   Wallet,
 } from "lucide-react";
-import Link from "next/link";
 import type { ReactElement, ReactNode } from "react";
 import { CopyButton } from "@/components/chat/copy-button";
 import type { ActivityEntry } from "@/shared/activity";
@@ -68,14 +67,20 @@ function Details({ item }: { readonly item: ActivityEntry }): ReactNode {
     return <span className="text-fg-subtle">—</span>;
   }
   if (item.source !== "wallet") {
-    return <span className="line-clamp-2 text-fg-muted">{item.description}</span>;
+    // One line, always: details are phrased to fit (server/activity/agent-events.ts); anything longer truncates
+    // with the full text on hover, so a row never wraps or pushes into the next column.
+    return (
+      <span title={item.description} className="mx-auto block max-w-74 truncate text-fg-muted">
+        {item.description}
+      </span>
+    );
   }
   const [head = "", ...rest] = item.description.split(" · ");
   const match = /^(To|From) (\S+)$/.exec(head);
   // Deduplicated, so each chip's text is its stable key.
   const chips = Array.from(new Set(match ? rest : [head, ...rest]));
   return (
-    <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+    <span className="mx-auto flex max-w-74 min-w-0 items-center justify-center gap-2 overflow-hidden">
       {match ? (
         <span className="min-w-0 truncate">
           <span className="text-fg-subtle">{match[1]} </span>
@@ -91,29 +96,6 @@ function Details({ item }: { readonly item: ActivityEntry }): ReactNode {
         </code>
       ))}
     </span>
-  );
-}
-
-function Origin({ item }: { readonly item: ActivityEntry }): ReactElement {
-  if (item.agent === null) {
-    return <span className="text-fg-muted">{item.source === "wallet" ? "NEAR wallet" : "Account"}</span>;
-  }
-  if (item.agent.deleted) {
-    return (
-      <span className="text-fg-muted">
-        {item.agent.name} <span className="text-fg-subtle">· Deleted agent</span>
-      </span>
-    );
-  }
-  return (
-    <Link
-      href={`/agents/${item.agent.id}`}
-      prefetch={false}
-      className="inline-flex items-center gap-1.5 rounded-xs text-fg-muted transition-colors duration-200 ease-ios hover:text-accent-text"
-    >
-      <BrainCircuit {...ICON} size={14} className="shrink-0" />
-      <span className="truncate">{item.agent.name}</span>
-    </Link>
   );
 }
 
@@ -138,29 +120,26 @@ function Transaction({ item }: { readonly item: ActivityEntry }): ReactElement {
   );
 }
 
-/** One activity event as a table row: type, details, origin, transaction, amount, status and UTC time. */
+/** One activity event as a table row: type, details, transaction, amount, status and UTC time. */
 export function ActivityRow({ item }: { readonly item: ActivityEntry }): ReactElement {
   const { Icon, tone } = rowIcon(item);
   const amount = item.amount ? formatActivityAmount(item.amount) : null;
   const incoming = item.amount?.kind === "token" && item.amount.direction === "in";
   return (
-    <tr className="group border-t border-line-card align-middle text-small transition-colors duration-200 ease-ios hover:bg-surface-2">
-      <td className={`${CELL} ${STICKY_CELL}`}>
+    <tr className="group border-t border-line-card text-center align-middle text-small transition-colors duration-200 ease-ios hover:bg-surface-2">
+      <td className={`${CELL} ${STICKY_CELL} text-left`}>
         <span className="flex min-w-0 items-center gap-2.5">
           <Icon {...ICON} className={`shrink-0 ${tone}`} />
           <span className="truncate font-medium text-fg-strong">{item.title}</span>
         </span>
       </td>
-      <td className={`${CELL} max-w-80`}>
+      <td className={`${CELL} max-w-80 whitespace-nowrap`}>
         <Details item={item} />
-      </td>
-      <td className={`${CELL} max-w-44 whitespace-nowrap`}>
-        <Origin item={item} />
       </td>
       <td className={`${CELL} whitespace-nowrap`}>
         <Transaction item={item} />
       </td>
-      <td className={`${CELL} whitespace-nowrap text-right font-mono tabular-nums`}>
+      <td className={`${CELL} whitespace-nowrap font-mono tabular-nums`}>
         {amount ? (
           <span title={amount.full} className={incoming ? "text-gain" : "text-fg-strong"}>
             <span aria-hidden="true">{amount.display}</span>

@@ -3,7 +3,12 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { agents, strategyVersions } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
-import { instructionAssets, isNativeNearPayoutPair, usesNativeNearPayout } from "@/shared/agent-instructions";
+import {
+  instructionAssets,
+  isNativeNearPayoutPair,
+  usesNativeNearPayout,
+  usesPublicRoute,
+} from "@/shared/agent-instructions";
 import { strategySchema, strategySymbols } from "@/shared/agents";
 import { ExecutionError, type ExecutionPlan, hashSchema } from "./contracts";
 import { assertMemePair, readMemeDecision } from "./meme-binding";
@@ -27,13 +32,15 @@ const bindingsSchema = z.strictObject({
     .max(6),
 });
 
+/**
+ * Packs that may execute publicly from the trading account. Which spot agents do, and on which pair, is bound by
+ * their reviewed route in `checkStrategyAssets`, which every public plan also passes.
+ */
 export function allowsPublicAgentSwap(pack: string, plan: ExecutionPlan): boolean {
   return (
     plan.scope === "native_near" &&
     plan.budgetMode === "per_agent" &&
-    (pack === "meme_hunter" ||
-      (["dca", "spot_trader", "buy_the_dip", "sell_the_top"].includes(pack) &&
-        isNativeNearPayoutPair(plan.inputAssetId, plan.outputAssetId)))
+    ["meme_hunter", "dca", "spot_trader", "buy_the_dip", "sell_the_top"].includes(pack)
   );
 }
 
@@ -64,6 +71,10 @@ export async function checkStrategyAssets(
       (plan.scope !== "native_near" || !isNativeNearPayoutPair(plan.inputAssetId, plan.outputAssetId))
     ) {
       throw new ExecutionError("limit", "The reviewed USDC to NEAR swap must use the public RHEA route.");
+    }
+    // The route was chosen at review; a trade can never move a private agent public or the reverse.
+    if (strategy.kind !== "meme_hunter" && usesPublicRoute(strategy) !== (plan.scope === "native_near")) {
+      throw new ExecutionError("limit", "This trade must use the agent's reviewed route.");
     }
     const expected = instructionAssets(strategy);
     if (

@@ -5,7 +5,7 @@ import { ActivityTable } from "./table";
 const BLOCK = "block rounded-xs bg-surface-2 motion-safe:animate-pulse";
 const ROWS = ["first", "second", "third", "fourth", "fifth", "sixth"] as const;
 
-/** Placeholder rows with the real columns' shapes, for the table while a filter or refresh loads. */
+/** Placeholder rows with the real columns' shapes and alignment, for the table while a filter or refresh loads. */
 export function ActivitySkeletonRows(): ReactElement {
   return (
     <>
@@ -18,22 +18,19 @@ export function ActivitySkeletonRows(): ReactElement {
             </span>
           </td>
           <td className={CELL}>
-            <span className="flex items-center gap-2">
+            <span className="flex items-center justify-center gap-2">
               <span className={`${BLOCK} h-3.5 w-24`} />
               <span className={`${BLOCK} h-5 w-20`} />
             </span>
           </td>
           <td className={CELL}>
-            <span className={`${BLOCK} h-3.5 w-20`} />
+            <span className={`${BLOCK} mx-auto h-3.5 w-24`} />
           </td>
           <td className={CELL}>
-            <span className={`${BLOCK} h-3.5 w-24`} />
+            <span className={`${BLOCK} mx-auto h-3.5 w-20`} />
           </td>
           <td className={CELL}>
-            <span className={`${BLOCK} ml-auto h-3.5 w-20`} />
-          </td>
-          <td className={CELL}>
-            <span className={`${BLOCK} h-6 w-26`} />
+            <span className={`${BLOCK} mx-auto h-6 w-26`} />
           </td>
           <td className={CELL}>
             <span className="flex flex-col items-end gap-1.5">

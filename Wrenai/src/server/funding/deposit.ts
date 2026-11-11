@@ -15,6 +15,7 @@ import { assignInventory } from "@/server/positions/attribution";
 import { setAgentCapitalLimit } from "@/server/positions/capital-limits";
 import { parseUsd, policySchema } from "@/shared/agents";
 import {
+  directNativeFunding,
   fundingIdInputSchema,
   fundingTransactionInputSchema,
   type WalletFundingView,
@@ -83,6 +84,9 @@ export async function confirmWalletDeposit(
     snapshot,
     input.transactionHash,
   );
+  if (directNativeFunding(snapshot)) {
+    return recordDirectTransfer(db, user, input.fundingId, input.transactionHash);
+  }
   await synchronizePublicToken(db, user.id, user.accountId, snapshot.assetId);
   return userTransaction(db, user.id, async (tx) => {
     const row = await ownedWalletFunding(tx, user.id, input.fundingId),
@@ -126,6 +130,42 @@ export async function confirmWalletDeposit(
       ...row,
       state: "deposited",
       transactionHash: input.transactionHash,
+      confirmedAt: now,
+      updatedAt: now,
+    });
+  });
+}
+
+/**
+ * The NEAR left the wallet for the 1Click deposit address. Nothing is assigned yet: the agent is credited only
+ * with what 1Click reports delivered to the private balance (see direct-funding.ts).
+ */
+async function recordDirectTransfer(
+  db: AppDatabase,
+  user: SessionUser,
+  fundingId: string,
+  transactionHash: string,
+): Promise<WalletFundingView> {
+  return userTransaction(db, user.id, async (tx) => {
+    const row = await ownedWalletFunding(tx, user.id, fundingId),
+      now = await databaseTime(tx);
+    if (row.transactionHash !== null) {
+      if (row.transactionHash !== transactionHash) {
+        throw new ExecutionError("conflict", "The deposit proof changed.");
+      }
+      return walletFundingView(row);
+    }
+    if (row.state !== "wallet_pending") {
+      throw new ExecutionError("conflict", "This deposit request was closed. Refresh the funding review.");
+    }
+    await tx
+      .update(walletFundings)
+      .set({ state: "deposited", transactionHash, confirmedAt: now, updatedAt: now })
+      .where(eq(walletFundings.id, row.id));
+    return walletFundingView({
+      ...row,
+      state: "deposited",
+      transactionHash,
       confirmedAt: now,
       updatedAt: now,
     });

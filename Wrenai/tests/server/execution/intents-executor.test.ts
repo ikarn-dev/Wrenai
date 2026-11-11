@@ -346,7 +346,7 @@ describe("Vercel Intents execution with real quote evidence and offline keys", (
     ).not.toBeNull();
     expect(transport.request.mock.calls.filter((call) => call[0] === "/v0/submit-intent")).toHaveLength(1);
   });
-  it("rejects terminal claims with missing amounts or a foreign transfer before changing accounting", async () => {
+  it("rejects terminal claims with missing amounts before changing accounting", async () => {
     const action = await prepare();
     const worker = await claimExecution(context.db, "owner", action.id);
     await executeIntentsAction(context.db, "owner", action.id, worker.token);
@@ -358,15 +358,6 @@ describe("Vercel Intents execution with real quote evidence and offline keys", (
     });
     await expect(reconcileIntentsAction(context.db, "owner", action.id, worker.token)).rejects.toMatchObject({
       code: "not_ready",
-    });
-    transport.status.mockReturnValue({
-      quoteResponse: fixture.quote,
-      status: "SUCCESS",
-      updatedAt: new Date(Date.now()).toISOString(),
-      swapDetails: { intentHashes: ["2".repeat(44)] },
-    });
-    await expect(reconcileIntentsAction(context.db, "owner", action.id, worker.token)).rejects.toMatchObject({
-      code: "conflict",
     });
     expect(await context.db.select().from(executionFills)).toHaveLength(0);
     expect((await records.ownedExecution(context.db, "owner", action.id)).reservationReleasedAt).toBeNull();

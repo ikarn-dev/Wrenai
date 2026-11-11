@@ -32,6 +32,7 @@ import {
   walletSwapRequestSchema,
   walletSwapSubmissionSchema,
 } from "@/shared/wallet-swap";
+import { verifyPaymentTopUpStatus } from "./private-top-up";
 import { verifyWalletSwapTransaction } from "./proof";
 import { nativeNearAsset, quoteRheaNative, usdcAsset, verifyRheaNativeContracts } from "./rhea-native";
 import { reconcileRheaNativeSwap, submitRheaNativeSwap } from "./rhea-native-lifecycle";
@@ -113,6 +114,9 @@ export async function prepareWalletSwap(
     throw new ExecutionError("not_found", "Sign in again before swapping.");
   }
   if (owner.existing) {
+    if (view(owner.existing).quote.privateTopUp) {
+      throw new ExecutionError("conflict", "Review this deposit from its original payment card.");
+    }
     return view(owner.existing);
   }
   const { accountId } = owner;
@@ -302,6 +306,7 @@ export async function beginWalletSwap(
   db: AppDatabase,
   userId: string,
   raw: unknown,
+  paymentTopUp = false,
 ): Promise<WalletSwapView> {
   const { id } = walletSwapIdSchema.parse(raw);
   const saved = view(await ownedSwap(db, userId, id));
@@ -312,6 +317,9 @@ export async function beginWalletSwap(
     throw new ExecutionError("conflict", "This quote expired or was already sent. Refresh the quote.");
   }
   const { quote } = saved;
+  if (Boolean(quote.privateTopUp) !== paymentTopUp) {
+    throw new ExecutionError("conflict", "Review this deposit from its original card.");
+  }
   const assetId = quote.request.inputAssetId ?? NATIVE_ASSET;
   const native = assetId === NATIVE_ASSET;
   const [asset, near] = await Promise.all([
@@ -358,10 +366,14 @@ export async function submitWalletSwap(
   db: AppDatabase,
   userId: string,
   raw: unknown,
+  paymentTopUp = false,
 ): Promise<WalletSwapView> {
   const input = walletSwapSubmissionSchema.parse(raw);
   const saved = await ownedSwap(db, userId, input.id);
   const quote = view(saved).quote;
+  if (Boolean(quote.privateTopUp) !== paymentTopUp) {
+    throw new ExecutionError("conflict", "Verify this deposit from its original card.");
+  }
   if (quote.depositKind === "rhea_native") {
     return view(await submitRheaNativeSwap(db, saved, input.transactionHash, input.fromRecovery));
   }
@@ -409,13 +421,21 @@ async function recordConfirmedDeposit(db: AppDatabase, saved: Row, hash: string)
 }
 
 /** The saved swap; submitted RHEA swaps recheck NEAR, while 1Click swaps refresh by deposit address. */
-export async function readWalletSwap(db: AppDatabase, userId: string, raw: unknown): Promise<WalletSwapView> {
+export async function readWalletSwap(
+  db: AppDatabase,
+  userId: string,
+  raw: unknown,
+  paymentTopUp = false,
+): Promise<WalletSwapView> {
   const { id } = walletSwapIdSchema.parse(raw);
   let row = await ownedSwap(db, userId, id);
+  const quote = view(row).quote;
+  if (Boolean(quote.privateTopUp) !== paymentTopUp) {
+    throw new ExecutionError("not_found", "This swap could not be found.");
+  }
   if (row.state !== "submitted" && row.state !== "signing") {
     return view(row);
   }
-  const quote = view(row).quote;
   if (quote.depositKind === "rhea_native") {
     return view(row.state === "submitted" ? await reconcileRheaNativeSwap(db, row) : row);
   }
@@ -442,6 +462,9 @@ export async function readWalletSwap(db: AppDatabase, userId: string, raw: unkno
   if (terminal === null) {
     return view(row);
   }
+  if (quote.privateTopUp && row.transactionHash) {
+    verifyPaymentTopUpStatus(quote, status, row.transactionHash);
+  }
   const received = terminal === "settled" ? (status.swapDetails.amountOut ?? null) : null;
   const [updated] = await db
     .update(walletSwaps)
@@ -457,7 +480,14 @@ export async function cancelWalletSwap(db: AppDatabase, userId: string, raw: unk
   const [cancelled] = await db
     .update(walletSwaps)
     .set({ state: "cancelled", updatedAt: Date.now() })
-    .where(and(eq(walletSwaps.userId, userId), eq(walletSwaps.id, id), eq(walletSwaps.state, "quoted")))
+    .where(
+      and(
+        eq(walletSwaps.userId, userId),
+        eq(walletSwaps.id, id),
+        eq(walletSwaps.state, "quoted"),
+        sql`NOT (${walletSwaps.quoteJson}::jsonb ? 'privateTopUp')`,
+      ),
+    )
     .returning({ id: walletSwaps.id });
   if (!cancelled && (await ownedSwap(db, userId, id)).state !== "cancelled") {
     throw new ExecutionError("conflict", "Approval has already started. Check the swap status.");

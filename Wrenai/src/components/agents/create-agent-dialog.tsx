@@ -1,17 +1,24 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useLenis } from "lenis/react";
-import { Check, LoaderCircle, Rocket, X } from "lucide-react";
+import { ArrowRight, Check, LoaderCircle, X } from "lucide-react";
 import { m } from "motion/react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Dialog } from "radix-ui";
 import { type FormEvent, type ReactElement, useEffect, useId, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { createAgentWithBudget, parseAgentStrategy } from "@/server/agents/actions";
 import type { AgentBudgetInput } from "@/shared/agent-budget";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
-import { type CreateAgentRequest, createRequestKey } from "@/shared/agent-create-request";
+import {
+  type CreateAgentRequest,
+  createRequestKey,
+  createRequestPack,
+  needsServerRequest,
+} from "@/shared/agent-create-request";
+import { usesPublicRoute } from "@/shared/agent-instructions";
 import { agentSetupProfile } from "@/shared/agent-templates";
 import {
   type AgentPolicy,
@@ -21,10 +28,14 @@ import {
   type StrategyDraft,
   strategyTextSchema,
 } from "@/shared/agents";
+import { agentListKey } from "./agents-section";
 import { AgentAvatar } from "./avatar";
 import { CreateAgentFields } from "./create-agent-fields";
+import { DeployLaunch, type LaunchContext } from "./deploy-launch";
 import { type DeployPhase, DeployTimeline } from "./deploy-timeline";
+import { createAgentRequest } from "./review-api";
 import { StrategySummary } from "./strategy-summary";
+import { useStrategyReview } from "./use-strategy-review";
 
 const BUTTON_ICON = { size: 18, strokeWidth: 1.75, absoluteStrokeWidth: true, "aria-hidden": true } as const;
 const EYEBROW = "font-mono text-eyebrow uppercase text-fg-muted";
@@ -49,27 +60,40 @@ function blankSetup(pack: Pack): SetupFields {
 }
 
 /**
- * Agent creation as a popup on the Agents page. The page's `?create=` or `?setup=` link opens it; closing or
+ * Agent creation as a popup on the Agents page. The page's `?create=` link opens it; closing or
  * finishing clears the link, so the user stays on Agents and the list behind updates.
  */
 export function CreateAgentDialog({
   request,
+  launch,
+  onClose,
 }: {
   readonly request: CreateAgentRequest | null;
+  readonly launch: LaunchContext;
+  readonly onClose?: () => void;
 }): ReactElement {
-  const router = useRouter();
+  const query = useSearchParams();
   const lenis = useLenis();
-  const entry = request ? { key: createRequestKey(request), request } : null;
-  const [seen, setSeen] = useState<string | null>(entry?.key ?? null);
-  const [opened, setOpened] = useState(entry);
+  // A bare `?create=<type>` resolves here, so opening needs no server request; other links arrive resolved.
+  const pack = createRequestPack(query.get("create"));
+  const current: CreateAgentRequest | null =
+    onClose || needsServerRequest(query) ? request : pack ? { pack, brief: "" } : null;
+  const key = current ? createRequestKey(current) : null;
+  const [seen, setSeen] = useState<string | null>(key);
+  const [opened, setOpened] = useState(current ? { key, request: current, id: 0 } : null);
+  const [open, setOpen] = useState(current !== null);
+  // While the wallet is used (funding, key approval) the dialog is non-modal, so the wallet's own window can take
+  // clicks and focus; a modal dialog traps focus and blocks pointer events outside itself.
+  const [walletStep, setWalletStep] = useState(false);
   // A new link opens the dialog. The same link stays closed after the user closes it, until the URL changes.
-  if ((entry?.key ?? null) !== seen) {
-    setSeen(entry?.key ?? null);
-    if (entry) {
-      setOpened(entry);
+  if (key !== seen) {
+    setSeen(key);
+    if (current) {
+      setOpened({ key, request: current, id: (opened?.id ?? 0) + 1 });
+      setOpen(true);
+      setWalletStep(false);
     }
   }
-  const open = opened !== null;
 
   // Lenis would keep scrolling the page behind the dialog (Docs/tech-stack.md → Lenis).
   useEffect(() => {
@@ -80,21 +104,35 @@ export function CreateAgentDialog({
     return () => lenis.start();
   }, [open, lenis]);
 
+  // Clears the link in the browser only. A server navigation here re-ran every read on the page behind the dialog;
+  // a created agent reaches the list through its query, without re-rendering the page.
   function clearLink(): void {
-    if (seen !== null) {
-      router.replace("/agents", { scroll: false });
+    if (!onClose && seen !== null) {
+      window.history.replaceState(null, "", "/agents");
     }
   }
 
   function close(): void {
-    setOpened(null);
+    // The content stays mounted while it animates out; the next opening gets a fresh `id` and a fresh form.
+    setOpen(false);
     clearLink();
+    onClose?.();
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={(next) => (next ? undefined : close())}>
+    <Dialog.Root open={open} modal={!walletStep} onOpenChange={(next) => (next ? undefined : close())}>
       {opened ? (
-        <CreateAgentFlow key={opened.key} request={opened.request} onClose={close} onCreated={clearLink} />
+        <CreateAgentFlow
+          key={opened.id}
+          request={opened.request}
+          launch={launch}
+          modal={!walletStep}
+          onClose={close}
+          onCreated={() => {
+            clearLink();
+            setWalletStep(true);
+          }}
+        />
       ) : null}
     </Dialog.Root>
   );
@@ -102,25 +140,26 @@ export function CreateAgentDialog({
 
 interface CreateAgentFlowProps {
   readonly request: CreateAgentRequest;
+  readonly launch: LaunchContext;
+  readonly modal: boolean;
   readonly onClose: () => void;
   readonly onCreated: () => void;
 }
 
-function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps): ReactElement {
+function CreateAgentFlow({ request, launch, modal, onClose, onCreated }: CreateAgentFlowProps): ReactElement {
   const formId = useId();
+  const cache = useQueryClient();
   const [pack, setPack] = useState(request.pack);
   const [setups, setSetups] = useState<Partial<Record<Pack, SetupFields>>>(() => ({
     [request.pack]: {
       ...blankSetup(request.pack),
       text: request.brief,
-      budget: request.setup?.budget ?? null,
     },
   }));
   const { text, budget, policy } = setups[pack] ?? blankSetup(pack);
   const [phase, setPhase] = useState<DeployPhase>({ step: "setup" });
   const [formError, setFormError] = useState<string | null>(null);
-  // Retries reuse these ids, so a lost reply recovers the same review or agent instead of creating another.
-  const [requestId, setRequestId] = useState<string | null>(null);
+  // Retries reuse the save ID, so a lost reply recovers the same agent instead of creating another.
   const [saveId, setSaveId] = useState<string | null>(null);
   const busy = phase.step === "verifying" || phase.step === "saving";
   const item = AGENT_CATALOG[pack];
@@ -133,38 +172,21 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
     }));
   }
 
+  const review = useStrategyReview({
+    pack,
+    text,
+    budget,
+    setPhase,
+    setText: (next) => {
+      updateSetup({ text: next });
+      setSaveId(null);
+    },
+  });
+
   function invalidate(): void {
-    setRequestId(null);
+    review.reset();
     setSaveId(null);
     setFormError(null);
-  }
-
-  async function verify(): Promise<void> {
-    const id = requestId ?? crypto.randomUUID();
-    setRequestId(id);
-    setPhase({ step: "verifying" });
-    const started = performance.now();
-    try {
-      const result = await parseAgentStrategy({
-        requestId: id,
-        pack,
-        strategyText: text,
-        ...(budget ? { budget } : {}),
-      });
-      if (result.ok) {
-        setPhase({ step: "review", draft: result.value, verifyMs: performance.now() - started });
-        return;
-      }
-      if (result.code !== "in_progress" && result.code !== "unavailable") {
-        setRequestId(null);
-      }
-      setPhase({ step: "verify_failed", message: result.message });
-    } catch {
-      setPhase({
-        step: "verify_failed",
-        message: "The request could not finish. Retry to recover the same review.",
-      });
-    }
   }
 
   async function save(draft: StrategyDraft, verifyMs: number): Promise<void> {
@@ -179,22 +201,22 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
     setPhase({ step: "saving", draft, verifyMs });
     const started = performance.now();
     try {
-      const result = await createAgentWithBudget({
+      const result = await createAgentRequest({
         requestId: id,
         draftId: draft.id,
         policy: limits.data,
         agentId: null,
         expectedRevision: null,
         budget,
-        ...(request.setup ? { setupId: request.setup.id, setupHash: request.setup.hash } : {}),
       });
       if (!result.ok) {
         setPhase({ step: "save_failed", draft, verifyMs, message: result.message });
         return;
       }
       const saveMs = performance.now() - started;
-      setPhase({ step: "done", draft, verifyMs, saveMs, agentId: result.value.agentId });
+      setPhase({ step: "done", draft, verifyMs, saveMs, ...result.value });
       onCreated();
+      await cache.invalidateQueries({ queryKey: agentListKey(launch.ownerId) });
     } catch {
       const message = "The save could not be confirmed. Retry to recover it without creating a duplicate.";
       setPhase({ step: "save_failed", draft, verifyMs, message });
@@ -214,7 +236,12 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
       return;
     }
     setFormError(null);
-    void verify();
+    const checked = review.checkedDraft();
+    if (checked) {
+      setPhase({ step: "review", ...checked });
+      return;
+    }
+    void review.verify();
   }
 
   const editSetup = (
@@ -231,9 +258,9 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
             <Dialog.Close asChild>
               <Button variant="soft">Cancel</Button>
             </Dialog.Close>
-            <Button type="submit" form={formId} variant="primary">
-              <Rocket {...BUTTON_ICON} />
-              Deploy agent
+            <Button type="submit" form={formId} variant="primary" disabled={review.refining}>
+              Continue
+              <ArrowRight {...BUTTON_ICON} />
             </Button>
           </>
         );
@@ -251,7 +278,7 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
           <>
             {editSetup}
             <Button variant="primary" onClick={() => void save(draft, verifyMs)}>
-              Confirm and deploy
+              Confirm and add funds
             </Button>
           </>
         );
@@ -260,7 +287,7 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
         return (
           <>
             {editSetup}
-            <Button variant="primary" onClick={() => void verify()}>
+            <Button variant="primary" onClick={() => void review.verify()}>
               Retry
             </Button>
           </>
@@ -277,10 +304,20 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
         );
       }
       case "done":
+        // Funding and Start run in the timeline above; these only leave the dialog.
         return (
-          <Button variant="primary" onClick={onClose}>
-            Done
-          </Button>
+          <>
+            <Link
+              href={`/agents/${phase.agentId}`}
+              className="inline-flex h-10 items-center gap-1.5 rounded-sm px-3 text-body text-fg-muted transition-colors duration-200 ease-ios hover:bg-surface-3 hover:text-fg-strong pointer-coarse:h-11"
+            >
+              Open agent
+              <ArrowRight {...BUTTON_ICON} />
+            </Link>
+            <Button variant="soft" onClick={onClose}>
+              Close
+            </Button>
+          </>
         );
       default: {
         const unhandled: never = phase;
@@ -292,20 +329,20 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
   function note(): string {
     switch (phase.step) {
       case "setup":
-        return "Saved paused. Fund and start the agent when ready.";
+        return launch.privateReady
+          ? "Next: review the rules, add funds, then deploy."
+          : "Funding and deploying are off here. Set WRENAI_LOCAL_EXECUTION=1 or use the Vercel app.";
       case "verifying":
       case "saving":
         return "Keep this open until it finishes.";
       case "review":
-        return budget
-          ? "Confirming reserves the budget and saves the agent paused."
-          : "Confirming saves the agent paused.";
+        return "Confirming reserves your budget. Then you add the funds and deploy.";
       case "verify_failed":
         return "Edit the setup, or retry.";
       case "save_failed":
         return "Retry uses the same request, so no duplicate is created.";
       case "done":
-        return "Your agent is in the list below, paused.";
+        return "Approve the deposit in your wallet. Deploy turns on when the funds arrive.";
       default: {
         const unhandled: never = phase;
         throw new Error(`Unhandled deploy phase: ${JSON.stringify(unhandled)}`);
@@ -313,7 +350,7 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
     }
   }
 
-  const review =
+  const rules =
     phase.step === "review" ? (
       <div className="flex flex-col gap-3 rounded-md bg-sunken p-4">
         <div className="flex items-center justify-between gap-3">
@@ -329,13 +366,18 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
 
   return (
     <Dialog.Portal>
-      <Dialog.Overlay className="fixed inset-0 z-40 bg-bg/80" />
+      {/* Radix renders no overlay for a non-modal dialog, so the scrim stays as a plain layer under the wallet. */}
+      {modal ? (
+        <Dialog.Overlay className="dialog-scrim fixed inset-0 z-40 bg-bg/80" />
+      ) : (
+        <div aria-hidden="true" className="fixed inset-0 z-40 bg-bg/80" />
+      )}
       <Dialog.Content
         // Outside clicks never close it, so a stray click can't discard the setup. Escape and Close do, except
         // while a step runs, so its result has somewhere to show.
         onInteractOutside={(event) => event.preventDefault()}
         onEscapeKeyDown={(event) => (busy ? event.preventDefault() : undefined)}
-        className="fixed inset-x-gutter top-1/2 z-50 mx-auto flex max-h-[calc(100dvh-2rem)] max-w-xl -translate-y-1/2 flex-col overflow-hidden rounded-xl bg-surface-2 shadow-float"
+        className="dialog-panel fixed inset-x-gutter top-1/2 z-50 mx-auto flex max-h-[calc(100dvh-2rem)] max-w-xl -translate-y-1/2 flex-col overflow-hidden rounded-xl bg-surface-2 shadow-float"
       >
         <header className="flex items-center gap-3 px-card pt-card pr-16">
           <AgentAvatar size={28} running={busy} />
@@ -351,7 +393,6 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
             <form id={formId} onSubmit={deploy}>
               <CreateAgentFields
                 pack={pack}
-                packLocked={request.setup !== null}
                 onPackChange={(next) => {
                   setPack(next);
                   invalidate();
@@ -366,12 +407,14 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
                   updateSetup({ budget: next });
                   invalidate();
                 }}
-                setupId={request.setup?.id ?? null}
                 policy={policy}
                 onPolicyChange={(next) => {
                   updateSetup({ policy: next });
                   setSaveId(null);
                 }}
+                onRefine={() => void review.refine()}
+                refining={review.refining}
+                refineNote={review.refineNote}
               />
             </form>
           ) : (
@@ -385,7 +428,22 @@ function CreateAgentFlow({ request, onClose, onCreated }: CreateAgentFlowProps):
                 <span className={EYEBROW}>{setup.instructions}</span>
                 <p className="line-clamp-3 whitespace-pre-line text-small text-fg">{text}</p>
               </div>
-              <DeployTimeline phase={phase} budgeted={budget !== null} review={review} />
+              <DeployTimeline
+                phase={phase}
+                budgeted={budget !== null}
+                review={rules}
+                launch={
+                  phase.step === "done" ? (
+                    <DeployLaunch
+                      context={launch}
+                      agent={{ id: phase.agentId, revision: phase.revision }}
+                      publicRoute={"format" in phase.draft.strategy && usesPublicRoute(phase.draft.strategy)}
+                      budget={budget}
+                      onCancelled={onClose}
+                    />
+                  ) : null
+                }
+              />
             </m.div>
           )}
         </div>

@@ -13,9 +13,9 @@ import { isActiveAgentTool } from "@/shared/agent-scope";
 import type { saveAgentWithBudgetSchema } from "@/shared/agents";
 import { agentSetupDraftSchema } from "@/shared/research";
 import { AgentError } from "./errors";
-import { saveAgent } from "./mutations";
-import { setupBindingHash } from "./setup-binding";
-import { prepareAgentBudget, reserveSetupBudget } from "./token-budgets";
+import { saveAgentLocked } from "./mutations";
+import { linkedSetupDraft, setupBindingHash } from "./setup-binding";
+import { type PreparedAgentBudget, prepareAgentBudget, reserveSetupBudget } from "./token-budgets";
 
 type Input = z.infer<typeof saveAgentWithBudgetSchema>;
 export async function recoverCreatedAgent(
@@ -53,21 +53,12 @@ export async function saveAgentWithBudget(
   input: Input,
   tokens: readonly IntentToken[],
   cipher: ChatCipher = chatCipher(),
+  /** The wallet read, when the caller already made it in parallel with other reads. */
+  preparedBudget?: PreparedAgentBudget,
 ): Promise<string> {
-  const recovered = await recoverCreatedAgent(db, owner, input);
-  if (recovered) {
-    return recovered;
-  }
+  // The recovery check inside the owner lock is authoritative; a repeat returns there.
   if (input.agentId !== null || Boolean(input.setupId) !== Boolean(input.setupHash)) {
     throw new AgentError("invalid_input", "Review the existing agent or saved setup before making changes.");
-  }
-  const [draft] = await db
-    .select()
-    .from(strategyDrafts)
-    .where(and(eq(strategyDrafts.id, input.draftId), eq(strategyDrafts.userId, owner)))
-    .limit(1);
-  if (!draft || !isActiveAgentTool(draft.pack)) {
-    throw new AgentError("not_found", "The reviewed strategy could not be found.");
   }
   if (!input.budget) {
     throw new AgentError("invalid_input", "Choose the token and amount for this agent.");
@@ -78,12 +69,21 @@ export async function saveAgentWithBudget(
       "Review autonomous execution within your limits before creating this agent.",
     );
   }
-  const prepared = await prepareAgentBudget(db, owner, input.budget);
+  const prepared = preparedBudget ?? (await prepareAgentBudget(db, owner, input.budget));
   try {
     return await userTransaction(db, owner, async (tx) => {
       const repeated = await recoverCreatedAgent(tx, owner, input);
       if (repeated) {
         return repeated;
+      }
+      // Read once under the lock; the save below reuses this row instead of reading it again.
+      const [draft] = await tx
+        .select()
+        .from(strategyDrafts)
+        .where(and(eq(strategyDrafts.id, input.draftId), eq(strategyDrafts.userId, owner)))
+        .limit(1);
+      if (!draft || !isActiveAgentTool(draft.pack)) {
+        throw new AgentError("not_found", "The reviewed strategy could not be found.");
       }
       const setupId = input.setupId ?? input.requestId;
       const [row] = await tx
@@ -134,29 +134,38 @@ export async function saveAgentWithBudget(
         reviewState: "reviewed",
         budget: await reserveSetupBudget(tx, owner, setupId, prepared, cipher, previous?.budget),
       });
-      const sealedDraft = cipher.seal(owner, setup.id, "agent-setup", JSON.stringify(setup));
-      if (row) {
-        await tx.update(chatAgentDrafts).set({ sealedDraft }).where(eq(chatAgentDrafts.id, setup.id));
-      } else {
-        await tx.insert(chatAgentDrafts).values({
-          id: setup.id,
-          userId: owner,
-          sourceType: "manual",
-          conversationId: null,
-          turnId: null,
-          tool: setup.tool,
-          sealedDraft,
-          createdAt: setup.createdAt,
-        });
-      }
       const { budget: _budget, ...saved } = input;
-      const agentId = await saveAgent(
+      const setupHash = setupBindingHash(setup);
+      // The setup is written once, already linked to its new agent, instead of written and then re-read,
+      // decrypted and rewritten to link it.
+      const agentId = await saveAgentLocked(
         tx,
         owner,
-        { ...saved, setupId: setup.id, setupHash: setupBindingHash(setup) },
-        cipher,
-        tokens,
-        prepared.holding.assetId,
+        { ...saved, setupId: setup.id, setupHash },
+        {
+          cipher,
+          tokens,
+          budgetAssetId: prepared.holding.assetId,
+          draft,
+          linkSetup: async (id, instruction) => {
+            const linked = linkedSetupDraft(setup, id, setupHash, instruction);
+            const sealedDraft = cipher.seal(owner, setup.id, "agent-setup", JSON.stringify(linked));
+            if (row) {
+              await tx.update(chatAgentDrafts).set({ sealedDraft }).where(eq(chatAgentDrafts.id, setup.id));
+            } else {
+              await tx.insert(chatAgentDrafts).values({
+                id: setup.id,
+                userId: owner,
+                sourceType: "manual",
+                conversationId: null,
+                turnId: null,
+                tool: setup.tool,
+                sealedDraft,
+                createdAt: setup.createdAt,
+              });
+            }
+          },
+        },
       );
       await tx.insert(agentEvents).values({
         id: input.requestId,

@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { QuoteRequest } from "@/components/trading/quote-request";
 
-vi.mock("@/server/manual-trading/actions", () => ({
+vi.mock("@/components/trading/trading-mutations", () => ({
   requestChatSpotQuote: vi.fn(),
   readManualOrder: vi.fn(),
   confirmManualOrder: vi.fn(),

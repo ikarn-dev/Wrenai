@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { z } from "zod";
 import { attestationReceiptSchema } from "@/server/ai/attestation-receipt";
 import type { ChatCipher } from "@/server/chat/cipher";
@@ -14,20 +14,12 @@ import {
 } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { executionActions } from "@/server/db/execution-schema";
-import { positionLots } from "@/server/db/position-schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import { hasOpenTriggerPosition } from "@/server/engine/strategy-state";
-import { instructionTradeAssets } from "@/server/execution/asset-review";
-import { executionHash } from "@/server/execution/records";
 import { assertNoWalletFunding } from "@/server/funding/records";
-import { explicitTokenIds, namesBudgetToken } from "@/server/manual-trading/token-identity";
 import { assignedCapitalLimit } from "@/server/positions/capital-records";
 import type { IntentToken } from "@/server/research/intents";
-import {
-  instructionAssets,
-  instructionFundingAsset,
-  usesNativeNearPayout,
-} from "@/shared/agent-instructions";
+import type { AgentInstruction } from "@/shared/agent-instructions";
 import { REMOVED_AGENT_MESSAGE } from "@/shared/agent-scope";
 import {
   type AgentSummary,
@@ -36,6 +28,8 @@ import {
   type saveAgentSchema,
   strategySchema,
 } from "@/shared/agents";
+import { CLAIMING_REASON } from "@/shared/claims";
+import { DELETED_REASON, hasOpenPerpsPosition } from "./agent-return";
 import { AgentError } from "./errors";
 import { generateAgentName } from "./names";
 import { canReplacePerpsVersion } from "./perps-version";
@@ -47,7 +41,8 @@ import {
   ownedAgentSummary,
   stopUserAgents,
 } from "./records";
-import { bindAgentSetup, releaseSetupWalletReservation } from "./setup-binding";
+import { bindAgentSetup } from "./setup-binding";
+import { checkFundedRoute, reviewedInstructionAssets } from "./version-checks";
 
 function requestHash(input: unknown): string {
   return createHash("sha256").update(JSON.stringify(input)).digest("hex");
@@ -122,6 +117,16 @@ function assertRevision(row: typeof agents.$inferSelect, revision: number | null
   }
 }
 
+export interface SaveAgentOptions {
+  readonly cipher?: ChatCipher | undefined;
+  readonly tokens?: readonly IntentToken[] | undefined;
+  readonly budgetAssetId?: string | undefined;
+  /** The strategy draft row, when the caller already read it under this owner lock. */
+  readonly draft?: typeof strategyDrafts.$inferSelect | undefined;
+  /** Writes the linked setup in the caller's single setup write, instead of reading the row back to link it. */
+  readonly linkSetup?: ((agentId: string, instruction: AgentInstruction) => Promise<void>) | undefined;
+}
+
 export async function saveAgent(
   db: AppDatabase,
   userId: string,
@@ -130,16 +135,30 @@ export async function saveAgent(
   tokens?: readonly IntentToken[],
   budgetAssetId?: string,
 ): Promise<string> {
-  return userTransaction(db, userId, async (tx) => {
+  return userTransaction(db, userId, (tx) =>
+    saveAgentLocked(tx, userId, input, { cipher, tokens, budgetAssetId }),
+  );
+}
+
+/** `saveAgent` for a caller that already holds the owner lock, so the save adds no nested transaction. */
+export async function saveAgentLocked(
+  tx: AppDatabase,
+  userId: string,
+  input: z.infer<typeof saveAgentSchema>,
+  { cipher, tokens, budgetAssetId, draft: readDraft, linkSetup }: SaveAgentOptions,
+): Promise<string> {
+  {
     const repeated = await repeatRequest(tx, userId, input.requestId, input);
     if (repeated !== undefined) {
       return repeated;
     }
-    const [draft] = await tx
-      .select()
-      .from(strategyDrafts)
-      .where(and(eq(strategyDrafts.id, input.draftId), eq(strategyDrafts.userId, userId)))
-      .limit(1);
+    const [draft] = readDraft
+      ? [readDraft]
+      : await tx
+          .select()
+          .from(strategyDrafts)
+          .where(and(eq(strategyDrafts.id, input.draftId), eq(strategyDrafts.userId, userId)))
+          .limit(1);
     if (draft === undefined || draft.consumedAt !== null || draft.expiresAt <= Date.now()) {
       throw new AgentError("conflict", "This strategy review expired or was already saved. Parse it again.");
     }
@@ -173,6 +192,12 @@ export async function saveAgent(
     } else {
       agent = await ownedAgent(tx, userId, input.agentId);
       assertRevision(agent, input.expectedRevision);
+      if (agent.deleteRequestedAt !== null || agent.claimRequestedAt !== null) {
+        throw new AgentError(
+          "conflict",
+          "This agent is deleted or its funds are being claimed, so it can't be changed.",
+        );
+      }
       await assertNoWalletFunding(tx, userId, agent.id);
       if (parseUsd(input.policy.budgetUsd) < (await assignedCapitalLimit(tx, userId, agent.id))) {
         throw new AgentError(
@@ -243,7 +268,11 @@ export async function saveAgent(
     });
     await tx.update(strategyDrafts).set({ consumedAt: Date.now() }).where(eq(strategyDrafts.id, draft.id));
     if ("format" in config && input.agentId === null) {
-      await bindAgentSetup(tx, userId, agent.id, input.setupId, input.setupHash, config, cipher);
+      if (linkSetup) {
+        await linkSetup(agent.id, config);
+      } else {
+        await bindAgentSetup(tx, userId, agent.id, input.setupId, input.setupHash, config, cipher);
+      }
     }
     await auditAgent(
       tx,
@@ -255,75 +284,7 @@ export async function saveAgent(
     );
     await recordRequest(tx, userId, input.requestId, input, agent.id);
     return agent.id;
-  });
-}
-
-async function checkFundedRoute(
-  db: AppDatabase,
-  agent: typeof agents.$inferSelect,
-  next: AgentSummary["strategy"],
-): Promise<void> {
-  const [version] = await db
-    .select({ config: strategyVersions.configJson })
-    .from(strategyVersions)
-    .where(and(eq(strategyVersions.agentId, agent.id), eq(strategyVersions.version, agent.version)))
-    .limit(1);
-  if (!version) {
-    throw new AgentError("unavailable", "The current strategy version is missing.");
   }
-  const previous = strategySchema.parse(JSON.parse(version.config));
-  if (
-    ("format" in previous && usesNativeNearPayout(previous)) ===
-    ("format" in next && usesNativeNearPayout(next))
-  ) {
-    return;
-  }
-  const [owned] = await db
-    .select({ id: positionLots.id })
-    .from(positionLots)
-    .where(
-      and(
-        eq(positionLots.userId, agent.userId),
-        eq(positionLots.agentId, agent.id),
-        gt(positionLots.remainingUnits, 0n),
-      ),
-    )
-    .limit(1);
-  if (owned) {
-    throw new AgentError("conflict", "Release this agent’s allocation before switching its trading account.");
-  }
-}
-
-function reviewedInstructionAssets(
-  instruction: Extract<AgentSummary["strategy"], { format: 2 }>,
-  tokens: readonly IntentToken[],
-  text: string,
-  budgetAssetId: string | undefined,
-): string | null {
-  const ids = instructionAssets(instruction);
-  if (ids.length === 0) {
-    return null;
-  }
-  const assets = instructionTradeAssets(instruction, tokens);
-  const explicit = explicitTokenIds(tokens, text);
-  const selected = tokens.find((token) => token.assetId === budgetAssetId);
-  const funding = instructionFundingAsset(instruction);
-  if (
-    ids.some(
-      (id) =>
-        !explicit.has(id) &&
-        !(id === funding && selected?.assetId === id && namesBudgetToken(selected, text)),
-    )
-  ) {
-    throw new AgentError("invalid_input", "Name each token and review the strategy again.");
-  }
-  return JSON.stringify({
-    strategyHash: executionHash(instruction),
-    metadataHash: executionHash(assets),
-    assets: assets
-      .map(({ symbol, assetId }) => ({ symbol, assetId }))
-      .toSorted((a, b) => a.symbol.localeCompare(b.symbol)),
-  });
 }
 
 async function cloneAgent(
@@ -354,6 +315,11 @@ async function cloneAgent(
   return clone.id;
 }
 
+/** "held" returns every token as held; any other value is the NEAR token the owner receives. */
+function returnAsset(choice: string): string | null {
+  return choice === "held" ? null : choice;
+}
+
 export async function commandAgent(
   db: AppDatabase,
   userId: string,
@@ -365,55 +331,77 @@ export async function commandAgent(
       return repeated;
     }
     const agent = await ownedAgent(tx, userId, input.agentId);
+    if (input.command === "claim" && agent.claimRequestedAt !== null) {
+      // Claim again while funds are on the way: a fresh retry budget, and the new token if one was chosen.
+      await tx
+        .update(agents)
+        .set({
+          claimRequestedAt: Date.now(),
+          reason: CLAIMING_REASON,
+          updatedAt: Date.now(),
+          ...(input.receiveAssetId === undefined ? {} : { returnAssetId: returnAsset(input.receiveAssetId) }),
+        })
+        .where(eq(agents.id, agent.id));
+      await recordRequest(tx, userId, input.requestId, input, agent.id);
+      return agent.id;
+    }
+    if (input.command === "delete" && agent.deleteRequestedAt !== null) {
+      await recordRequest(tx, userId, input.requestId, input, agent.id);
+      return agent.id;
+    }
     assertRevision(agent, input.expectedRevision);
+    if (input.command === "claim") {
+      if (await hasOpenPerpsPosition(tx, userId, agent.id)) {
+        throw new AgentError(
+          "not_ready",
+          "Close this agent's open Perps position before claiming its funds.",
+        );
+      }
+      // Stop first: a claim sends everything the agent holds to the owner's wallet, so it can't keep trading.
+      await tx
+        .update(agents)
+        .set({
+          status: "stopped",
+          reason: CLAIMING_REASON,
+          revision: agent.revision + 1,
+          updatedAt: Date.now(),
+          claimRequestedAt: Date.now(),
+          returnAssetId: returnAsset(input.receiveAssetId ?? "held"),
+        })
+        .where(eq(agents.id, agent.id));
+      await auditAgent(tx, userId, agent.id, "claim_requested", "Stopped. Sending its funds to your wallet.");
+      await recordRequest(tx, userId, input.requestId, input, agent.id);
+      return agent.id;
+    }
+    if (input.command !== "delete" && (agent.deleteRequestedAt !== null || agent.claimRequestedAt !== null)) {
+      throw new AgentError("conflict", "This agent is deleted or its funds are being claimed.");
+    }
     if (agent.pack === "whale_tracker" && (input.command === "resume" || input.command === "clone")) {
       throw new AgentError("not_ready", REMOVED_AGENT_MESSAGE);
     }
     let resultId = agent.id;
-    if (input.command === "clone") {
+    if (input.command === "delete") {
+      if (await hasOpenPerpsPosition(tx, userId, agent.id)) {
+        throw new AgentError("not_ready", "Close this agent's open Perps position before deleting it.");
+      }
+      // Deleting never moves funds (user decision, Nov 5 2026): the agent stops and leaves the Agents list, and
+      // whatever it holds waits in Claims. It is deleted for good once it holds nothing.
+      await tx
+        .update(agents)
+        .set({
+          status: "stopped",
+          reason: agent.claimRequestedAt === null ? DELETED_REASON : CLAIMING_REASON,
+          revision: agent.revision + 1,
+          updatedAt: Date.now(),
+          deleteRequestedAt: Date.now(),
+        })
+        .where(eq(agents.id, agent.id));
+      await auditAgent(tx, userId, agent.id, "delete_requested", "Deleted. Funds it holds wait in Claims.");
+    } else if (input.command === "clone") {
       resultId = await cloneAgent(tx, userId, agent);
     } else {
       if (input.command === "resume" && (await killSwitchEngaged(tx, userId))) {
         throw new AgentError("not_ready", "The global stop is on. Clear it before starting an agent.");
-      }
-      if (input.command === "delete" && agent.status === "running") {
-        throw new AgentError("conflict", "Stop this agent before deleting it.");
-      }
-      if (input.command === "delete") {
-        await assertNoWalletFunding(tx, userId, agent.id);
-        const [position] = await tx
-          .select({ id: positionLots.id })
-          .from(positionLots)
-          .where(
-            and(
-              eq(positionLots.userId, userId),
-              eq(positionLots.agentId, agent.id),
-              gt(positionLots.remainingUnits, 0n),
-            ),
-          )
-          .limit(1);
-        const [pending] = await tx
-          .select({ id: executionActions.id })
-          .from(executionActions)
-          .where(
-            and(
-              eq(executionActions.userId, userId),
-              eq(executionActions.agentId, agent.id),
-              isNull(executionActions.reservationReleasedAt),
-            ),
-          )
-          .limit(1);
-        if (
-          position !== undefined ||
-          pending !== undefined ||
-          (await assignedCapitalLimit(tx, userId, agent.id)) > 0n
-        ) {
-          throw new AgentError(
-            "conflict",
-            "Release attributed holdings and capital, and reconcile or cancel outstanding actions before deleting.",
-          );
-        }
-        await releaseSetupWalletReservation(tx, userId, agent.id);
       }
       const status =
         input.command === "resume" ? "running" : input.command === "pause" ? "paused" : "stopped";
@@ -425,21 +413,9 @@ export async function commandAgent(
             : "Stopped by you.";
       await tx
         .update(agents)
-        .set({
-          status,
-          reason,
-          revision: agent.revision + 1,
-          updatedAt: Date.now(),
-          deletedAt: input.command === "delete" ? Date.now() : null,
-        })
+        .set({ status, reason, revision: agent.revision + 1, updatedAt: Date.now() })
         .where(eq(agents.id, agent.id));
-      await auditAgent(
-        tx,
-        userId,
-        agent.id,
-        input.command,
-        input.command === "delete" ? "Agent deleted. History retained." : reason,
-      );
+      await auditAgent(tx, userId, agent.id, input.command, reason);
     }
     await recordRequest(tx, userId, input.requestId, input, resultId);
     return resultId;

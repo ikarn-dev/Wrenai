@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { nearAccountSchema } from "./agent-budget";
 import { instructionAssetSchema } from "./agent-instructions";
 import { positiveTokenUnitsSchema, tokenUnitsSchema } from "./token-units";
 import { tradeAssetSchema } from "./trade-preview";
@@ -14,6 +15,9 @@ export const tradingDecimalSchema = z
  * The cap equals that fee, so ordinary quotes pass, and any higher or new fee still fails closed.
  */
 export const DEFAULT_SPOT_FEE_BPS = 20;
+const NEAR_TX_HASH_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{43,44}$/;
+/** A base58 NEAR transaction hash, the only form linked to NearBlocks. */
+export const NEAR_TX_HASH = z.string().regex(NEAR_TX_HASH_PATTERN);
 const controls = {
   slippageBps: z.number().int().min(1).max(500),
   maximumFeeBps: z.number().int().min(0).max(2000),
@@ -58,17 +62,37 @@ export const manualFundingIntentSchema = z.strictObject({
   ...controls,
 });
 export type ManualFundingIntent = z.infer<typeof manualFundingIntentSchema>;
+/** Sends free private-balance funds to the owner's own NEAR wallet, as held or in a chosen NEAR token. */
+export const manualWalletReturnIntentSchema = z.strictObject({
+  kind: z.literal("wallet_return"),
+  assetId: instructionAssetSchema,
+  /** The NEAR token paid to the wallet; omitted pays out as held. */
+  receiveAssetId: instructionAssetSchema.optional(),
+  amount: tradingDecimalSchema,
+  ...controls,
+});
+export type ManualWalletReturnIntent = z.infer<typeof manualWalletReturnIntentSchema>;
+export const manualPaymentIntentSchema = z.strictObject({
+  kind: z.literal("payment"),
+  assetId: instructionAssetSchema,
+  amount: tradingDecimalSchema,
+  recipient: nearAccountSchema,
+  ...controls,
+});
+export type ManualPaymentIntent = z.infer<typeof manualPaymentIntentSchema>;
 export const manualIntentSchema = z.discriminatedUnion("kind", [
   manualSpotIntentSchema,
   manualPerpsIntentSchema,
   manualFundingIntentSchema,
+  manualWalletReturnIntentSchema,
+  manualPaymentIntentSchema,
 ]);
 export type ManualIntent = z.infer<typeof manualIntentSchema>;
 export type ManualSpotIntent = z.infer<typeof manualSpotIntentSchema>;
 export type ManualPerpsIntent = z.infer<typeof manualPerpsIntentSchema>;
 export const manualQuoteInputSchema = z.strictObject({
   requestId: z.uuid(),
-  source: z.enum(["jarvis", "spot", "perps"]),
+  source: z.enum(["jarvis", "spot", "perps", "portfolio"]),
   intent: manualIntentSchema,
 });
 export const manualConfirmationSchema = z.strictObject({
@@ -107,6 +131,8 @@ export const manualPreviewSchema = z.strictObject({
     "no_fill",
   ]),
   pairVerified: z.literal(true).optional(),
+  /** The public NEAR transaction that paid a wallet return out. */
+  transactionHash: NEAR_TX_HASH.optional(),
   execution: z
     .strictObject({
       spentUnits: tokenUnitsSchema,

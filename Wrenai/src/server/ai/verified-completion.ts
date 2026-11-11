@@ -35,6 +35,12 @@ interface CompletionRequest {
   readonly json?: boolean;
   readonly signal?: AbortSignal;
   readonly verification?: "fresh" | "chat_cached";
+  /**
+   * Hidden reasoning budget. By default the approved models spent 200–600 reasoning tokens and 10–25 s on short
+   * outputs; "low" keeps a brief pass and "off" skips it (measured November 6, 2026). Responses stay attested
+   * and signature-verified either way.
+   */
+  readonly reasoning?: "default" | "low" | "off";
 }
 
 export interface VerifiedCompletion {
@@ -57,17 +63,24 @@ async function completeWithClient(
   signal: AbortSignal,
 ): Promise<VerifiedCompletion> {
   const client = inferenceClient(apiKey, request.verification === "chat_cached");
-  const completion = await client.chat.completions.create(
-    {
-      model,
-      stream: false,
-      temperature: 0,
-      max_tokens: request.maxTokens,
-      messages: [...request.messages],
-      ...(request.json ? { response_format: { type: "json_object" } } : {}),
-    },
-    { timeout: INFERENCE_TIMEOUT_MS, maxRetries: 0, signal },
-  );
+  const params = {
+    model,
+    stream: false as const,
+    temperature: 0,
+    max_tokens: request.maxTokens,
+    messages: [...request.messages],
+    ...(request.json ? { response_format: { type: "json_object" as const } } : {}),
+    ...(request.reasoning === "off"
+      ? { reasoning_effort: "none" as const }
+      : request.reasoning === "low"
+        ? { reasoning_effort: "low" as const }
+        : {}),
+  };
+  const completion = await client.chat.completions.create(params, {
+    timeout: INFERENCE_TIMEOUT_MS,
+    maxRetries: 0,
+    signal,
+  });
   const receipt = await verifyInferenceReceipt(client, completion.id, model);
   const content = completion.choices[0]?.message.content;
   if (completion.choices[0]?.finish_reason !== "stop" || typeof content !== "string" || !content.trim()) {

@@ -7,11 +7,10 @@ import { instructionPrice } from "@/server/engine/instruction-price";
 import { instructionStateSchema } from "@/server/engine/instruction-state";
 import { decideSpotInstruction } from "@/server/engine/spot-instructions";
 import { unreservedOwnedUnits } from "@/server/positions/lots";
-import { intentTokens } from "@/server/research/intents";
-import { usesNativeNearPayout } from "@/shared/agent-instructions";
+import { publicRoutePool, usesPublicRoute } from "@/shared/agent-instructions";
 import { policySchema } from "@/shared/agents";
 import type { TradeQuote } from "@/shared/trade-preview";
-import { type currentAgentStrategy, resolvedTradeAssets } from "./asset-review";
+import { type currentAgentStrategy, instructionRouteTokens, resolvedTradeAssets } from "./asset-review";
 import { ExecutionError } from "./contracts";
 import type { swapSignalSchema } from "./intents-order";
 import { memeSubmissionCheck } from "./meme-reference";
@@ -68,11 +67,11 @@ export async function instructionSubmissionCheck(
   ) {
     throw new ExecutionError("conflict", "This order does not own the persisted instruction slot.");
   }
-  const scope = usesNativeNearPayout(instruction) ? "native_near" : "confidential";
+  const scope = usesPublicRoute(instruction) ? "native_near" : "confidential";
   if (quote.scope !== scope) {
     throw new ExecutionError("conflict", "The quote uses a different route from the reviewed instruction.");
   }
-  const tokens = scope === "native_near" ? [] : (await intentTokens()).tokens;
+  const tokens = await instructionRouteTokens(instruction);
   const assets = resolvedTradeAssets(instruction, current.version.resolvedAssetsJson, tokens);
   const base = assets.find(
     (asset) =>
@@ -92,7 +91,14 @@ export async function instructionSubmissionCheck(
     instruction.kind !== "dca" &&
     !(instruction.kind === "spot_trader" && state.phase === "waiting" && instruction.entry.type === "market");
   const price = needsPrice
-    ? await instructionPrice(base, cash, BigInt(signal.inputUnits), buy, instruction.priceUnit)
+    ? await instructionPrice(
+        base,
+        cash,
+        BigInt(signal.inputUnits),
+        buy,
+        instruction.priceUnit,
+        publicRoutePool(instruction),
+      )
     : null;
   const [baseOwned, cashOwned] = await Promise.all([
     unreservedOwnedUnits(db, current.agent.userId, current.agent.id, scope, base.assetId, actionId),

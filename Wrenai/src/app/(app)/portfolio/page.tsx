@@ -22,7 +22,6 @@ import { readDelegatedKey } from "@/server/delegation/delegated-key";
 import { readPortfolioPerformance } from "@/server/portfolio/performance";
 import { readWalletValueView } from "@/server/portfolio/valuation";
 import { readWalletBalanceView } from "@/server/portfolio/wallet-balance";
-import { readTelegramLinkState } from "@/server/telegram/linking";
 import { PORTFOLIO_WALLET_BALANCE_KEY, PORTFOLIO_WALLET_VALUE_KEY } from "@/shared/portfolio-wallet";
 
 export const metadata: Metadata = { title: "Portfolio" };
@@ -79,7 +78,6 @@ export default async function PortfolioPage() {
   const db = database();
   const agentKey = readDelegatedKey(user);
   const agents = listAgents(db, user.id);
-  const telegram = readTelegramLinkState(db, user.id);
   const performance = readPortfolioPerformance(db, user.id);
   return (
     <div className="flex flex-col gap-12">
@@ -90,7 +88,7 @@ export default async function PortfolioPage() {
       {/* One gap token between and inside the columns; the pane stretches to the overview's height. */}
       <div className="grid min-w-0 gap-stack lg:grid-cols-2">
         <HydrationBoundary state={wallet}>
-          <PortfolioOverview agents={agents} telegram={telegram} performance={performance} />
+          <PortfolioOverview agents={agents} performance={performance} />
         </HydrationBoundary>
         <Suspense fallback={<TradingAccessSkeleton />}>
           <Access accountId={user.accountId} keyReading={agentKey} />

@@ -27,7 +27,9 @@ function allowedVenue(permission: ExecutionPermission): boolean {
         (permission.venueId === "rhea-lending" &&
           operations.every((o) => ["supply", "withdraw", "borrow", "repay"].includes(o))) ||
         (["meta-pool", "linear"].includes(permission.venueId) &&
-          operations.every((o) => o === "stake" || o === "unstake"))
+          operations.every((o) => o === "stake" || o === "unstake")) ||
+        // Owner wallet returns only; the recipient is checked against the owner before every signature.
+        (permission.venueId === "near-account" && operations.every((o) => o === "transfer"))
       );
   }
 }

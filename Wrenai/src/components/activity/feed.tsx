@@ -3,6 +3,7 @@
 import { ArrowRight, History, RefreshCw, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import type { ReactElement } from "react";
+import { useClaimRecovery } from "@/components/claims/use-claim-recovery";
 import type { ActivityFilter, ActivityResult } from "@/shared/activity";
 import { ActivityFilterMenu } from "./filter-menu";
 import { ActivityPager } from "./pager";
@@ -31,6 +32,10 @@ interface ActivityFeedProps {
 export function ActivityFeed({ ownerId, initial, full }: ActivityFeedProps): ReactElement {
   const activity = useActivityPages(ownerId, initial);
   const rows = activity.page?.items ?? [];
+  useClaimRecovery(
+    rows.some((row) => row.source === "agents" && row.category === "trade" && row.status === "pending"),
+    activity.refresh,
+  );
   const visible = full ? rows : rows.slice(0, PREVIEW_ROWS);
   const unavailable = activity.page?.unavailable ?? [];
   const first = activity.firstRow;

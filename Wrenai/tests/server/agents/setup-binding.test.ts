@@ -1,15 +1,15 @@
 import { createSecretKey } from "node:crypto";
-import { testDatabase } from "@tests/server/db/test-database";
-import { eq } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { bindAgentSetup, fulfilSetupBudget, setupBindingHash } from "@/server/agents/setup-binding";
-import { readWalletBudgets } from "@/server/agents/token-budgets";
 import {
   createManualAgentSetup,
   deleteAgentSetup,
   readAgentSetup,
   updateAgentSetup,
-} from "@/server/chat/agent-drafts";
+} from "@tests/server/agents/setup-fixture";
+import { testDatabase } from "@tests/server/db/test-database";
+import { eq } from "drizzle-orm";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { bindAgentSetup, fulfilSetupBudget, setupBindingHash } from "@/server/agents/setup-binding";
+import { readWalletBudgets } from "@/server/agents/token-budgets";
 import { chatCipher } from "@/server/chat/cipher";
 import { agents } from "@/server/db/agent-schema";
 import { userTransaction } from "@/server/db/user-transaction";

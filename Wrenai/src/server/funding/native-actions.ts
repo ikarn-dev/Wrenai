@@ -9,6 +9,7 @@ import { ExecutionError } from "@/server/execution/contracts";
 import { consumeRateLimit } from "@/server/http/rate-limit";
 import type { TradingResult } from "@/shared/manual-trading";
 import type { NativeFundingView } from "@/shared/native-funding";
+import { releaseNativeAttempt } from "./cancel";
 import { beginNativeFunding, proveNativeFunding } from "./native-lifecycle";
 import { prepareNativeFunding } from "./native-prepare";
 import { activeNativeFunding, ownedNativeFunding } from "./native-records";
@@ -48,6 +49,16 @@ export async function startNativeFundingStep(raw: unknown): Promise<TradingResul
 }
 export async function confirmNativeFundingStep(raw: unknown): Promise<TradingResult<NativeFundingView>> {
   return nativeFundingAction((user) => proveNativeFunding(database(), user, raw));
+}
+/** The wallet said the owner cancelled this deposit step: reopen it for a retry. */
+export async function declineNativeFundingStep(raw: unknown): Promise<TradingResult<null>> {
+  return nativeFundingAction(async (user) => {
+    const input = z
+      .strictObject({ id: z.uuid(), snapshotHash: z.string().regex(/^[a-f0-9]{64}$/) })
+      .parse(raw);
+    await releaseNativeAttempt(database(), user.id, input.id, input.snapshotHash);
+    return null;
+  });
 }
 export async function cancelNativeFunding(raw: unknown): Promise<TradingResult<null>> {
   return nativeFundingAction(async (user) => {

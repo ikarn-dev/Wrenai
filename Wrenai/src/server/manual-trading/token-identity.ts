@@ -91,3 +91,11 @@ export function namesBudgetToken(token: IntentToken, text: string): boolean {
     /\b(?:selected|chosen|allocated) (?:funding |budget )?token\b/i.test(text)
   );
 }
+
+/**
+ * Whether the user's text names this asset. "NEAR" names native NEAR and also the private route's NEAR asset
+ * (`nep141:wrap.near`), the only form in which that route holds NEAR.
+ */
+export function namesToken(explicit: ReadonlySet<string>, assetId: string): boolean {
+  return explicit.has(assetId) || (assetId === "nep141:wrap.near" && explicit.has(NATIVE_NEAR));
+}

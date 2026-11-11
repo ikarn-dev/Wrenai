@@ -53,7 +53,7 @@ export function RevokeKeyDialog({ accountId, publicKey }: RevokeKeyDialogProps) 
   return (
     <AlertDialog.Root open={open} onOpenChange={changeOpen}>
       <AlertDialog.Trigger asChild>
-        <Button variant="destructive">Revoke agent key</Button>
+        <Button variant="destructive">Revoke</Button>
       </AlertDialog.Trigger>
       <AlertDialog.Portal>
         <AlertDialog.Overlay className="fixed inset-0 z-20 bg-bg/80" />
@@ -69,6 +69,8 @@ export function RevokeKeyDialog({ accountId, publicKey }: RevokeKeyDialogProps) 
               <p className="mt-4 text-body">
                 <NoticeLine notice={phase.notice} />
               </p>
+            ) : phase.kind === "working" ? (
+              <p className="mt-4 text-small text-fg-muted">{phase.label}</p>
             ) : null}
           </div>
           <div className="mt-6 flex flex-wrap justify-end gap-2">
@@ -77,16 +79,8 @@ export function RevokeKeyDialog({ accountId, publicKey }: RevokeKeyDialogProps) 
                 Cancel
               </Button>
             </AlertDialog.Cancel>
-            <Button
-              variant="destructive"
-              aria-busy={working}
-              onClick={() => {
-                if (!working) {
-                  void revoke();
-                }
-              }}
-            >
-              {working ? phase.label : "Revoke"}
+            <Button variant="destructive" busy={working} onClick={() => void revoke()}>
+              Revoke
             </Button>
           </div>
         </AlertDialog.Content>

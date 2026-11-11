@@ -16,18 +16,64 @@ function proof(snapshot = fundingSnapshot()) {
         hash,
         signer_id: tx.signerId,
         receiver_id: tx.receiverId,
-        actions: tx.actions.map(({ params }) => ({
-          FunctionCall: {
-            method_name: params.methodName,
-            args: Buffer.from(JSON.stringify(params.args)).toString("base64"),
-            deposit: params.deposit,
-            gas: params.gas,
-          },
-        })),
+        actions: tx.actions.flatMap((action) =>
+          action.type === "FunctionCall"
+            ? [
+                {
+                  FunctionCall: {
+                    method_name: action.params.methodName,
+                    args: Buffer.from(JSON.stringify(action.params.args)).toString("base64"),
+                    deposit: action.params.deposit,
+                    gas: action.params.gas,
+                  },
+                },
+              ]
+            : [],
+        ),
       },
     },
   };
 }
+const depositAddress = "d".repeat(64);
+function nativeSnapshot() {
+  return {
+    ...fundingSnapshot(),
+    walletAssetId: "native:near" as const,
+    assetId: "nep141:wrap.near",
+    symbol: "NEAR",
+    decimals: 24,
+    units: "100000000000000000000000",
+    minimumPrivateUnits: "99000000000000000000000",
+    depositAddress,
+    requestDeadline: new Date(Date.now() + 1_800_000).toISOString(),
+  };
+}
+function nativeTransfer(receiver = depositAddress, deposit = nativeSnapshot().units) {
+  return {
+    final_execution_status: "FINAL",
+    status: { SuccessValue: "" },
+    transaction: {
+      hash,
+      signer_id: "owner.near",
+      receiver_id: receiver,
+      actions: [{ Transfer: { deposit } }],
+    },
+  };
+}
+describe("native NEAR sent straight to the private balance", () => {
+  it("asks the wallet for one plain NEAR transfer to the 1Click deposit address, with no wNEAR", () => {
+    expect(walletFundingTransaction(nativeSnapshot())).toEqual({
+      signerId: "owner.near",
+      receiverId: depositAddress,
+      actions: [{ type: "Transfer", params: { deposit: "100000000000000000000000" } }],
+    });
+    expect(() => verifyWalletDeposit(nativeTransfer(), nativeSnapshot(), hash)).not.toThrow();
+  });
+  it("rejects a transfer to another address or of another amount", () => {
+    expect(() => verifyWalletDeposit(nativeTransfer("stranger.near"), nativeSnapshot(), hash)).toThrow();
+    expect(() => verifyWalletDeposit(nativeTransfer(depositAddress, "1"), nativeSnapshot(), hash)).toThrow();
+  });
+});
 describe("exact finalized wallet deposit proof", () => {
   it("accepts the exact FT owner deposit and wraps native NEAR before depositing", () => {
     const ft = proof();

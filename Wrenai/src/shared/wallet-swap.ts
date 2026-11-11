@@ -1,15 +1,14 @@
 import { z } from "zod";
 import { nearAccountSchema, walletAssetSchema } from "./agent-budget";
-import { WALLET_SWAP_NATIVE_OUTPUT, WALLET_SWAP_USDC } from "./swap-assets";
+import { manualPaymentIntentSchema } from "./manual-trading";
+import { WALLET_SWAP_NATIVE_OUTPUT, WALLET_SWAP_RHEA_POOL, WALLET_SWAP_USDC } from "./swap-assets";
 import { positiveTokenUnitsSchema, tokenUnitsSchema } from "./token-units";
 import { tradeAssetSchema } from "./trade-preview";
 import { tradeSizeSchema } from "./trade-size";
 
 /** 1Click's asset ID for NEAR, including native deposits. */
 export const WALLET_SWAP_INPUT = "nep141:wrap.near";
-export { WALLET_SWAP_NATIVE_OUTPUT, WALLET_SWAP_USDC };
-export const WALLET_SWAP_RHEA_POOL =
-  "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1|wrap.near|100";
+export { WALLET_SWAP_NATIVE_OUTPUT, WALLET_SWAP_RHEA_POOL, WALLET_SWAP_USDC };
 export const WALLET_SWAP_RHEA_DCL = "dclv2.ref-labs.near";
 export const WALLET_SWAP_RHEA_WRAP = "wrap.near";
 export const WALLET_SWAP_RHEA_GAS = "180000000000000";
@@ -30,6 +29,16 @@ export const walletSwapRequestSchema = z.strictObject({
 });
 export type WalletSwapRequest = z.infer<typeof walletSwapRequestSchema>;
 
+const privateTopUpSchema = z.strictObject({
+  intent: manualPaymentIntentSchema,
+  maximumDebitUnits: positiveTokenUnitsSchema,
+  requestDeadline: z.iso.datetime(),
+  providerQuoteJson: z.string().min(1).max(28_000),
+  quotedAt: z.iso.datetime(),
+  signingPublicKey: z.string().min(1).max(128),
+  reviewRequired: z.literal(true).optional(),
+});
+
 export const walletSwapQuoteSchema = z
   .strictObject({
     request: walletSwapRequestSchema,
@@ -44,6 +53,7 @@ export const walletSwapQuoteSchema = z
       .optional(),
     pairVerified: z.literal(true).optional(),
     storageDepositUnits: tokenUnitsSchema.optional(),
+    privateTopUp: privateTopUpSchema.optional(),
     input: tradeAssetSchema,
     output: tradeAssetSchema,
     inputUnits: positiveTokenUnitsSchema,
@@ -53,6 +63,18 @@ export const walletSwapQuoteSchema = z
     quoteHash: z.string().regex(/^[a-f0-9]{64}$/),
   })
   .superRefine((quote, context) => {
+    const topUp = quote.privateTopUp;
+    if (
+      topUp &&
+      (quote.depositKind !== "nep141" ||
+        quote.request.inputAssetId !== topUp.intent.assetId ||
+        quote.request.outputAssetId !== topUp.intent.assetId ||
+        quote.input.assetId !== topUp.intent.assetId ||
+        quote.output.assetId !== topUp.intent.assetId ||
+        BigInt(quote.minimumOutputUnits) > BigInt(topUp.maximumDebitUnits))
+    ) {
+      context.addIssue({ code: "custom", message: "A payment top-up must use the same token." });
+    }
     if (quote.depositKind === "rhea_native") {
       if (
         quote.depositAddress !== null ||
@@ -105,6 +127,11 @@ export const walletSwapViewSchema = z.strictObject({
   expiresAt: z.number().int(),
 });
 export type WalletSwapView = z.infer<typeof walletSwapViewSchema>;
+export const paymentTopUpViewSchema = walletSwapViewSchema.extend({
+  maximumDebitUnits: positiveTokenUnitsSchema,
+  reviewRequired: z.boolean(),
+});
+export type PaymentTopUpView = z.infer<typeof paymentTopUpViewSchema>;
 
 export const walletSwapIdSchema = z.strictObject({ id: z.uuid() });
 export const walletSwapProofSchema = walletSwapIdSchema.extend({

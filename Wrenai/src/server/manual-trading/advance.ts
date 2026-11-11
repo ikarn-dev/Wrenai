@@ -1,15 +1,29 @@
 import "server-only";
 import type { AppDatabase } from "@/server/db/client";
 import { advanceLedgerAction } from "@/server/engine/ledger-action";
+import { ExecutionError } from "@/server/execution/contracts";
 import { readPerpsCheckpoint } from "@/server/execution/hyperliquid/checkpoint";
 import { watchPerpsPosition } from "@/server/execution/hyperliquid/position-watch";
 import { ownedLedgerAction } from "@/server/execution/records";
 import { cleanClosedManualOrders } from "./closed-orders";
+import { advancePaymentTopUp } from "./payment-top-up";
 import { manualEnvelope, ownedManualTrade } from "./record";
 
 export async function advanceManualTrade(db: AppDatabase, userId: string, id: string): Promise<boolean> {
-  const row = await ownedManualTrade(db, userId, id);
-  if (row.status !== "confirmed" || row.actionId === null) {
+  let row = await ownedManualTrade(db, userId, id).catch((error: unknown) => {
+    if (error instanceof ExecutionError && error.code === "not_found") {
+      return null;
+    }
+    throw error;
+  });
+  if (row?.status !== "confirmed") {
+    const progress = await advancePaymentTopUp(db, userId, id);
+    if (progress !== "confirmed") {
+      return progress === "waiting";
+    }
+    row = await ownedManualTrade(db, userId, id);
+  }
+  if (!row.actionId) {
     return false;
   }
   const envelope = manualEnvelope(row);

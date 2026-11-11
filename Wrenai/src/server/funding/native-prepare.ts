@@ -6,7 +6,11 @@ import type { SessionUser } from "@/server/auth/session";
 import type { AppDatabase } from "@/server/db/client";
 import { nativeDeposits } from "@/server/db/native-funding-schema";
 import { userTransaction } from "@/server/db/user-transaction";
-import { currentAgentStrategy } from "@/server/execution/asset-review";
+import {
+  currentAgentStrategy,
+  instructionRouteTokens,
+  resolvedTradeAssets,
+} from "@/server/execution/asset-review";
 import { ExecutionError } from "@/server/execution/contracts";
 import { databaseTime, executionHash } from "@/server/execution/records";
 import { quoteRhea } from "@/server/execution/rhea/quote";
@@ -15,8 +19,8 @@ import { callViewFunction } from "@/server/near/rpc";
 import { walletTokenHolding } from "@/server/portfolio/wallet-tokens";
 import { committedCapital } from "@/server/positions/capital-records";
 import { activeTradingAccount } from "@/server/trading-accounts/vault";
-import { nativeNearAsset, usdcAsset } from "@/server/wallet-swap/rhea-native";
-import { instructionFundingAsset, usesNativeNearPayout } from "@/shared/agent-instructions";
+import { budgetFundingAsset } from "@/shared/agent-budget";
+import { instructionFundingAsset, publicRoutePool, usesPublicRoute } from "@/shared/agent-instructions";
 import { parseUsd, policySchema } from "@/shared/agents";
 import {
   NATIVE_FUNDING_GAS,
@@ -25,9 +29,43 @@ import {
   nativeFundingSnapshotSchema,
 } from "@/shared/native-funding";
 import { parseTokenAmount, positiveTokenUnitsSchema } from "@/shared/token-units";
-import { WALLET_SWAP_RHEA_POOL, WALLET_SWAP_USDC } from "@/shared/wallet-swap";
 import { activeNativeFunding, nativeFundingView } from "./native-records";
 import { linkedAgentBudget } from "./records";
+
+/**
+ * The principal of funding a public-route agent, valued by quoting its spending token against the reviewed pair
+ * on the reviewed pool. Null for agents without a public route, which value funding at proof time instead.
+ */
+async function publicFundingQuote(
+  db: AppDatabase,
+  userId: string,
+  agentId: string,
+  sourceAssetId: string,
+  units: bigint,
+): Promise<{ readonly revision: number; readonly quote: Awaited<ReturnType<typeof quoteRhea>> } | null> {
+  const agent = await ownedAgent(db, userId, agentId);
+  const current = await currentAgentStrategy(db, userId, agentId, agent.revision);
+  const strategy = current.strategy;
+  const pool = "format" in strategy ? publicRoutePool(strategy) : null;
+  if (!("format" in strategy) || !pool) {
+    return null;
+  }
+  const funding = instructionFundingAsset(strategy);
+  if (funding !== budgetFundingAsset(sourceAssetId)) {
+    return null;
+  }
+  const assets = resolvedTradeAssets(
+    strategy,
+    current.version.resolvedAssetsJson,
+    await instructionRouteTokens(strategy),
+  );
+  const input = assets.find((asset) => asset.assetId === funding);
+  const output = assets.find((asset) => asset.assetId !== funding);
+  if (!input || !output) {
+    throw new ExecutionError("not_ready", "The agent's reviewed pair is unavailable. Review it again.");
+  }
+  return { revision: agent.revision, quote: await quoteRhea(input, output, units.toString(), 1, pool) };
+}
 
 export async function prepareNativeFunding(
   db: AppDatabase,
@@ -71,10 +109,9 @@ export async function prepareNativeFunding(
   if (BigInt(storage.min) > 10n ** 22n) {
     throw new ExecutionError("limit", "This token's registration cost is above the supported funding limit.");
   }
-  const fundingQuote =
-    input.agentId && assetId === WALLET_SWAP_USDC
-      ? await quoteRhea(usdcAsset(), nativeNearAsset, units.toString(), 1, WALLET_SWAP_RHEA_POOL)
-      : null;
+  const fundingQuote = input.agentId
+    ? await publicFundingQuote(db, user.id, input.agentId, input.assetId, units)
+    : null;
   return userTransaction(db, user.id, async (tx) => {
     const existing = await activeNativeFunding(tx, user.id);
     if (existing) {
@@ -120,10 +157,13 @@ export async function prepareNativeFunding(
         );
       }
       const oldHunter = strategy.kind === "meme_hunter" && strategy.payAssetId === "nep141:wrap.near";
+      if (fundingQuote && fundingQuote.revision !== agent.revision) {
+        throw new ExecutionError("conflict", "The agent changed. Refresh the funding review.");
+      }
       const exactPublicSwap =
         "format" in strategy &&
-        usesNativeNearPayout(strategy) &&
-        instructionFundingAsset(strategy) === input.assetId;
+        usesPublicRoute(strategy) &&
+        instructionFundingAsset(strategy) === budgetFundingAsset(input.assetId);
       if (!exactPublicSwap && !(oldHunter && strategy.payAssetId === assetId)) {
         throw new ExecutionError(
           "not_ready",
@@ -132,7 +172,7 @@ export async function prepareNativeFunding(
       }
       if (
         fundingQuote &&
-        (await committedCapital(tx, user.id, agent.id)) + BigInt(fundingQuote.inputMicroUsd) >
+        (await committedCapital(tx, user.id, agent.id)) + BigInt(fundingQuote.quote.inputMicroUsd) >
           parseUsd(policySchema.parse(JSON.parse(agent.policyJson)).budgetUsd)
       ) {
         throw new ExecutionError("limit", "The funded amount exceeds this agent's capital limit.");
@@ -172,7 +212,7 @@ export async function prepareNativeFunding(
       sourceAssetId: input.assetId,
       assetId,
       units: units.toString(),
-      ...(fundingQuote ? { principalMicroUsd: fundingQuote.inputMicroUsd } : {}),
+      ...(fundingQuote ? { principalMicroUsd: fundingQuote.quote.inputMicroUsd } : {}),
       decimals: holding.decimals,
       tokenSymbol: input.assetId === "native:near" ? "wNEAR" : holding.symbol,
       gasUnits: NATIVE_FUNDING_GAS,

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, gt, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { auditAgent, ownedAgent, ownedAgentSummary } from "@/server/agents/records";
 import type { SessionUser } from "@/server/auth/session";
 import type { AppDatabase } from "@/server/db/client";
@@ -13,8 +13,9 @@ import { advanceLedgerAction } from "@/server/engine/ledger-action";
 import { ExecutionError } from "@/server/execution/contracts";
 import { databaseTime, ownedLedgerAction } from "@/server/execution/records";
 import { instructionFundingAsset } from "@/shared/agent-instructions";
-import type { AgentFundingState } from "@/shared/wallet-funding";
-import { linkedAgentBudget, ownedWalletFunding, walletFundingView } from "./records";
+import { type AgentFundingState, directNativeFunding } from "@/shared/wallet-funding";
+import { settleDirectFunding } from "./direct-funding";
+import { linkedAgentBudget, openWalletFunding, ownedWalletFunding, walletFundingView } from "./records";
 
 export async function readFundingState(
   db: AppDatabase,
@@ -29,11 +30,7 @@ export async function readFundingState(
       .select()
       .from(walletFundings)
       .where(
-        and(
-          eq(walletFundings.userId, user.id),
-          eq(walletFundings.agentId, agentId),
-          ne(walletFundings.state, "complete"),
-        ),
+        and(eq(walletFundings.userId, user.id), eq(walletFundings.agentId, agentId), openWalletFunding()),
       )
       .limit(1),
     db
@@ -68,6 +65,9 @@ export async function advanceFundingRecord(
   fundingId: string,
 ): Promise<boolean> {
   const row = await ownedWalletFunding(db, owner, fundingId);
+  if (row.state === "deposited" && directNativeFunding(walletFundingView(row).snapshot)) {
+    return settleDirectFunding(db, owner, fundingId);
+  }
   if (row.state !== "converting" || !row.actionId) {
     return false;
   }
@@ -127,6 +127,12 @@ export async function keepFundingPublic(db: AppDatabase, owner: string, fundingI
         ),
       )
       .limit(1);
+    if (directNativeFunding(walletFundingView(row).snapshot)) {
+      throw new ExecutionError(
+        "not_ready",
+        "This deposit goes straight to the private balance. Wait for it to arrive.",
+      );
+    }
     if (row.state !== "deposited" || !row.confirmedAt || agent.status === "running" || pending) {
       throw new ExecutionError(
         "not_ready",

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { inferenceModelSchema } from "@/shared/ai-models";
 import { MAX_WALLET_TOKEN_DECIMALS, walletAssetSchema } from "./agent-budget";
+import { paymentOfferSchema } from "./chat-payment";
 import { chatQuoteRequestSchema } from "./chat-quote";
 import { researchReportSchema, researchToolSchema } from "./research";
 import { walletSwapViewSchema } from "./wallet-swap";
@@ -69,6 +70,7 @@ export const chatReplySchema = z
         /** Swaps paid from the wallet (wallet_swaps), shown as wallet swap cards. */
         walletSwapIds: z.array(z.uuid()).max(1).optional(),
         quoteRequest: chatQuoteRequestSchema.optional(),
+        payment: paymentOfferSchema.optional(),
       })
       .optional(),
     content: z.string().min(1).max(32_000),

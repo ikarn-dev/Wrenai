@@ -1,28 +1,41 @@
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
+import { ProofInfo } from "./proof-info";
 import { RefreshProofButton } from "./refresh-button";
 
 export function ProofIntro({ loading = false }: { readonly loading?: boolean }): ReactElement {
   return (
-    <>
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-2">
-          <h1 className="font-display text-page-title">Proof</h1>
-          <p className="text-small text-fg-muted">Verification records for your strategies and trades.</p>
-        </div>
-        <RefreshProofButton loading={loading} />
-      </header>
-      <details className="card-shine rounded-lg p-card">
-        <summary className="cursor-pointer rounded-xs text-h3">What these records show</summary>
-        <ul className="mt-3 grid list-disc gap-2 pl-5 text-small text-fg-muted">
-          <li>Strategy receipts record NEAR AI model verification at the time of review.</li>
-          <li>
-            NEAR transaction links open the public chain record. 1Click and Hyperliquid report their own
-            settlement results.
-          </li>
-          <li>Automated orders are signed by Wrenai’s Vercel backend using keys encrypted in storage.</li>
-        </ul>
-      </details>
-    </>
+    <header className="flex items-center justify-between gap-4">
+      <div className="flex items-center gap-1">
+        <h1 className="font-display text-page-title">Proof</h1>
+        <ProofInfo />
+      </div>
+      <RefreshProofButton loading={loading} />
+    </header>
+  );
+}
+
+/** A titled list of records: one card, rows split by dividers, never cards inside cards. */
+export function ProofSection({
+  id,
+  title,
+  count,
+  children,
+}: {
+  readonly id: string;
+  readonly title: string;
+  readonly count: number | null;
+  readonly children: ReactNode;
+}): ReactElement {
+  return (
+    <section className="flex flex-col gap-3" aria-labelledby={id}>
+      <div className="flex items-baseline gap-2">
+        <h2 id={id} className="text-h2 font-medium">
+          {title}
+        </h2>
+        {count ? <span className="font-mono text-small text-fg-subtle tabular-nums">{count}</span> : null}
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -30,14 +43,24 @@ export function ProofRecordsLoading(): ReactElement {
   return (
     <>
       {["Strategy verification", "Recent executions"].map((title) => (
-        <section key={title} aria-label={title} className="flex flex-col gap-4">
-          <h2 className="text-h3">{title}</h2>
+        <ProofSection key={title} id={`loading-${title}`} title={title} count={null}>
           <div
             role="status"
             aria-label={`Loading ${title.toLowerCase()}`}
-            className="min-h-24 card-shine rounded-lg motion-safe:animate-pulse"
-          />
-        </section>
+            className="card-shine flex flex-col divide-y divide-line-card rounded-lg"
+          >
+            {["first", "second", "third"].map((row) => (
+              <div key={row} className="flex items-center gap-3 px-card py-4">
+                <div className="size-5 rounded-xs bg-surface-2 motion-safe:animate-pulse" />
+                <div className="flex flex-1 flex-col gap-2">
+                  <div className="h-4 w-48 max-w-full rounded-xs bg-surface-2 motion-safe:animate-pulse" />
+                  <div className="h-3 w-72 max-w-full rounded-xs bg-surface-2 motion-safe:animate-pulse" />
+                </div>
+                <div className="h-6 w-20 rounded-full bg-surface-2 motion-safe:animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </ProofSection>
       ))}
     </>
   );

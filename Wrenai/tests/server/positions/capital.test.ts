@@ -1,4 +1,5 @@
 import { executionPlan, executionTestContext, observeInventory } from "@tests/server/execution/test-context";
+import { readAgentPositions } from "@tests/server/positions/report";
 import {
   addTestAgent,
   allocateTestAgent,
@@ -8,15 +9,15 @@ import {
 } from "@tests/server/positions/test-context";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { deleteIfNothingHeld } from "@/server/agents/agent-return";
 import { commandAgent } from "@/server/agents/mutations";
 import { agents } from "@/server/db/agent-schema";
-import { capitalAccounts, capitalEvents, positionLots } from "@/server/db/position-schema";
+import { agentCapital, capitalAccounts, capitalEvents, positionLots } from "@/server/db/position-schema";
 import { delegatedKeys } from "@/server/db/schema";
 import { beginSubmission, claimExecution } from "@/server/execution/ownership";
 import { cancelReservedExecution, reserveExecution } from "@/server/execution/reservations";
 import { assignInventory, releaseInventory } from "@/server/positions/attribution";
 import { setAgentCapitalLimit, setUserCapitalLimit } from "@/server/positions/capital-limits";
-import { readAgentPositions } from "@/server/positions/report";
 
 vi.mock("server-only", () => ({}));
 let context: Awaited<ReturnType<typeof executionTestContext>>;
@@ -223,17 +224,33 @@ describe("owner capital allocation and attributed inventory", () => {
     ).toBe(1000n);
   });
 
-  it("prevents deletion from hiding allocated capital and preserves capital audit rows", async () => {
+  it("keeps a deleted agent until its attributed funds are gone and preserves capital audit rows", async () => {
     await context.db.update(agents).set({ status: "paused" }).where(eq(agents.id, context.agentId));
-    const command = {
+    await assignTestInventory(context.db, context.agentId);
+    const user = { id: "owner", accountId: "owner.near" };
+    await commandAgent(context.db, "owner", {
       requestId: crypto.randomUUID(),
       agentId: context.agentId,
       expectedRevision: 1,
       command: "delete",
-    } as const;
-    await expect(commandAgent(context.db, "owner", command)).rejects.toMatchObject({ code: "conflict" });
-    await allocateTestAgent(context.db, context.agentId, "0");
-    await commandAgent(context.db, "owner", command);
+    });
+    expect(await deleteIfNothingHeld(context.db, user, context.agentId)).toBe(false);
+    const [returning] = await context.db.select().from(agents).where(eq(agents.id, context.agentId));
+    expect(returning).toMatchObject({ status: "stopped", deletedAt: null });
+    expect(returning?.deleteRequestedAt).not.toBeNull();
+    await releaseInventory(context.db, "owner", {
+      requestId: crypto.randomUUID(),
+      agentId: context.agentId,
+      scope: "confidential",
+      assetId: TEST_ASSET,
+      quantityUnits: "1000",
+    });
+    expect(await deleteIfNothingHeld(context.db, user, context.agentId)).toBe(true);
+    const [deleted] = await context.db.select().from(agents).where(eq(agents.id, context.agentId));
+    expect(deleted?.deletedAt).not.toBeNull();
+    expect(
+      await context.db.select().from(agentCapital).where(eq(agentCapital.agentId, context.agentId)),
+    ).toEqual([expect.objectContaining({ limitMicroUsd: 0n })]);
     await expect(context.db.update(capitalEvents).set({ detailJson: "{}" })).rejects.toThrow();
     expect(await context.db.select().from(capitalEvents)).not.toHaveLength(0);
   });

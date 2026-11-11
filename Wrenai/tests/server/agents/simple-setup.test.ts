@@ -3,6 +3,7 @@ import { testDatabase } from "@tests/server/db/test-database";
 import { fundingAsset, fundingInstruction, strategyReceipt } from "@tests/server/funding/context";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { deleteIfNothingHeld } from "@/server/agents/agent-return";
 import { commandAgent } from "@/server/agents/mutations";
 import { setupBindingHash } from "@/server/agents/setup-binding";
 import { saveAgentWithBudget } from "@/server/agents/simple-setup";
@@ -156,6 +157,7 @@ describe("one reviewed agent setup", () => {
       expectedRevision: 1,
       command: "delete",
     });
+    expect(await deleteIfNothingHeld(context.db, { id: "owner", accountId: "owner.near" }, id)).toBe(true);
     expect((await readWalletBudgets(context.db, "owner")).tokens[0]?.allocatedUnits).toBe("0");
     expect(await context.db.select().from(chatAgentDrafts)).toHaveLength(1);
   });

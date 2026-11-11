@@ -2,13 +2,15 @@ import { and, eq } from "drizzle-orm";
 import { FatalError, getWorkflowMetadata, sleep } from "workflow";
 import { start } from "workflow/api";
 import { z } from "zod";
-import { agents } from "@/server/db/agent-schema";
+import { auditAgent } from "@/server/agents/records";
+import { agentEvents, agents } from "@/server/db/agent-schema";
 import { database } from "@/server/db/client";
 import { executionEvents } from "@/server/db/execution-schema";
 import { userTransaction } from "@/server/db/user-transaction";
 import { databaseTime, executionEvent, ownedLedgerAction } from "@/server/execution/records";
 import { advanceFundingRecord } from "@/server/funding/progress";
-import { ownedWalletFunding } from "@/server/funding/records";
+import { ownedWalletFunding, walletFundingView } from "@/server/funding/records";
+import { directNativeFunding } from "@/shared/wallet-funding";
 
 async function claimSegment(
   owner: string,
@@ -21,12 +23,31 @@ async function claimSegment(
   z.number().int().min(0).max(432).parse(segment);
   z.uuid().parse(trackingId);
   return userTransaction(database(), owner, async (tx) => {
-    const row = await ownedWalletFunding(tx, owner, fundingId);
+    const row = await ownedWalletFunding(tx, owner, fundingId),
+      kind = `wallet_funding_poll_${trackingId}_${segment}`;
+    if (row.state === "deposited" && directNativeFunding(walletFundingView(row).snapshot)) {
+      // No ledger action: the deposit is 1Click's to deliver. Fence this segment on the agent's events instead.
+      const [claimed] = await tx
+        .select({ detail: agentEvents.detailJson })
+        .from(agentEvents)
+        .where(
+          and(
+            eq(agentEvents.userId, owner),
+            eq(agentEvents.agentId, row.agentId),
+            eq(agentEvents.kind, kind),
+          ),
+        )
+        .limit(1);
+      if (claimed) {
+        return z.object({ runId: z.string() }).parse(JSON.parse(claimed.detail)).runId === runId;
+      }
+      await auditAgent(tx, owner, row.agentId, kind, "Checking the deposit.", { runId });
+      return true;
+    }
     if (row.state !== "converting" || !row.actionId) {
       return false;
     }
-    const action = await ownedLedgerAction(tx, owner, row.actionId),
-      kind = `wallet_funding_poll_${trackingId}_${segment}`;
+    const action = await ownedLedgerAction(tx, owner, row.actionId);
     const [existing] = await tx
       .select()
       .from(executionEvents)
