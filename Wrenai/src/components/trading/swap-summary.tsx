@@ -8,7 +8,7 @@ import type { TradeAsset } from "@/shared/trade-preview";
 const ICON = { "aria-hidden": true, strokeWidth: 1.75, absoluteStrokeWidth: true } as const;
 
 /** Token amount for display, rounded toward zero (never shows more than the real amount). */
-export function tokenAmount(units: string, asset: TradeAsset): string {
+export function tokenAmount(units: string, asset: Pick<TradeAsset, "decimals" | "tokenSymbol">): string {
   return formatUnits(BigInt(units), { decimals: asset.decimals, fractionDigits: Math.min(asset.decimals, 6) })
     .replace(/(\.\d*?)0+$/, "$1")
     .replace(/\.$/, "");
@@ -18,8 +18,8 @@ export function tokenAmount(units: string, asset: TradeAsset): string {
 function rate(
   inputUnits: string,
   outputUnits: string | null,
-  input: TradeAsset,
-  output: TradeAsset,
+  input: Pick<TradeAsset, "decimals" | "tokenSymbol">,
+  output: Pick<TradeAsset, "decimals" | "tokenSymbol">,
 ): string | null {
   if (outputUnits === null) {
     return null;
@@ -83,8 +83,8 @@ function SwapPanel({ label, amount, symbol }: PanelProps): ReactElement {
 }
 
 interface SwapSummaryProps {
-  readonly input: TradeAsset;
-  readonly output: TradeAsset;
+  readonly input: Pick<TradeAsset, "decimals" | "tokenSymbol">;
+  readonly output: Pick<TradeAsset, "decimals" | "tokenSymbol">;
   readonly inputUnits: string;
   /** Expected output from the quote. */
   readonly outputUnits: string | null;

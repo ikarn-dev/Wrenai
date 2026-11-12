@@ -36,6 +36,18 @@ export function ActivityFeed({ ownerId, initial, full }: ActivityFeedProps): Rea
     rows.some((row) => row.source === "agents" && row.category === "trade" && row.status === "pending"),
     activity.refresh,
   );
+  return <ActivityFeedView activity={activity} full={full} />;
+}
+export function ActivityFeedView({
+  activity,
+  full,
+  testnet = false,
+}: {
+  readonly activity: ReturnType<typeof useActivityPages>;
+  readonly full: boolean;
+  readonly testnet?: boolean;
+}): ReactElement {
+  const rows = activity.page?.items ?? [];
   const visible = full ? rows : rows.slice(0, PREVIEW_ROWS);
   const unavailable = activity.page?.unavailable ?? [];
   const first = activity.firstRow;
@@ -76,7 +88,7 @@ export function ActivityFeed({ ownerId, initial, full }: ActivityFeedProps): Rea
           {activity.pending ? (
             <ActivitySkeletonRows />
           ) : (
-            visible.map((item) => <ActivityRow key={item.id} item={item} />)
+            visible.map((item) => <ActivityRow key={item.id} item={item} testnet={testnet} />)
           )}
         </ActivityTable>
       ) : activity.error === null ? (
@@ -118,7 +130,12 @@ export function ActivityFeed({ ownerId, initial, full }: ActivityFeedProps): Rea
               ·{" "}
             </>
           ) : null}
-          {activity.filter === "agents" ? "Wrenai records" : "NearBlocks and Wrenai records"} · UTC
+          {testnet
+            ? "Recorded testnet activity"
+            : activity.filter === "agents"
+              ? "Wrenai records"
+              : "NearBlocks and Wrenai records"}{" "}
+          · UTC
         </p>
         {full ? (
           activity.loadedPages > 1 || activity.hasMore ? (
@@ -133,7 +150,7 @@ export function ActivityFeed({ ownerId, initial, full }: ActivityFeedProps): Rea
             />
           ) : null
         ) : (
-          <Link href="/activity" className={QUIET_BUTTON}>
+          <Link href={testnet ? "/testnet/activity" : "/activity"} className={QUIET_BUTTON}>
             View all activity
             <ArrowRight {...ICON} size={14} />
           </Link>

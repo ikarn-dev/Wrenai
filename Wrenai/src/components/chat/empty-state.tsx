@@ -24,7 +24,13 @@ const PROMPTS = [
 ] as const;
 
 // Docs/DESIGN.md → Jarvis → Empty state: the mark, one title, one line on what Jarvis can do, three prompts.
-export function ChatEmptyState({ onPrompt }: { readonly onPrompt: (prompt: string) => void }): ReactElement {
+export function ChatEmptyState({
+  onPrompt,
+  testnet = false,
+}: {
+  readonly testnet?: boolean;
+  readonly onPrompt: (prompt: string) => void;
+}): ReactElement {
   return (
     <div className="mx-auto flex w-full max-w-reading flex-col items-center px-1 pt-6 pb-8 text-center">
       <JarvisMark size={44} />
@@ -35,7 +41,15 @@ export function ChatEmptyState({ onPrompt }: { readonly onPrompt: (prompt: strin
           <button
             key={title}
             type="button"
-            onClick={() => onPrompt(prompt)}
+            onClick={() =>
+              onPrompt(
+                testnet && title === "Analyze a market"
+                  ? "Quote 0.5 USDC to USDT using my available test balance."
+                  : testnet && title === "Plan recurring buys"
+                    ? "Help me plan recurring purchases of ETH using test USDC. Ask for my amount and schedule before proposing an agent."
+                    : prompt,
+              )
+            }
             className="inline-flex h-9 cursor-pointer items-center gap-2 card-shine rounded-full px-3.5 text-small text-fg transition-[color,scale] duration-200 ease-ios hover:text-fg-strong active:scale-97 motion-reduce:active:scale-100 pointer-coarse:h-11"
           >
             <Icon

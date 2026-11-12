@@ -132,13 +132,14 @@ function KeyFacts({ accountId, reading }: TradingAccessPaneProps): ReactElement 
 // inside the pane's 20 px). Inside, one 16 px rhythm: padding, and the gap between header, facts and action. The
 // pane stretches to the overview's height, so the action sits at the bottom and lines up with the last card on the
 // left. The skeleton below reuses this frame, so swapping one for the other never changes the page's height.
-function PaneFrame({
+export function TradingAccessFrame({
   description,
   badge,
   facts,
   action,
 }: {
-  readonly description: ReactNode;
+  /** One line under the title; left out where the facts speak for themselves. */
+  readonly description?: ReactNode;
   readonly badge: ReactNode;
   readonly facts: ReactNode;
   readonly action: ReactNode;
@@ -166,7 +167,7 @@ function PaneFrame({
             </div>
             {badge}
           </div>
-          <div className="text-small text-fg-muted">{description}</div>
+          {description === undefined ? null : <div className="text-small text-fg-muted">{description}</div>}
         </div>
         {facts}
         <div className="grid">{action}</div>
@@ -182,7 +183,7 @@ export function TradingAccessSkeleton(): ReactElement {
   const value = <dd aria-hidden="true" className={`${PULSE} h-6 w-36 rounded-full`} />;
   return (
     <div role="status" aria-label="Loading trading access" className="grid h-full">
-      <PaneFrame
+      <TradingAccessFrame
         badge={<span aria-hidden="true" className={`${PULSE} h-6 w-24 rounded-full`} />}
         description={<span aria-hidden="true" className={`${PULSE} h-lh w-60 max-w-full`} />}
         facts={
@@ -209,7 +210,7 @@ export function TradingAccessSkeleton(): ReactElement {
 export function TradingAccessPane({ accountId, reading }: TradingAccessPaneProps): ReactElement {
   const status = KEY_STATUS[reading.state.kind];
   return (
-    <PaneFrame
+    <TradingAccessFrame
       badge={
         <Badge tone={reading.checked ? status.tone : "warn"} dot>
           {reading.checked ? status.label : "Not verified"}

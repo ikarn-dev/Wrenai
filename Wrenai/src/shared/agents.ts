@@ -316,9 +316,10 @@ export const strategyDraftSchema = z.object({
 });
 export type StrategyDraft = z.infer<typeof strategyDraftSchema>;
 /** A rewritten instruction and the result of checking it: a verified draft ready to deploy, or what to fix. */
+/** Refine's reply: the rewritten instructions only. Checking happens once, when the user continues. */
 export const strategyRefinementSchema = z.object({
   text: z.string().max(1000),
-  draft: strategyDraftSchema.nullable(),
-  problem: z.string().max(400).nullable(),
+  /** A short remark, such as a better-suited agent type; never a question. */
+  note: z.string().max(200).nullable(),
 });
 export type StrategyRefinement = z.infer<typeof strategyRefinementSchema>;

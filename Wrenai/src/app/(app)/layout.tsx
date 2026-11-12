@@ -4,7 +4,7 @@ import { ChatCacheProvider } from "@/components/chat/cache-provider";
 import { AccountMenu } from "@/components/shell/account-menu";
 import { AppShell } from "@/components/shell/app-shell";
 import { Brand } from "@/components/shell/brand";
-import { Badge } from "@/components/ui/badge";
+import { NetworkSwitch } from "@/components/shell/network-switch";
 import { requireUser } from "@/server/auth/session";
 import { storedKeyState } from "@/server/delegation/delegated-key";
 import { docsUrl } from "@/server/env";
@@ -25,9 +25,7 @@ export default async function AppLayout({ children }: { readonly children: React
             <Brand size="md" />
           </Link>
           <div className="ml-auto flex min-w-0 items-center gap-3">
-            <Badge tone="light" dot size="md">
-              Mainnet
-            </Badge>
+            <NetworkSwitch network="mainnet" />
             <AccountMenu accountId={user.accountId} agentKey={agentKey.kind} />
           </div>
         </header>

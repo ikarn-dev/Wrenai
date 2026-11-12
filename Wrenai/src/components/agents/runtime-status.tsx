@@ -11,7 +11,10 @@ import { recoverAgentOrders } from "@/server/engine/status-actions";
 import { type AgentRuntimeStatus, agentRuntimeStatusSchema } from "@/shared/agent-runtime";
 import type { AgentSummary } from "@/shared/agents";
 import { AgentStatus } from "./agent-card";
+import { AgentToolbar } from "./agent-header";
 import { AgentControls } from "./controls";
+import { AgentLiveView } from "./live-view";
+import { mainnetLiveModel } from "./mainnet-live";
 
 export function AgentRuntimePanel({
   agent,
@@ -86,26 +89,32 @@ export function AgentRuntimePanel({
   }
   return (
     <section aria-label="Trading status" className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        {snapshot.agent.returningSince === null ? (
-          <AgentStatus agent={current} />
-        ) : (
-          <ElapsedBadge label="Claiming funds" since={snapshot.agent.returningSince} />
-        )}
-        <p role="status" className="text-small text-fg-muted">
-          {starting ? "Waiting for the trading workflow to start." : current.reason}
-        </p>
-      </div>
-      <AgentControls agent={current} executionAvailable={executionAvailable && !starting && !query.isError} />
+      <AgentToolbar
+        status={
+          snapshot.agent.returningSince === null ? (
+            <AgentStatus agent={current} />
+          ) : (
+            <ElapsedBadge label="Claiming funds" since={snapshot.agent.returningSince} />
+          )
+        }
+        reason={starting ? "Waiting for the trading workflow to start." : current.reason || null}
+      >
+        <AgentControls
+          agent={current}
+          executionAvailable={executionAvailable && !starting && !query.isError}
+        />
+      </AgentToolbar>
+      <AgentLiveView model={mainnetLiveModel(current, snapshot)} />
       {snapshot.pending.length > 0 && !snapshot.agent.returningFunds ? (
         <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="ghost"
+            size="sm"
             disabled={recovery.isPending}
             aria-busy={recovery.isPending}
             onClick={() => recovery.mutate()}
           >
-            <RefreshCw aria-hidden="true" size={16} />
+            <RefreshCw aria-hidden="true" size={14} strokeWidth={1.75} absoluteStrokeWidth />
             {recovery.isPending ? "Reconciling…" : "Reconcile orders"}
           </Button>
           <p className="text-caption text-fg-muted">

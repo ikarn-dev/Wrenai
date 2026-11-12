@@ -8,6 +8,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "Wrenai", template: "%s · Wrenai" },
+  icons: { icon: { url: "/assets/nobg_logo.png", type: "image/png" } },
   description:
     "Private AI agents for DeFi on NEAR. Strategies are reasoned inside a TEE, and every trade passes a Guard the model can't override.",
 };

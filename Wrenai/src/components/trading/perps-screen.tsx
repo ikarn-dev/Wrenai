@@ -3,7 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import dynamic from "next/dynamic";
 import { type ReactElement, useDeferredValue, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { z } from "zod";
+import { useAppNetwork } from "@/components/shell/network-context";
+import { Badge } from "@/components/ui/badge";
 import { type PerpsMarketRow, perpsMarketRowSchema } from "@/shared/market-pages";
 import { MARKET_PAGE_SIZE, MoreMarketRows } from "./more-market-rows";
 import { PerpsMarketsTable } from "./perps-markets-table";
@@ -30,6 +33,7 @@ function byVolume(a: PerpsMarketRow, b: PerpsMarketRow): number {
  * order ticket in a dialog (like Spot and Memecoins). The Account tab holds margin, positions and transfers.
  */
 export function PerpsScreen({ accountId }: { readonly accountId: string }): ReactElement {
+  const appNetwork = useAppNetwork();
   const [tab, setTab] = useState<Tab>("markets"),
     [search, setSearch] = useState(""),
     [limit, setLimit] = useState(MARKET_PAGE_SIZE),
@@ -60,7 +64,10 @@ export function PerpsScreen({ accountId }: { readonly accountId: string }): Reac
 
   return (
     <div className="flex min-w-0 flex-col gap-8">
-      <h1 className="font-display text-page-title">Perps</h1>
+      <header className="flex items-center gap-3">
+        <h1 className="font-display text-page-title">Perps</h1>
+        {appNetwork === "testnet" ? <Badge tone="neutral">Mainnet only</Badge> : null}
+      </header>
       <section aria-labelledby="perps-view" className="flex min-w-0 flex-col gap-3">
         <h2 id="perps-view" className="sr-only">
           {tab === "markets" ? "Markets" : "Account"}
@@ -72,7 +79,13 @@ export function PerpsScreen({ accountId }: { readonly accountId: string }): Reac
                 key={t.id}
                 type="button"
                 aria-pressed={tab === t.id}
-                onClick={() => setTab(t.id)}
+                onClick={() => {
+                  if (t.id === "account" && appNetwork === "testnet") {
+                    toast.info("Perps accounts are Mainnet only.");
+                    return;
+                  }
+                  setTab(t.id);
+                }}
                 className={`${PILL} ${tab === t.id ? "bg-surface-3 font-medium text-fg-strong" : "text-fg-muted hover:text-fg-strong"}`}
               >
                 {t.label}
@@ -114,7 +127,17 @@ export function PerpsScreen({ accountId }: { readonly accountId: string }): Reac
         ) : shown && shown.length === 0 ? (
           <p className="py-6 text-small text-fg-muted">No market matches “{search.trim()}”.</p>
         ) : (
-          <PerpsMarketsTable rows={shown?.slice(0, limit) ?? null} marks={marks} onTrade={setTarget} />
+          <PerpsMarketsTable
+            rows={shown?.slice(0, limit) ?? null}
+            marks={marks}
+            onTrade={(target) => {
+              if (appNetwork === "testnet") {
+                toast.info("Mainnet only. Switch to Mainnet to trade.");
+                return;
+              }
+              setTarget(target);
+            }}
+          />
         )}
         {tab === "markets" ? (
           <MoreMarketRows

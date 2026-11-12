@@ -1,5 +1,5 @@
 import { BrainCircuit, ChartNoAxesCombined, HandCoins, ShieldCheck, Wallet } from "lucide-react";
-import { type ReactElement, Suspense } from "react";
+import { type ReactElement, type ReactNode, Suspense } from "react";
 import { PendingClaimsValue } from "@/components/claims/pending-claims-value";
 import type { PortfolioPerformance } from "@/server/portfolio/performance";
 import type { AgentSummary } from "@/shared/agents";
@@ -59,31 +59,54 @@ async function PerformanceValue({
 /**
  * Wallet and agent facts. Different token budgets cannot be added into a fictional shared USD balance.
  */
-export function PortfolioOverview({ agents, performance }: PortfolioOverviewProps): ReactElement {
-  // Rows stretch to the trading-access pane's height beside it, so both columns end on the same line.
+export function PortfolioOverviewLayout({
+  wallet,
+  agents,
+  performance,
+  claims,
+}: {
+  readonly wallet: ReactNode;
+  readonly agents: ReactNode;
+  readonly performance: ReactNode;
+  readonly claims: ReactNode;
+}): ReactElement {
   return (
     <div className="grid gap-stack sm:grid-cols-2">
       <div className="grid sm:col-span-2">
         <StatTile icon={Wallet} label="NEAR wallet">
-          <WalletValue />
+          {wallet}
         </StatTile>
       </div>
       <StatTile icon={BrainCircuit} label="Agents">
-        <Suspense fallback={<TileLoading />}>
-          <AgentsValue data={agents} />
-        </Suspense>
+        {agents}
       </StatTile>
       <StatTile icon={ChartNoAxesCombined} label="Realized PnL">
-        <Suspense fallback={<TileLoading />}>
-          <PerformanceValue data={performance} />
-        </Suspense>
+        {performance}
       </StatTile>
       <StatTile icon={ShieldCheck} label="Budgets">
         Per agent
       </StatTile>
       <StatTile icon={HandCoins} label="Pending claims">
-        <PendingClaimsValue />
+        {claims}
       </StatTile>
     </div>
+  );
+}
+export function PortfolioOverview({ agents, performance }: PortfolioOverviewProps): ReactElement {
+  return (
+    <PortfolioOverviewLayout
+      wallet={<WalletValue />}
+      agents={
+        <Suspense fallback={<TileLoading />}>
+          <AgentsValue data={agents} />
+        </Suspense>
+      }
+      performance={
+        <Suspense fallback={<TileLoading />}>
+          <PerformanceValue data={performance} />
+        </Suspense>
+      }
+      claims={<PendingClaimsValue />}
+    />
   );
 }

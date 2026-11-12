@@ -1,6 +1,9 @@
-import { ChevronDown } from "lucide-react";
 import type { AgentStrategyTemplate } from "@/shared/agent-templates";
 
+/**
+ * Templates as one row of small chips above the instructions. Applying one fills the text in place, so the form
+ * never grows or shifts the way an expanding list did. Each chip's hint is its tooltip.
+ */
 export function StrategyTemplates({
   templates,
   hasInstructions,
@@ -14,36 +17,22 @@ export function StrategyTemplates({
     return null;
   }
   return (
-    <details className="group rounded-sm border border-line">
-      <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 rounded-sm px-3 text-small text-fg pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
-        Strategy templates
-        <ChevronDown
-          aria-hidden="true"
-          size={16}
-          className="shrink-0 text-fg-muted motion-safe:transition-transform group-open:rotate-180"
-        />
-      </summary>
-      <div className="border-t border-line">
-        {hasInstructions ? (
-          <p className="px-3 pt-2 text-caption text-fg-muted">
-            Applying a template replaces your instructions.
-          </p>
-        ) : null}
-        <ul className="divide-y divide-line">
-          {templates.map((template) => (
-            <li key={template.name}>
-              <button
-                type="button"
-                onClick={() => onApply(template.text)}
-                className="flex min-h-11 w-full cursor-pointer flex-col items-start gap-1 px-3 py-2.5 text-left text-small transition-colors hover:bg-surface-3"
-              >
-                <span className="font-medium text-fg-strong">{template.name}</span>
-                <span className="text-caption text-fg-muted">{template.hint}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </details>
+    <fieldset className="flex min-w-0 flex-wrap items-center gap-1.5">
+      <legend className="sr-only">Strategy templates</legend>
+      <span aria-hidden="true" className="mr-0.5 text-caption text-fg-subtle">
+        Templates
+      </span>
+      {templates.map((template) => (
+        <button
+          key={template.name}
+          type="button"
+          title={hasInstructions ? `${template.hint} Replaces your instructions.` : template.hint}
+          onClick={() => onApply(template.text)}
+          className="inline-flex h-7 max-w-full cursor-pointer items-center truncate rounded-full bg-surface-3 px-2.5 text-caption font-medium text-fg transition-colors duration-200 ease-ios hover:bg-surface-4 hover:text-fg-strong pointer-coarse:h-9"
+        >
+          {template.name}
+        </button>
+      ))}
+    </fieldset>
   );
 }

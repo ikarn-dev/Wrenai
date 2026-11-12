@@ -1,7 +1,7 @@
 import "server-only";
 import { parse } from "lossless-json";
 import { z } from "zod";
-import { ExecutionError } from "./contracts";
+import { ExecutionError, ProviderUnavailable } from "./contracts";
 
 const rejectionSchema = z.object({ message: z.union([z.string(), z.array(z.string())]) });
 
@@ -33,6 +33,9 @@ export async function tradingResponseJson(
 ): Promise<unknown> {
   if (!response.ok || !response.body) {
     await reportRejection(response);
+    if (response.status === 429 || response.status >= 500) {
+      throw new ProviderUnavailable(response.status);
+    }
     throw new ExecutionError("not_ready", "The trading provider is unavailable or rejected the request.");
   }
   const reader = response.body.getReader();

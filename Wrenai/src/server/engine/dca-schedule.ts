@@ -110,3 +110,8 @@ export function dcaScheduleSlot(
   }
   return { due: previous && now - previous.dueAt < 60_000 ? previous : null, nextAt: next.dueAt };
 }
+
+/** Whole seconds until the next schedule slot, between one and sixty: DCA checks wake at the slot itself. */
+export function dcaWaitSeconds(schedule: Schedule, now: number): number {
+  return Math.max(1, Math.min(60, Math.ceil((dcaScheduleSlot(schedule, now).nextAt - now) / 1000)));
+}

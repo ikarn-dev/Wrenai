@@ -1,19 +1,23 @@
 "use client";
 
-import { Check, ChevronDown, ChevronRight, Copy } from "lucide-react";
+import { ArrowLeftRight, Check, ChevronDown, ChevronRight, Copy } from "lucide-react";
 import { AnimatePresence, domMax, LazyMotion, MotionConfig, m, type Transition } from "motion/react";
 import Link from "next/link";
 import { Tooltip } from "radix-ui";
 import { useEffect, useId, useRef, useState } from "react";
+import { testnetApi } from "@/components/testnet/api";
 import { AccountLabel } from "@/components/ui/account-label";
 import { Badge, type BadgeTone, badgeClasses } from "@/components/ui/badge";
 import { signOut } from "@/server/auth/actions";
+import type { AppNetwork } from "@/shared/network";
 
 export type AgentKeyStatus = "none" | "pending" | "active";
 
 interface AccountMenuProps {
   /** The NEAR account ID, which is also the wallet's address. */
   readonly accountId: string;
+  readonly network?: AppNetwork;
+  readonly guest?: boolean;
   /** The agent key as last recorded; pages that show it in detail check it against NEAR. */
   readonly agentKey: AgentKeyStatus;
 }
@@ -85,37 +89,69 @@ interface PanelProps extends AccountMenuProps {
   readonly onNavigate: () => void;
 }
 
-function AccountPanel({ id, accountId, agentKey, copy, onCopy, onNavigate }: PanelProps) {
+function AccountPanel({
+  id,
+  accountId,
+  agentKey,
+  copy,
+  onCopy,
+  onNavigate,
+  network = "mainnet",
+  guest = false,
+}: PanelProps) {
   const key = KEY_STATUS[agentKey];
   return (
     <div id={id} className="flex flex-col gap-3 p-1.5 pt-0">
       {/* The trigger sits over the right of this row, so the open panel's header is the pill itself. */}
       <div className="flex h-8 items-center px-1.5">
         <Badge tone="light" dot>
-          Mainnet
+          {network === "testnet" ? "Testnet" : "Mainnet"}
         </Badge>
       </div>
       {/* Concentric with the panel: its 16 px corners minus the 6 px inset give radius-sm.
           On NEAR a named account is the address: funds and tokens are sent to it. */}
       <div className="flex items-center justify-between gap-2 rounded-sm bg-sunken py-1.5 pr-1.5 pl-3">
         <p className="min-w-0 font-mono text-small break-all text-fg-strong">{accountId}</p>
-        <CopyButton state={copy} onCopy={onCopy} />
+        {guest ? null : <CopyButton state={copy} onCopy={onCopy} />}
       </div>
       <div className="flex items-center justify-between gap-3 px-2.5">
-        <span className="text-small whitespace-nowrap text-fg-subtle">Agent key</span>
-        <Link
-          href="/settings/trading-access"
-          onClick={onNavigate}
-          aria-label={`Agent key ${key.label}. Manage in Settings`}
-          className="inline-flex min-h-8 items-center rounded-full pointer-coarse:min-h-11"
-        >
-          <Badge tone={key.tone} dot>
-            {key.label}
-            <ChevronRight aria-hidden="true" size={12} strokeWidth={1.75} absoluteStrokeWidth />
-          </Badge>
-        </Link>
+        <span className="text-small whitespace-nowrap text-fg-subtle">
+          {network === "testnet" ? "Access" : "Agent key"}
+        </span>
+        {network === "testnet" ? (
+          <Badge tone="neutral">{guest ? "Test funds" : "Wallet approval"}</Badge>
+        ) : (
+          <Link
+            href="/settings/trading-access"
+            onClick={onNavigate}
+            aria-label={`Agent key ${key.label}. Manage in Settings`}
+            className="inline-flex min-h-8 items-center rounded-full pointer-coarse:min-h-11"
+          >
+            <Badge tone={key.tone} dot>
+              {key.label}
+              <ChevronRight aria-hidden="true" size={12} strokeWidth={1.75} absoluteStrokeWidth />
+            </Badge>
+          </Link>
+        )}
       </div>
-      <form action={signOut}>
+      {/* A document navigation, not a client route: each network keeps its own wallet and query state. */}
+      <a
+        href={network === "mainnet" ? "/testnet" : "/"}
+        className={`${badgeClasses("neutral")} w-full justify-center transition-colors duration-300 ease-ios hover:text-fg-strong`}
+      >
+        <ArrowLeftRight aria-hidden="true" size={14} strokeWidth={1.75} absoluteStrokeWidth />
+        Switch to {network === "mainnet" ? "Testnet" : "Mainnet"}
+      </a>
+      <form
+        action={
+          network === "testnet"
+            ? async () => {
+                await testnetApi({ command: "logout" });
+                window.location.replace("/?network=testnet");
+              }
+            : signOut
+        }
+      >
         <button
           type="submit"
           className={`${badgeClasses("loss")} badge-button-glow w-full cursor-pointer justify-center`}

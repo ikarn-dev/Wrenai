@@ -222,8 +222,16 @@ function paymentDetails(details: string, route: ChatPayment["route"]): PaymentRe
   return paymentFunds(details) ? { issue: EXACT_ACCOUNT } : null;
 }
 
-export function parseChatPayment(message: string): PaymentRequest | null {
-  const text = paymentText(message);
+export function parseChatPayment(
+  message: string,
+  network: "mainnet" | "testnet" = "mainnet",
+): PaymentRequest | null {
+  if (network === "testnet" && /\bon (?:near )?mainnet\b/i.test(message)) {
+    return { issue: "This session uses NEAR Testnet. Switch networks for a mainnet payment." };
+  }
+  const text = paymentText(
+    network === "testnet" ? message.replace(/\bon (?:near )?testnet\b/gi, "") : message,
+  );
   const modifiers = [...text.matchAll(MODIFIER)];
   const privateRoute = modifiers.some(({ groups: { private: modifier } = {} }) => Boolean(modifier));
   const walletRoute = modifiers.some(({ groups: { wallet: modifier } = {} }) => Boolean(modifier));
@@ -245,10 +253,15 @@ export function parseChatPayment(message: string): PaymentRequest | null {
     }
   }
   if (SCHEDULE.test(plain)) {
-    return { issue: "For a scheduled or conditional payment, open the Private Payments agent setup." };
+    return {
+      issue:
+        network === "testnet"
+          ? "For a scheduled payment, open the public Payments agent setup."
+          : "For a scheduled or conditional payment, open the Private Payments agent setup.",
+    };
   }
   if (OTHER_NETWORK.test(text)) {
-    return { issue: "Payments here use NEAR mainnet. Enter a NEAR recipient and a token on NEAR." };
+    return { issue: `Payments here use NEAR ${network}. Enter a NEAR recipient and a token on NEAR.` };
   }
   if (privateRoute && walletRoute) {
     return { issue: "Choose one payment route. Private or Public wallet." };

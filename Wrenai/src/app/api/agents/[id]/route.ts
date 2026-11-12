@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { runAgentCommand } from "@/server/agents/commands";
+import { readAgentPerformanceAccess } from "@/server/agents/performance-access";
 import { database } from "@/server/db/client";
 import { readAgentRuntimeStatus } from "@/server/engine/status-access";
 import { fundingAction } from "@/server/funding/access";
@@ -13,7 +14,9 @@ export async function GET(
   request: Request,
   { params }: { readonly params: Promise<{ readonly id: string }> },
 ): Promise<Response> {
-  const view = z.enum(["runtime", "funding"]).safeParse(new URL(request.url).searchParams.get("view"));
+  const view = z
+    .enum(["runtime", "funding", "performance"])
+    .safeParse(new URL(request.url).searchParams.get("view"));
   const id = z.uuid().safeParse((await params).id);
   if (!view.success || !id.success) {
     return Response.json(
@@ -24,7 +27,9 @@ export async function GET(
   const result =
     view.data === "runtime"
       ? await readAgentRuntimeStatus({ agentId: id.data })
-      : await fundingAction((user) => readFundingState(database(), user, id.data));
+      : view.data === "performance"
+        ? await readAgentPerformanceAccess({ agentId: id.data })
+        : await fundingAction((user) => readFundingState(database(), user, id.data));
   const status = result.ok
     ? 200
     : result.code === "signed_out"

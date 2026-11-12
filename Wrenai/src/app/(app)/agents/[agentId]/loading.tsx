@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import { RuntimeSkeleton, StrategySkeleton } from "@/components/agents/agent-page-sections";
+import { PerformanceTiles } from "@/components/agents/performance-tiles";
 import { PortfolioPanel } from "@/components/portfolio/panel";
 
 const BLOCK = "block rounded-xs bg-surface-2 motion-safe:animate-pulse";
@@ -10,15 +11,16 @@ const BLOCK = "block rounded-xs bg-surface-2 motion-safe:animate-pulse";
 export default function AgentLoading(): ReactElement {
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <span aria-hidden="true" className={`${BLOCK} h-5 w-24`} />
-      <header className="flex items-center gap-3">
-        <span aria-hidden="true" className={`${BLOCK} size-9 rounded-full`} />
-        <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-4">
+        <span aria-hidden="true" className={`${BLOCK} h-5 w-24`} />
+        <header className="flex items-center gap-3">
+          <span aria-hidden="true" className={`${BLOCK} size-8 rounded-full`} />
           <span aria-hidden="true" className={`${BLOCK} h-8 w-56`} />
-          <span aria-hidden="true" className={`${BLOCK} h-6 w-24 rounded-full`} />
-        </div>
-      </header>
+          <span aria-hidden="true" className={`${BLOCK} h-6 w-16 rounded-full`} />
+        </header>
+      </div>
       <RuntimeSkeleton />
+      <PerformanceTiles performance={undefined} error={null} />
       <div className="grid min-w-0 gap-stack xl:grid-cols-2">
         <PortfolioPanel id="strategy-loading" title="What it does">
           <StrategySkeleton />

@@ -57,7 +57,13 @@ function usePrivateRefresh(): void {
 }
 
 /** Nothing to list: one centered block in the page's free space, no table chrome around it. */
-function EmptyState({ error }: { readonly error: string | null }): ReactElement {
+export function ClaimsEmptyState({
+  error,
+  description = "Funds from stopped and deleted agents wait here.",
+}: {
+  readonly error: string | null;
+  readonly description?: string;
+}): ReactElement {
   return (
     <div className="flex min-h-96 flex-col items-center justify-center gap-2 text-center">
       <HandCoins
@@ -70,9 +76,7 @@ function EmptyState({ error }: { readonly error: string | null }): ReactElement 
       <p role={error ? "alert" : undefined} className={`text-body ${error ? "text-warn" : "text-fg-strong"}`}>
         {error ?? "Nothing to claim"}
       </p>
-      {error ? null : (
-        <p className="max-w-xs text-small text-fg-muted">Funds from stopped and deleted agents wait here.</p>
-      )}
+      {error ? null : <p className="max-w-xs text-small text-fg-muted">{description}</p>}
     </div>
   );
 }
@@ -136,7 +140,7 @@ function Body({ accountId }: { readonly accountId: string }): ReactElement {
     (row) => !activeSources.has(row.id) && !(row.source === "wallet" && unwrapping),
   );
   if (rows.length === 0 && flows.length === 0) {
-    return <EmptyState error={query.error?.message ?? null} />;
+    return <ClaimsEmptyState error={query.error?.message ?? null} />;
   }
   return (
     <Table>

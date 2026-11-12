@@ -7,7 +7,7 @@ import { agents } from "@/server/db/agent-schema";
 import type { AppDatabase } from "@/server/db/client";
 import { executionActions } from "@/server/db/execution-schema";
 import { currentAgentStrategy } from "@/server/execution/asset-review";
-import { ExecutionError } from "@/server/execution/contracts";
+import { ExecutionError, isTransportFailure, ProviderUnavailable } from "@/server/execution/contracts";
 import { preparePerpsExecution } from "@/server/execution/hyperliquid/orders";
 import { watchPerpsPosition } from "@/server/execution/hyperliquid/position-watch";
 import { prepareSwapExecution } from "@/server/execution/intents-order";
@@ -70,23 +70,34 @@ export async function checkAgentCycle(
       marketCheckSeconds(agent?.pack ?? ""),
     );
   }
-  const perpsPosition =
-    agent?.pack === "perps"
-      ? await watchPerpsPosition(
-          db,
-          runtime.userId,
-          runtime.agentId,
-          agent.status === "running" &&
-            agent.revision === runtime.agentRevision &&
-            runtime.state === "active",
-        )
-      : null;
+  let perpsPosition: Awaited<ReturnType<typeof watchPerpsPosition>> | null = null;
+  try {
+    perpsPosition =
+      agent?.pack === "perps"
+        ? await watchPerpsPosition(
+            db,
+            runtime.userId,
+            runtime.agentId,
+            agent.status === "running" &&
+              agent.revision === runtime.agentRevision &&
+              runtime.state === "active",
+          )
+        : null;
+  } catch (error) {
+    // A Hyperliquid outage leaves the position and its venue-held stops as they are; watch again shortly.
+    if (temporaryOutage(error)) {
+      return 5;
+    }
+    throw error;
+  }
   if (agent?.status !== "running" || agent.revision !== runtime.agentRevision || runtime.state !== "active") {
     return perpsPosition && perpsPosition.quantity !== "0" ? 5 : null;
   }
   const claim = await claimStrategyCheck(db, activationId, runId);
   if (!claim) {
-    return marketCheckSeconds(agent.pack);
+    // Not due yet, or another worker holds the lease: wake when it is due. A full interval here used to add up to
+    // one extra minute after every DCA order settled.
+    return secondsUntil(runtime.nextCheckAt, marketCheckSeconds(agent.pack));
   }
   const now = await databaseTime(db);
   let reason = "Within the reviewed allocation band.";
@@ -154,8 +165,11 @@ export async function checkAgentCycle(
           : "Checking the reserved trade before submission.";
     }
   } catch (error) {
-    if (error instanceof MarketUnavailable || error instanceof NearRpcError) {
+    if (temporaryOutage(error)) {
+      // An outage never counts toward the three-failure block: the next check tries again in five seconds, while
+      // a DCA slot is still inside its one-minute window, instead of skipping to the next slot.
       reason = "Live data is temporarily unavailable. The agent will check again.";
+      intervalSeconds = 5;
     } else if (
       !(error instanceof ExecutionError) &&
       !(error instanceof AgentError) &&
@@ -189,12 +203,30 @@ export async function checkAgentCycle(
   return actionId === null ? delay : advanceOrWait(db, runtime.userId, actionId);
 }
 
-/** A price-feed or RPC outage keeps the action as saved and checks it again; it never ends the lifecycle. */
+/** Whole seconds until `at`, at least one and at most `cap`. */
+export function secondsUntil(at: number, cap: number, now = Date.now()): number {
+  return Math.max(1, Math.min(cap, Math.ceil((at - now) / 1000)));
+}
+
+/** A feed, RPC or provider outage, or a network failure, rather than a problem with the strategy or the order. */
+function temporaryOutage(error: unknown): boolean {
+  return (
+    error instanceof MarketUnavailable ||
+    error instanceof NearRpcError ||
+    error instanceof ProviderUnavailable ||
+    isTransportFailure(error)
+  );
+}
+
+/**
+ * An outage keeps the action as saved and checks it again in five seconds; it never ends the lifecycle. Before, a
+ * provider 5xx or a dropped connection here exhausted the step's retries and failed the whole workflow run.
+ */
 async function advanceOrWait(db: AppDatabase, userId: string, actionId: string): Promise<number> {
   try {
     return await advanceLedgerAction(db, userId, actionId);
   } catch (error) {
-    if (error instanceof MarketUnavailable || error instanceof NearRpcError) {
+    if (temporaryOutage(error)) {
       return 5;
     }
     throw error;

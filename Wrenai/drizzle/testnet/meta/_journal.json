@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1794378683361,
+      "tag": "0000_testnet_pool",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794405451030,
+      "tag": "0001_redundant_yellowjacket",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794408389458,
+      "tag": "0002_testnet_conversations",
+      "breakpoints": true
+    }
+  ]
+}

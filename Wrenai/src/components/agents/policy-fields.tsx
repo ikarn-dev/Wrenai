@@ -7,10 +7,10 @@ import { type AgentPolicy, parseUsd, usdInputSchema } from "@/shared/agents";
 import { formatExactMicroUsd } from "@/shared/money";
 
 // Form controls for agent setup (Docs/DESIGN.md → Components → Inputs): a sunken fill so the control reads on the
-// dialog's surface-2, a quiet line border and the 40 px control height (44 px on touch). Labels use the Label role
-// (small, fg-muted) in sentence case, 6 px above their control.
+// dialog's surface-2, a hairline on hover and a 1 px mint focus ring flush with the field (so several fields read
+// as calm rows, not stacked outlines) and a 36 px control height (44 px on touch). Labels use the Label role (small, fg-muted), 6 px above.
 export const INPUT_CLASS =
-  "h-10 w-full rounded-sm border border-line bg-sunken px-3 text-body text-fg-strong placeholder:text-fg-subtle disabled:text-fg-disabled pointer-coarse:h-11";
+  "h-9 w-full rounded-sm bg-sunken px-3 text-small text-fg-strong ring-1 ring-transparent ring-inset transition-shadow duration-200 ease-ios placeholder:text-fg-subtle hover:ring-line focus-visible:outline-1 focus-visible:outline-offset-0 disabled:text-fg-disabled pointer-coarse:h-11";
 const LABEL = "text-small text-fg-muted";
 const ICON = { size: 16, strokeWidth: 1.75, absoluteStrokeWidth: true, "aria-hidden": true } as const;
 
@@ -49,6 +49,7 @@ export function Select({
       <select {...props} className={`${INPUT_CLASS} cursor-pointer appearance-none truncate pr-9`} />
       <ChevronDown
         {...ICON}
+        size={14}
         className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-fg-muted"
       />
     </span>
@@ -62,7 +63,7 @@ interface PolicyFieldsProps {
   readonly disabled: boolean;
 }
 
-const UNIT = "pointer-events-none absolute top-1/2 -translate-y-1/2 text-body text-fg-subtle";
+const UNIT = "pointer-events-none absolute top-1/2 -translate-y-1/2 text-small text-fg-subtle";
 
 function usd(value: string): string | null {
   const parsed = usdInputSchema.safeParse(value);
@@ -152,8 +153,8 @@ export function PolicyFields({ pack, policy, onChange, disabled }: PolicyFieldsP
     : `Set a ${profile.action} limit`;
   const set = (changes: Partial<AgentPolicy>): void => onChange({ ...policy, ...changes });
   return (
-    <details className="group rounded-sm border border-line">
-      <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
+    <details className="group rounded-sm bg-surface-1">
+      <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-3 rounded-sm px-3 py-2 transition-colors duration-200 ease-ios hover:bg-surface-3 pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden">
         <span className="shrink-0 text-small text-fg">{profile.limits}</span>
         <span className="flex min-w-0 items-center gap-2 text-small text-fg-muted">
           <span className="text-right font-mono tabular-nums">{summary}</span>
@@ -163,7 +164,7 @@ export function PolicyFields({ pack, policy, onChange, disabled }: PolicyFieldsP
           />
         </span>
       </summary>
-      <fieldset disabled={disabled} className="flex min-w-0 flex-col gap-4 border-t border-line p-3">
+      <fieldset disabled={disabled} className="flex min-w-0 flex-col gap-4 border-t border-line-subtle p-3">
         <legend className="sr-only">{profile.limits}</legend>
         <p className="text-caption text-fg-subtle">
           The agent never goes over these. Only you can change them.

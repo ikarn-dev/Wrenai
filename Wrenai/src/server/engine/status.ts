@@ -7,7 +7,22 @@ import type { AppDatabase } from "@/server/db/client";
 import { executionActions } from "@/server/db/execution-schema";
 import { watchPerpsPosition } from "@/server/execution/hyperliquid/position-watch";
 import type { AgentRuntimeStatus } from "@/shared/agent-runtime";
+import { instructionStateSchema } from "./instruction-state";
 import { advanceLedgerAction } from "./ledger-action";
+
+/** Orders the reviewed instruction has completed, for the live view; null for strategies that don't count runs. */
+function completedRuns(json: string | null): number | null {
+  if (json === null) {
+    return null;
+  }
+  try {
+    const state = instructionStateSchema.safeParse(JSON.parse(json));
+    return state.success ? state.data.runs : null;
+  } catch {
+    // Display only: an unreadable state shows no count; execution parses it strictly itself.
+    return null;
+  }
+}
 
 export async function agentRuntimeStatus(
   db: AppDatabase,
@@ -27,7 +42,11 @@ export async function agentRuntimeStatus(
           claimRequestedAt: agents.claimRequestedAt,
           deletedAt: agents.deletedAt,
         },
-        runtime: { state: agentRuntimes.state, nextCheckAt: agentRuntimes.nextCheckAt },
+        runtime: {
+          state: agentRuntimes.state,
+          nextCheckAt: agentRuntimes.nextCheckAt,
+          strategyStateJson: agentRuntimes.strategyStateJson,
+        },
       })
       .from(agents)
       .leftJoin(
@@ -72,7 +91,8 @@ export async function agentRuntimeStatus(
       deleting: deleteRequestedAt !== null,
       deleted: deletedAt !== null,
     },
-    runtime: row.runtime,
+    runtime: row.runtime && { state: row.runtime.state, nextCheckAt: row.runtime.nextCheckAt },
+    runs: completedRuns(row.runtime?.strategyStateJson ?? null),
     pending,
   };
 }

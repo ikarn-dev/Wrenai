@@ -3,6 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import dynamic from "next/dynamic";
 import { type ReactElement, useDeferredValue, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { useAppNetwork } from "@/components/shell/network-context";
+import { Badge } from "@/components/ui/badge";
 import {
   CHANGE_PERIODS,
   type ChangePeriod,
@@ -67,6 +70,7 @@ function byVolume(a: SpotMarketToken, b: SpotMarketToken): number {
  * Without CoinGecko's figures every listed token is shown instead.
  */
 export function SpotScreen(): ReactElement {
+  const appNetwork = useAppNetwork();
   const [search, setSearch] = useState(""),
     [network, setNetwork] = useState<Network>("near"),
     [period, setPeriod] = useState<ChangePeriod>("24h"),
@@ -128,7 +132,10 @@ export function SpotScreen(): ReactElement {
 
   return (
     <div className="flex min-w-0 flex-col gap-8">
-      <h1 className="font-display text-page-title">Spot</h1>
+      <header className="flex items-center gap-3">
+        <h1 className="font-display text-page-title">Spot</h1>
+        {appNetwork === "testnet" ? <Badge tone="neutral">Mainnet only</Badge> : null}
+      </header>
       <section aria-labelledby="spot-markets" className="flex min-w-0 flex-col gap-3">
         <h2 id="spot-markets" className="sr-only">
           Markets
@@ -204,7 +211,13 @@ export function SpotScreen(): ReactElement {
           <SpotMarketsTable
             tokens={view ? shown.slice(0, limit) : null}
             period={period}
-            onTrade={setTarget}
+            onTrade={(target) => {
+              if (appNetwork === "testnet") {
+                toast.info("Mainnet only. Switch to Mainnet to trade.");
+                return;
+              }
+              setTarget(target);
+            }}
           />
         )}
         <MoreMarketRows

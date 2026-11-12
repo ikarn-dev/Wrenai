@@ -43,7 +43,12 @@ const nativeSource = z.object({ walletAssetId: z.string() });
  * Lots are the authority: deposits are allocation lots, holdings are remaining units, and principal follows the
  * units through every swap, so held value minus held principal is the agent's whole result so far.
  */
-export async function readAgentFunds(db: AppDatabase, userId: string): Promise<AgentFunds[]> {
+export async function readAgentFunds(
+  db: AppDatabase,
+  userId: string,
+  /** Only this agent, for its own page. */
+  agentId?: string,
+): Promise<AgentFunds[]> {
   const rows = await db
     .select({
       id: agents.id,
@@ -56,7 +61,13 @@ export async function readAgentFunds(db: AppDatabase, userId: string): Promise<A
       returnAssetId: agents.returnAssetId,
     })
     .from(agents)
-    .where(and(eq(agents.userId, userId), isNull(agents.deletedAt)))
+    .where(
+      and(
+        eq(agents.userId, userId),
+        isNull(agents.deletedAt),
+        agentId === undefined ? undefined : eq(agents.id, agentId),
+      ),
+    )
     .limit(MAX_AGENTS);
   if (rows.length === 0) {
     return [];

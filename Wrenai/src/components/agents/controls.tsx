@@ -21,7 +21,9 @@ const PROGRESS: Readonly<Record<Command, string>> = {
   delete: "Deleting",
   claim: "Checking claim",
 };
-const ICON = { size: 18, strokeWidth: 1.75, absoluteStrokeWidth: true, "aria-hidden": true } as const;
+// 14 px beside the toolbar's small labels; the confirm dialog's full-size buttons keep 18 px (Docs/DESIGN.md → Icons).
+const ICON = { size: 14, strokeWidth: 1.75, absoluteStrokeWidth: true, "aria-hidden": true } as const;
+const DIALOG_ICON = { ...ICON, size: 18 } as const;
 
 export function AgentControls({
   agent,
@@ -109,8 +111,12 @@ export function AgentControls({
     });
   }
   /** The command's own icon, or the spinner while that command runs. */
-  function icon(command: Command, idle: ReactNode): ReactNode {
-    return isRunning(command) ? <LoaderCircle {...ICON} className="motion-safe:animate-spin" /> : idle;
+  function icon(command: Command, idle: ReactNode, size: number = ICON.size): ReactNode {
+    return isRunning(command) ? (
+      <LoaderCircle {...ICON} size={size} className="motion-safe:animate-spin" />
+    ) : (
+      idle
+    );
   }
   function isRunning(command: Command): boolean {
     return busy && pending?.command === command;
@@ -127,9 +133,10 @@ export function AgentControls({
   if (agent.returningFunds) {
     // The claim is already under way; this retries anything that couldn't move yet. Nothing is sent twice.
     return (
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-1.5">
         <Button
           variant="soft"
+          size="sm"
           aria-busy={isRunning("claim")}
           onClick={() => (busy ? undefined : run("claim"))}
         >
@@ -142,102 +149,102 @@ export function AgentControls({
     );
   }
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        {agent.status === "running" ? (
-          <Button
-            variant="primary"
-            disabled={busy && !isRunning("pause")}
-            aria-busy={isRunning("pause")}
-            onClick={() => (busy ? undefined : run("pause"))}
-          >
-            {icon("pause", <Pause {...ICON} />)}
-            Pause
-          </Button>
-        ) : (
-          <Button
-            variant="primary"
-            disabled={(busy && !isRunning("resume")) || !executionAvailable}
-            aria-busy={isRunning("resume")}
-            onClick={() => (busy ? undefined : run("resume"))}
-            title={
-              executionAvailable
-                ? "Start the agent"
-                : "Agents start on the Vercel app, or locally with WRENAI_LOCAL_EXECUTION=1, after their funds are in"
-            }
-          >
-            {icon("resume", <Play {...ICON} />)}
-            Start
-          </Button>
-        )}
-        {/* The strategy and funds are set at deploy; afterwards an agent is only started, paused or stopped. */}
-        {agent.status === "running" ? (
-          <Button
-            variant="soft"
-            disabled={busy && !isRunning("stop")}
-            aria-busy={isRunning("stop")}
-            onClick={() => (busy ? undefined : run("stop"))}
-          >
-            {icon("stop", <Square {...ICON} />)}
-            Stop
-          </Button>
-        ) : null}
-        <Link
-          href="/claims"
-          className="inline-flex h-10 items-center gap-2 rounded-sm px-4 text-body font-medium text-fg transition-colors duration-300 ease-ios hover:bg-surface-2 hover:text-fg-strong pointer-coarse:h-11"
+    <div className="flex flex-wrap items-center gap-1.5">
+      {/* The progress badge leads the row, so the buttons never move while a command runs. */}
+      {confirmOpen ? null : progress}
+      {agent.status === "running" ? (
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={busy && !isRunning("pause")}
+          aria-busy={isRunning("pause")}
+          onClick={() => (busy ? undefined : run("pause"))}
         >
-          <HandCoins {...ICON} />
-          Claim funds
-        </Link>
-        <AlertDialog.Root open={confirmOpen} onOpenChange={changeOpen}>
-          <AlertDialog.Trigger asChild>
-            <Button variant="ghost" disabled={busy} aria-label={`Delete ${agent.name}`}>
-              <Trash2 {...ICON} />
-              Delete
-            </Button>
-          </AlertDialog.Trigger>
-          <AlertDialog.Portal>
-            <AlertDialog.Overlay className="dialog-scrim fixed inset-0 z-40 bg-bg/80" />
-            <AlertDialog.Content
-              onEscapeKeyDown={(event) => (busy ? event.preventDefault() : undefined)}
-              className="dialog-panel fixed inset-x-gutter top-1/2 z-50 mx-auto flex max-w-md -translate-y-1/2 flex-col rounded-xl bg-surface-2 p-card shadow-float"
-            >
-              <AlertDialog.Title className="truncate font-rounded text-h2 font-bold text-fg-strong">
-                Delete {agent.name}?
-              </AlertDialog.Title>
-              <AlertDialog.Description className="mt-2 text-body text-fg-muted">
-                It stops and leaves your agents. Nothing is sent: its funds wait in Claims until you claim
-                them.
-              </AlertDialog.Description>
-              <div aria-live="polite">
-                {dialogError ? (
-                  <p role="alert" className="mt-4 rounded-sm bg-loss-soft p-3 text-small text-loss">
-                    {dialogError}
-                  </p>
-                ) : null}
-              </div>
-              <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
-                <span className="mr-auto">{progress}</span>
-                <AlertDialog.Cancel asChild>
-                  <Button variant="soft" disabled={isRunning("delete")}>
-                    Cancel
-                  </Button>
-                </AlertDialog.Cancel>
-                <Button
-                  variant="danger"
-                  aria-busy={isRunning("delete")}
-                  onClick={() => (busy ? undefined : run("delete"))}
-                >
-                  {icon("delete", <Trash2 {...ICON} />)}
-                  Stop and delete
+          {icon("pause", <Pause {...ICON} />)}
+          Pause
+        </Button>
+      ) : (
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={(busy && !isRunning("resume")) || !executionAvailable}
+          aria-busy={isRunning("resume")}
+          onClick={() => (busy ? undefined : run("resume"))}
+          title={
+            executionAvailable
+              ? "Start the agent"
+              : "Agents start on the Vercel app, or locally with WRENAI_LOCAL_EXECUTION=1, after their funds are in"
+          }
+        >
+          {icon("resume", <Play {...ICON} />)}
+          Start
+        </Button>
+      )}
+      {/* The strategy and funds are set at deploy; afterwards an agent is only started, paused or stopped. */}
+      {agent.status === "running" ? (
+        <Button
+          variant="soft"
+          size="sm"
+          disabled={busy && !isRunning("stop")}
+          aria-busy={isRunning("stop")}
+          onClick={() => (busy ? undefined : run("stop"))}
+        >
+          {icon("stop", <Square {...ICON} />)}
+          Stop
+        </Button>
+      ) : null}
+      <Link
+        href="/claims"
+        className="inline-flex h-8 items-center gap-1.5 rounded-sm px-3 text-small font-medium text-fg transition-colors duration-300 ease-ios hover:bg-surface-2 hover:text-fg-strong pointer-coarse:h-11"
+      >
+        <HandCoins {...ICON} />
+        Claim funds
+      </Link>
+      <AlertDialog.Root open={confirmOpen} onOpenChange={changeOpen}>
+        <AlertDialog.Trigger asChild>
+          <Button variant="ghost" size="sm" disabled={busy} aria-label={`Delete ${agent.name}`}>
+            <Trash2 {...ICON} />
+            Delete
+          </Button>
+        </AlertDialog.Trigger>
+        <AlertDialog.Portal>
+          <AlertDialog.Overlay className="dialog-scrim fixed inset-0 z-40 bg-bg/80" />
+          <AlertDialog.Content
+            onEscapeKeyDown={(event) => (busy ? event.preventDefault() : undefined)}
+            className="dialog-panel fixed inset-x-gutter top-1/2 z-50 mx-auto flex max-w-md -translate-y-1/2 flex-col rounded-xl bg-surface-2 p-card shadow-float"
+          >
+            <AlertDialog.Title className="truncate font-rounded text-h2 font-bold text-fg-strong">
+              Delete {agent.name}?
+            </AlertDialog.Title>
+            <AlertDialog.Description className="mt-2 text-body text-fg-muted">
+              It stops and leaves your agents. Nothing is sent: its funds wait in Claims until you claim them.
+            </AlertDialog.Description>
+            <div aria-live="polite">
+              {dialogError ? (
+                <p role="alert" className="mt-4 rounded-sm bg-loss-soft p-3 text-small text-loss">
+                  {dialogError}
+                </p>
+              ) : null}
+            </div>
+            <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+              <span className="mr-auto">{progress}</span>
+              <AlertDialog.Cancel asChild>
+                <Button variant="soft" disabled={isRunning("delete")}>
+                  Cancel
                 </Button>
-              </div>
-            </AlertDialog.Content>
-          </AlertDialog.Portal>
-        </AlertDialog.Root>
-        {/* A delete shows its progress inside the open dialog instead. */}
-        {confirmOpen ? null : progress}
-      </div>
+              </AlertDialog.Cancel>
+              <Button
+                variant="danger"
+                aria-busy={isRunning("delete")}
+                onClick={() => (busy ? undefined : run("delete"))}
+              >
+                {icon("delete", <Trash2 {...DIALOG_ICON} />, DIALOG_ICON.size)}
+                Stop and delete
+              </Button>
+            </div>
+          </AlertDialog.Content>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
       {announcement}
     </div>
   );

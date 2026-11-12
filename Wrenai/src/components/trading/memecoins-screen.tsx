@@ -3,6 +3,9 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import dynamic from "next/dynamic";
 import { type ReactElement, useCallback, useDeferredValue, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { useAppNetwork } from "@/components/shell/network-context";
+import { Badge } from "@/components/ui/badge";
 import {
   type MemecoinRow,
   type MemecoinSort,
@@ -29,6 +32,7 @@ const SpotTradeDialog = dynamic(() => import("./spot-trade-dialog").then((module
  * dialog; the rest link to their Squint report.
  */
 export function MemecoinsScreen(): ReactElement {
+  const appNetwork = useAppNetwork();
   const [sort, setSort] = useState<MemecoinSort>("mcap"),
     [search, setSearch] = useState(""),
     [limit, setLimit] = useState(MARKET_PAGE_SIZE),
@@ -62,15 +66,25 @@ export function MemecoinsScreen(): ReactElement {
     [coins.data, listed, needle],
   );
 
-  const trade = useCallback((coin: MemecoinRow): void => {
-    if (coin.asset) {
-      setTarget(coin.asset);
-    }
-  }, []);
+  const trade = useCallback(
+    (coin: MemecoinRow): void => {
+      if (appNetwork === "testnet") {
+        toast.info("Mainnet only. Switch to Mainnet to trade.");
+        return;
+      }
+      if (coin.asset) {
+        setTarget(coin.asset);
+      }
+    },
+    [appNetwork],
+  );
 
   return (
     <div className="flex min-w-0 flex-col gap-8">
-      <h1 className="font-display text-page-title">Memecoins</h1>
+      <header className="flex items-center gap-3">
+        <h1 className="font-display text-page-title">Memecoins</h1>
+        {appNetwork === "testnet" ? <Badge tone="neutral">Mainnet only</Badge> : null}
+      </header>
       <section aria-labelledby="memecoins" className="flex min-w-0 flex-col gap-3">
         <h2 id="memecoins" className="sr-only">
           Memecoins

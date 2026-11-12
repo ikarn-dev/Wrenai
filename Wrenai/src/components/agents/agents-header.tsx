@@ -11,7 +11,7 @@ export const LIVE_COUNT_PLACEHOLDER = (
 );
 
 /** The Agents page title and actions. Needs no data, so the loading screen renders the same header. */
-export function AgentsHeader(): ReactElement {
+export function AgentsHeader({ testnet = false }: { readonly testnet?: boolean }): ReactElement {
   return (
     <header className="flex flex-wrap items-center justify-between gap-4">
       <h1 className="font-display text-page-title">Agents</h1>
@@ -19,7 +19,7 @@ export function AgentsHeader(): ReactElement {
         <AgentsInfo />
         <RefreshPortfolioButton />
         <CreateAgentLink
-          href={`/agents?create=${ANY_AGENT_TYPE}`}
+          href={testnet ? `/testnet/agents?create=${ANY_AGENT_TYPE}` : `/agents?create=${ANY_AGENT_TYPE}`}
           className="inline-flex h-9 items-center gap-1.5 rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-[background-color,scale] duration-200 ease-ios hover:bg-accent-text active:scale-97 motion-reduce:active:scale-100 pointer-coarse:h-11"
         >
           <Plus size={15} strokeWidth={2} absoluteStrokeWidth aria-hidden="true" />

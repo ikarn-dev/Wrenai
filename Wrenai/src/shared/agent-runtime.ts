@@ -21,6 +21,8 @@ export const agentRuntimeStatusSchema = z.strictObject({
       nextCheckAt: z.number().int(),
     })
     .nullable(),
+  /** Orders the reviewed instruction has completed; null when the strategy doesn't count them. */
+  runs: z.number().int().nonnegative().nullable(),
   pending: z
     .array(
       z.strictObject({

@@ -4,10 +4,12 @@ import { BookOpen, ChevronsLeft, ChevronsRight } from "lucide-react";
 import Link from "next/link";
 import { Tooltip } from "radix-ui";
 import { memo, type ReactElement, useId, useMemo } from "react";
+import { networkRoute } from "@/shared/app-routes";
 import { SIDEBAR_COOKIE } from "@/shared/sidebar";
 import { Brand } from "./brand";
 import { NAV_ITEMS, type NavItem } from "./nav-items";
 import { NavigationItems, NavigationTooltip } from "./navigation-items";
+import { useAppNetwork } from "./network-context";
 
 const MAIN_ITEMS = NAV_ITEMS.filter((item) => item.group === "main");
 const MARKET_ITEMS = NAV_ITEMS.filter((item) => item.group === "markets");
@@ -85,6 +87,7 @@ interface SidebarProps {
 
 /** Route subscribers live in NavigationItems; the frame only updates when its width changes. */
 function SidebarView({ collapsed, onCollapsedChange, docsUrl }: SidebarProps): ReactElement {
+  const network = useAppNetwork();
   const navigationId = useId();
   const settingsItems = useMemo(
     (): readonly NavItem[] => [
@@ -114,7 +117,7 @@ function SidebarView({ collapsed, onCollapsedChange, docsUrl }: SidebarProps): R
         >
           <div className="relative flex h-10 w-full shrink-0 items-center pointer-coarse:h-11">
             <Link
-              href="/portfolio"
+              href={networkRoute(network, "/portfolio")}
               className="flex h-10 min-w-0 flex-1 items-center overflow-hidden rounded-sm px-1.5 pointer-coarse:min-h-11"
             >
               <Brand size="md" markOnly={collapsed} />

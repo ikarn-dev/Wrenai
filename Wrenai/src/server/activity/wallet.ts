@@ -11,6 +11,11 @@ import {
 import { MAX_TOKEN_UNITS, tokenUnitsSchema } from "@/shared/token-units";
 
 const endpoints = { transactions: "txns", tokens: "ft-txns", nfts: "nft-txns", intents: "mt-txns" } as const;
+// NearBlocks runs one API per network, with the same paths and response shapes.
+const INDEXERS = {
+  mainnet: "https://api.nearblocks.io",
+  testnet: "https://api-testnet.nearblocks.io",
+} as const;
 const account = z
   .string()
   .min(2)
@@ -183,11 +188,10 @@ export async function walletActivityPage(
   position: WalletActivityPosition,
   snapshotAt: number,
   signal?: AbortSignal,
+  network: "mainnet" | "testnet" = "mainnet",
 ): Promise<WalletActivityPage> {
   account.parse(owner);
-  const url = new URL(
-    `https://api.nearblocks.io/v3/accounts/${encodeURIComponent(owner)}/${endpoints[stream]}`,
-  );
+  const url = new URL(`${INDEXERS[network]}/v3/accounts/${encodeURIComponent(owner)}/${endpoints[stream]}`);
   url.searchParams.set("limit", String(ACTIVITY_PAGE_SIZE));
   url.searchParams.set("before_ts", (BigInt(snapshotAt) * 1_000_000n).toString());
   if (position.next !== null) {
@@ -197,7 +201,8 @@ export async function walletActivityPage(
   const response = await marketJson("NearBlocks wallet history", url.toString(), {
     cacheMs: 30_000,
     ...(signal ? { signal } : {}),
-    ...(NEARBLOCKS_API_KEY
+    // The API key belongs to the mainnet account; testnet history is read on the keyless public tier.
+    ...(NEARBLOCKS_API_KEY && network === "mainnet"
       ? {
           headers: {
             Authorization: `Bearer ${z.string().trim().min(1).max(8000).parse(NEARBLOCKS_API_KEY)}`,

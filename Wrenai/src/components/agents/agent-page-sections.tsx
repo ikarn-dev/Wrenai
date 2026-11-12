@@ -18,15 +18,29 @@ import { StrategySummary } from "./strategy-summary";
 
 const BLOCK = "block rounded-xs bg-surface-2 motion-safe:animate-pulse";
 
-function timestamp(value: number): string {
-  return new Date(value).toISOString().slice(0, 16).replace("T", " ");
+// Compact rows in one card, divided by lines, with the time right-aligned (Docs/DESIGN.md → Cards → Nesting).
+const ROWS = "card-shine flex flex-col divide-y divide-line-card rounded-lg";
+const ROW = "flex items-baseline gap-4 px-card py-3";
+
+function Time({ at }: { readonly at: number }): ReactElement {
+  const iso = new Date(at).toISOString();
+  return (
+    <time dateTime={iso} className="shrink-0 font-mono text-caption whitespace-nowrap text-fg-subtle">
+      {iso.slice(0, 16).replace("T", " ")} UTC
+    </time>
+  );
 }
 
 export function RuntimeSkeleton(): ReactElement {
   return (
-    <div role="status" aria-label="Loading agent status" className="flex flex-col gap-3">
+    // The toolbar's shape: status and reason left, actions right.
+    <div
+      role="status"
+      aria-label="Loading agent status"
+      className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-y border-line-subtle py-3"
+    >
       <span aria-hidden="true" className={`${BLOCK} h-6 w-64`} />
-      <span aria-hidden="true" className={`${BLOCK} h-10 w-48`} />
+      <span aria-hidden="true" className={`${BLOCK} h-8 w-56`} />
     </div>
   );
 }
@@ -137,39 +151,33 @@ export async function HistorySection({
   const history = await agentHistory(ownerId, agentId);
   return (
     <div className="grid min-w-0 gap-stack xl:grid-cols-2">
-      <PortfolioPanel id="versions" title="Strategy versions">
-        <ol className="flex flex-col gap-5">
+      <section aria-labelledby="versions-heading" className="flex min-w-0 flex-col gap-3">
+        <h2 id="versions-heading" className="text-h2 font-medium">
+          Strategy versions
+        </h2>
+        <ol className={ROWS}>
           {history.versions.map((version) => (
-            <li key={version.id} className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-small font-medium">Version {version.version}</h3>
-                <time
-                  dateTime={new Date(version.createdAt).toISOString()}
-                  className="font-mono text-caption text-fg-subtle"
-                >
-                  {timestamp(version.createdAt)} UTC
-                </time>
-              </div>
-              <p className="text-small leading-relaxed text-fg-muted">{version.strategyText}</p>
+            <li key={version.id} className={ROW}>
+              <span className="w-16 shrink-0 font-mono text-small text-fg-strong">v{version.version}</span>
+              <p className="min-w-0 flex-1 text-small text-fg-muted">{version.strategyText}</p>
+              <Time at={version.createdAt} />
             </li>
           ))}
         </ol>
-      </PortfolioPanel>
-      <PortfolioPanel id="history" title="Agent history">
-        <ol className="flex flex-col gap-5">
+      </section>
+      <section aria-labelledby="events-heading" className="flex min-w-0 flex-col gap-3">
+        <h2 id="events-heading" className="text-h2 font-medium">
+          Agent history
+        </h2>
+        <ol className={ROWS}>
           {history.events.map((event) => (
-            <li key={event.id} className="flex flex-col gap-1">
-              <p className="text-small text-fg">{event.message}</p>
-              <time
-                dateTime={new Date(event.createdAt).toISOString()}
-                className="font-mono text-caption text-fg-subtle"
-              >
-                {timestamp(event.createdAt)} UTC
-              </time>
+            <li key={event.id} className={ROW}>
+              <p className="min-w-0 flex-1 text-small text-fg">{event.message}</p>
+              <Time at={event.createdAt} />
             </li>
           ))}
         </ol>
-      </PortfolioPanel>
+      </section>
     </div>
   );
 }

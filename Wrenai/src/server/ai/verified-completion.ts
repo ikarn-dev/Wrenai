@@ -164,25 +164,112 @@ export function canRotateKey(error: unknown): boolean {
   );
 }
 
-async function tryModels(request: CompletionRequest, signal: AbortSignal): Promise<VerifiedCompletion> {
-  const apiKeys = keys();
-  for (const model of APPROVED_MODELS) {
-    for (const key of apiKeys) {
-      signal.throwIfAborted();
-      try {
-        return await completeWithClient(key, model, request, signal);
-      } catch (error) {
-        if (signal.aborted || error instanceof InferenceError) {
-          throw error;
-        }
-        if (canRotateKey(error)) {
-          continue;
-        }
-        throw inferenceFailure(error, "request");
+/** Every configured key for one model was rate limited or rejected: the next approved model may answer. */
+class ModelUnavailable extends InferenceError {
+  constructor() {
+    super("unavailable", "The attested models are unavailable or rate limited. Try later.");
+  }
+}
+
+async function attemptModel(
+  model: (typeof APPROVED_MODELS)[number],
+  request: CompletionRequest,
+  signal: AbortSignal,
+): Promise<VerifiedCompletion> {
+  for (const key of keys()) {
+    signal.throwIfAborted();
+    try {
+      return await completeWithClient(key, model, request, signal);
+    } catch (error) {
+      if (signal.aborted || error instanceof InferenceError) {
+        throw error;
       }
+      if (canRotateKey(error)) {
+        continue;
+      }
+      throw inferenceFailure(error, "request");
     }
   }
-  throw new InferenceError("unavailable", "The attested models are unavailable or rate limited. Try later.");
+  throw new ModelUnavailable();
+}
+
+/**
+ * How long one model may run before the next approved model is asked as well. A slow attempt keeps running; the
+ * first verified answer wins and the others are aborted. Measured answers usually arrive in 5–15 s; slow ones used to
+ * hold a request for over a minute or time out.
+ */
+export const HEDGE_AFTER_MS = 20_000;
+
+/**
+ * The approved models in their set order, hedged against slowness. A model whose keys are all exhausted hands over
+ * to the next at once. A failed verification or receipt lookup ends everything without starting another answer,
+ * though an attempt already running for latency may still win.
+ */
+function tryModels(request: CompletionRequest, signal: AbortSignal): Promise<VerifiedCompletion> {
+  return new Promise<VerifiedCompletion>((resolve, reject) => {
+    const attempts: AbortController[] = [];
+    let next = 0,
+      running = 0,
+      settled = false,
+      lastError: unknown = new ModelUnavailable(),
+      timer: ReturnType<typeof setTimeout> | undefined;
+    const finish = (settle: () => void): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      for (const attempt of attempts) {
+        attempt.abort();
+      }
+      settle();
+    };
+    const launch = (): void => {
+      const model = APPROVED_MODELS[next];
+      if (settled || model === undefined || signal.aborted) {
+        return;
+      }
+      next += 1;
+      running += 1;
+      const attempt = new AbortController();
+      attempts.push(attempt);
+      clearTimeout(timer);
+      timer = setTimeout(launch, HEDGE_AFTER_MS);
+      attemptModel(model, request, AbortSignal.any([signal, attempt.signal])).then(
+        (result) => finish(() => resolve(result)),
+        (error: unknown) => {
+          running -= 1;
+          if (settled) {
+            return;
+          }
+          if (error instanceof ModelUnavailable) {
+            lastError = error;
+            if (next < APPROVED_MODELS.length) {
+              launch();
+              return;
+            }
+          } else if (
+            signal.aborted ||
+            running === 0 ||
+            (error instanceof InferenceError && error.code === "verification_failed")
+          ) {
+            // A rejected attestation or signature ends every attempt: no unverified or substitute answer.
+            finish(() => reject(error));
+            return;
+          } else {
+            // Another attempt is already answering; never start a new one because this one failed.
+            lastError = error;
+            clearTimeout(timer);
+            return;
+          }
+          if (running === 0) {
+            finish(() => reject(lastError));
+          }
+        },
+      );
+    };
+    launch();
+  });
 }
 
 /** Buffers the complete answer until its model-specific signature is verified. Never returns unverified text. */

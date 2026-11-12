@@ -2,15 +2,21 @@ import { Circle, CircleAlert, CircleCheck, LoaderCircle } from "lucide-react";
 import { m } from "motion/react";
 import type { ReactElement, ReactNode } from "react";
 import type { StrategyDraft } from "@/shared/agents";
+import { useNow } from "./live-view";
 
 /** The create dialog's state. Each timeline step reads its status from this, so no step can show progress the
  * app hasn't observed. */
 export type DeployPhase =
   | { readonly step: "setup" }
-  | { readonly step: "verifying" }
+  | { readonly step: "verifying"; readonly since: number }
   | { readonly step: "verify_failed"; readonly message: string }
   | { readonly step: "review"; readonly draft: StrategyDraft; readonly verifyMs: number }
-  | { readonly step: "saving"; readonly draft: StrategyDraft; readonly verifyMs: number }
+  | {
+      readonly step: "saving";
+      readonly draft: StrategyDraft;
+      readonly verifyMs: number;
+      readonly since: number;
+    }
   | {
       readonly step: "save_failed";
       readonly draft: StrategyDraft;
@@ -26,19 +32,23 @@ export type DeployPhase =
       readonly revision: number;
     };
 
-type StepStatus = "pending" | "active" | "done" | "failed";
+export type StepStatus = "pending" | "active" | "done" | "failed";
 
-interface TimelineStep {
+/** One step of a setup timeline. Errors are not shown here: the caller raises them as a toast. */
+export interface TimelineStep {
   readonly id: string;
+  /** One word for the stepper; `title` heads the step's panel. */
+  readonly label: string;
   readonly title: string;
   readonly status: StepStatus;
   readonly detail: ReactNode;
   readonly durationMs?: number;
-  readonly error?: string;
+  /** When an active step started, for its live timer. */
+  readonly since?: number;
   readonly body?: ReactNode;
 }
 
-const ICON = { size: 20, strokeWidth: 1.75, absoluteStrokeWidth: true, "aria-hidden": true } as const;
+const ICON = { size: 14, strokeWidth: 1.75, absoluteStrokeWidth: true, "aria-hidden": true } as const;
 
 const STATUS_WORD: Readonly<Record<StepStatus, string>> = {
   pending: "Not started",
@@ -69,14 +79,19 @@ function seconds(ms: number): string {
 }
 
 function verifyStep(phase: DeployPhase): TimelineStep {
-  const base = { id: "verify", title: "Verify strategy" } as const;
+  const base = { id: "verify", label: "Verify", title: "Verify strategy" } as const;
   switch (phase.step) {
     case "setup":
       return { ...base, status: "pending", detail: "Verified AI turns your text into rules." };
     case "verifying":
-      return { ...base, status: "active", detail: "Reading your strategy with verified AI…" };
+      return {
+        ...base,
+        status: "active",
+        detail: "Checking the model's attestation, then reading your rules. Usually 10–40 s.",
+        since: phase.since,
+      };
     case "verify_failed":
-      return { ...base, status: "failed", detail: "The strategy was not verified.", error: phase.message };
+      return { ...base, status: "failed", detail: "Not verified. Edit the setup or retry." };
     default:
       return {
         ...base,
@@ -88,7 +103,7 @@ function verifyStep(phase: DeployPhase): TimelineStep {
 }
 
 function reviewStep(phase: DeployPhase, review: ReactNode): TimelineStep {
-  const base = { id: "review", title: "Review the rules" } as const;
+  const base = { id: "review", label: "Review", title: "Review the rules" } as const;
   switch (phase.step) {
     case "setup":
     case "verifying":
@@ -102,12 +117,16 @@ function reviewStep(phase: DeployPhase, review: ReactNode): TimelineStep {
 }
 
 function saveStep(phase: DeployPhase, budgeted: boolean): TimelineStep {
-  const base = { id: "save", title: budgeted ? "Reserve the budget" : "Save the agent" } as const;
+  const base = {
+    id: "save",
+    label: budgeted ? "Reserve" : "Save",
+    title: budgeted ? "Reserve the budget" : "Save the agent",
+  } as const;
   switch (phase.step) {
     case "saving":
-      return { ...base, status: "active", detail: "Saving the agent…" };
+      return { ...base, status: "active", detail: "Saving the agent…", since: phase.since };
     case "save_failed":
-      return { ...base, status: "failed", detail: "The agent was not saved.", error: phase.message };
+      return { ...base, status: "failed", detail: "Not saved. Retry uses the same request." };
     case "done":
       return {
         ...base,
@@ -142,6 +161,7 @@ export function DeployTimeline({
     phase.step === "done"
       ? {
           id: "start",
+          label: "Start",
           title: "Add funds and deploy",
           status: "active",
           detail: "One wallet approval moves the budget to the agent. Deploy starts it.",
@@ -149,72 +169,110 @@ export function DeployTimeline({
         }
       : {
           id: "start",
+          label: "Start",
           title: "Add funds and deploy",
           status: "pending",
           detail: "One wallet approval moves the budget in. Then Deploy starts the agent.",
         },
   ];
-  const current = steps.find((step) => step.status === "active" || step.status === "failed");
+  return <SetupTimeline steps={steps} />;
+}
+
+function elapsed(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** The step the panel shows: the one running or failed, otherwise the last one finished. */
+function focusStep(steps: readonly TimelineStep[]): TimelineStep | undefined {
   return (
-    <>
+    steps.find((step) => step.status === "active" || step.status === "failed") ??
+    steps.findLast((step) => step.status === "done")
+  );
+}
+
+/**
+ * Setup progress as a compact stepper with one panel for the step in focus: numbered dots joined by a line that
+ * fills as steps finish, then the current step's state, live timer and content. Errors come as toasts, so a failed
+ * step only says what to do next. Shared by both networks.
+ */
+export function SetupTimeline({ steps }: { readonly steps: readonly TimelineStep[] }): ReactElement {
+  const focus = focusStep(steps);
+  const now = useNow(focus?.status === "active" && focus.since !== undefined);
+  return (
+    <div className="flex flex-col gap-4">
       <p role="status" className="sr-only">
-        {current ? `${current.title}: ${STATUS_WORD[current.status]}` : ""}
+        {focus ? `${focus.title}: ${STATUS_WORD[focus.status]}` : ""}
       </p>
-      <ol aria-label="Deploy progress" className="flex flex-col">
-        {steps.map((step, index) => {
-          const last = index === steps.length - 1;
-          return (
-            <li key={step.id} className="flex gap-3">
-              <div className="flex w-5 shrink-0 flex-col items-center">
-                <StepIcon status={step.status} />
-                {last ? null : (
-                  <span
-                    aria-hidden="true"
-                    className={`my-1.5 w-px flex-1 transition-colors duration-300 ease-ios ${step.status === "done" ? "bg-accent-line" : "bg-line-card"}`}
-                  />
-                )}
-              </div>
-              <div className={`flex min-w-0 flex-1 flex-col gap-1 ${last ? "" : "pb-6"}`}>
-                <div className="flex items-baseline justify-between gap-3">
-                  <h3
-                    className={`text-body font-medium ${step.status === "pending" ? "text-fg-muted" : "text-fg-strong"}`}
-                  >
-                    {step.title}
-                    <span className="sr-only">: {STATUS_WORD[step.status]}</span>
-                  </h3>
-                  {step.durationMs === undefined ? null : (
-                    <span className="font-mono text-caption tabular-nums text-fg-subtle">
-                      {seconds(step.durationMs)}
-                    </span>
-                  )}
-                </div>
-                <p className="text-small text-fg-muted">{step.detail}</p>
-                {step.error ? (
-                  <m.p
-                    role="alert"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                    className="mt-2 rounded-sm bg-loss-soft p-3 text-small text-loss"
-                  >
-                    {step.error}
-                  </m.p>
-                ) : null}
-                {step.body ? (
-                  <m.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.24, ease: "easeOut" }}
-                    className="mt-3"
-                  >
-                    {step.body}
-                  </m.div>
-                ) : null}
-              </div>
-            </li>
-          );
-        })}
+      <ol aria-label="Deploy progress" className="flex items-center">
+        {steps.map((step, index) => (
+          <li key={step.id} className={`flex min-w-0 items-center ${index === 0 ? "" : "flex-1"}`}>
+            {index === 0 ? null : (
+              <span
+                aria-hidden="true"
+                className="relative mx-2 h-px min-w-4 flex-1 overflow-hidden bg-line-card"
+              >
+                <span
+                  className={`absolute inset-0 origin-left bg-accent-line transition-transform duration-500 ease-ios ${
+                    steps[index - 1]?.status === "done" ? "scale-x-100" : "scale-x-0"
+                  }`}
+                />
+              </span>
+            )}
+            <span
+              aria-current={step === focus ? "step" : undefined}
+              className={`inline-flex shrink-0 items-center gap-1.5 text-caption ${
+                step.status === "failed"
+                  ? "text-loss"
+                  : step.status === "pending"
+                    ? "text-fg-subtle"
+                    : "text-fg-strong"
+              }`}
+            >
+              <StepIcon status={step.status} />
+              <span className={step === focus ? "font-medium" : ""}>{step.label}</span>
+              <span className="sr-only">: {STATUS_WORD[step.status]}</span>
+            </span>
+          </li>
+        ))}
       </ol>
-    </>
+      {focus ? (
+        <m.section
+          key={`${focus.id}:${focus.status}`}
+          aria-label={focus.title}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.22, ease: "easeOut" }}
+          className="flex flex-col gap-3 rounded-md bg-sunken p-4"
+        >
+          <div className="flex items-baseline justify-between gap-3">
+            <p
+              className={`text-small font-medium ${focus.status === "failed" ? "text-loss" : "text-fg-strong"}`}
+            >
+              {focus.title}
+            </p>
+            {focus.status === "active" && focus.since !== undefined ? (
+              <span className="font-mono text-caption tabular-nums text-fg-subtle" suppressHydrationWarning>
+                {elapsed(now - focus.since)}
+              </span>
+            ) : focus.durationMs === undefined ? null : (
+              <span className="font-mono text-caption tabular-nums text-fg-subtle">
+                {seconds(focus.durationMs)}
+              </span>
+            )}
+          </div>
+          <p className="text-caption text-fg-muted">{focus.detail}</p>
+          {focus.status === "active" && focus.since !== undefined ? (
+            <span
+              aria-hidden="true"
+              className="relative block h-0.5 overflow-hidden rounded-full bg-surface-2"
+            >
+              <span className="live-travel absolute inset-y-0 left-0 w-1/3 rounded-full bg-accent" />
+            </span>
+          ) : null}
+          {focus.body ?? null}
+        </m.section>
+      ) : null}
+    </div>
   );
 }

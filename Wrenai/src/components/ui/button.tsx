@@ -4,7 +4,7 @@ import type { ComponentPropsWithoutRef, MouseEvent, ReactNode } from "react";
 type RaisedVariant = "primary" | "soft" | "danger";
 type FlatVariant = "secondary" | "ghost" | "destructive";
 type ButtonVariant = RaisedVariant | FlatVariant;
-type ButtonSize = "md" | "lg";
+type ButtonSize = "sm" | "md" | "lg";
 
 // Docs/DESIGN.md → Components → Buttons. Hover styles apply only on hover-capable devices (Tailwind v4 default).
 // Tailwind v4 resets buttons to the default cursor, so the pointer is set here.
@@ -17,6 +17,8 @@ const SHARED =
 const ROW = "relative items-center justify-center gap-2";
 
 const SIZES: Readonly<Record<ButtonSize, { readonly box: string; readonly text: string }>> = {
+  // Compact controls in a toolbar row beside a status badge; touch keeps the 44 px target.
+  sm: { box: "h-8 gap-1.5 px-3 pointer-coarse:h-11", text: "text-small" },
   md: { box: "h-10 px-4 pointer-coarse:h-11", text: "text-body" },
   // Page-level calls to action, such as sign-in.
   lg: { box: "h-12 px-5", text: "text-lead" },
@@ -66,7 +68,7 @@ function ButtonFace({ size, children }: ButtonFaceProps) {
  * While busy the label keeps its space but hides, and a spinner takes its place, so the button never changes width.
  * The label stays in the accessibility tree through the sr-only copy.
  */
-function BusyContent({ children }: { readonly children: ReactNode }) {
+function BusyContent({ size, children }: { readonly size: ButtonSize; readonly children: ReactNode }) {
   return (
     <>
       <span aria-hidden="true" className="invisible inline-flex items-center gap-2">
@@ -75,7 +77,7 @@ function BusyContent({ children }: { readonly children: ReactNode }) {
       <span className="sr-only">{children}</span>
       <LoaderCircle
         aria-hidden="true"
-        size={18}
+        size={size === "sm" ? 14 : 18}
         strokeWidth={1.75}
         absoluteStrokeWidth
         className="absolute motion-safe:animate-spin"
@@ -106,7 +108,7 @@ export function Button({
   onClick,
   ...props
 }: ButtonProps) {
-  const content = busy ? <BusyContent>{children}</BusyContent> : children;
+  const content = busy ? <BusyContent size={size}>{children}</BusyContent> : children;
   return (
     <button
       type={type}

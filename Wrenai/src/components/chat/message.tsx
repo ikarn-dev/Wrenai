@@ -31,6 +31,7 @@ interface PendingReply {
 }
 
 interface ChatMessageProps {
+  readonly replyContent?: ReactNode;
   readonly turn: ChatTurn;
   readonly last: boolean;
   readonly busy: boolean;
@@ -161,16 +162,15 @@ export const ChatMessage = memo(function ChatMessage({
   busy,
   onRetry,
   pendingReply,
+  replyContent,
 }: ChatMessageProps): ReactElement {
   const reply = turn.reply;
   const pending = turn.state === "pending" ? pendingReply : null;
   return (
     <article className="flex flex-col gap-5" aria-label={`Message ${turn.sequence}`}>
       <UserMessage text={turn.message} />
-      {reply ? (
-        <JarvisRow>
-          <ReplyBody reply={reply} />
-        </JarvisRow>
+      {reply || replyContent ? (
+        <JarvisRow>{replyContent ?? (reply ? <ReplyBody reply={reply} /> : null)}</JarvisRow>
       ) : pending ? (
         <JarvisRow>
           {pending.content ? <ChatMarkdown content={pending.content} /> : null}

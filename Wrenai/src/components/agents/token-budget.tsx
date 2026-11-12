@@ -2,6 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { type ReactElement, useId, useState } from "react";
+import type { z } from "zod";
 import { readTrading } from "@/components/trading/trading-api";
 import {
   type AgentBudgetInput,
@@ -14,6 +15,38 @@ import { shortTokenAmount } from "@/shared/money";
 import { middleTruncate } from "@/shared/truncate";
 import { WALLET_SWAP_INPUT, WALLET_SWAP_NATIVE_OUTPUT } from "@/shared/wallet-swap";
 import { INPUT_CLASS, Select } from "./policy-fields";
+
+type BudgetToken = z.infer<typeof walletBudgetViewSchema>["tokens"][number];
+
+/** The name a wallet token shows by: native NEAR and wNEAR are told apart. */
+export function budgetTokenSymbol(token: Pick<BudgetToken, "assetId" | "symbol">): string {
+  return token.assetId === WALLET_SWAP_NATIVE_OUTPUT
+    ? "NEAR"
+    : token.assetId === WALLET_SWAP_INPUT
+      ? "wNEAR"
+      : token.symbol;
+}
+
+/**
+ * The wallet's budget tokens with what other budgets already reserve. One shared query, so the create dialog can read
+ * the same list to set a budget from the instructions without a second wallet read.
+ */
+export function useWalletBudget(excludeId?: string, extra?: string) {
+  return useQuery({
+    queryKey: ["wallet-budget", excludeId ?? null, extra ?? null],
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams({
+        ...(excludeId ? { excludeId } : {}),
+        ...(extra ? { assetId: extra } : {}),
+      });
+      return readTrading(`/api/agents/budget?${params}`, walletBudgetViewSchema, signal);
+    },
+    staleTime: 0,
+    gcTime: 30_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+}
 
 interface TokenBudgetProps {
   readonly label?: string;
@@ -42,30 +75,13 @@ export function TokenBudget({
   const id = useId();
   const [contract, setContract] = useState("");
   const [adding, setAdding] = useState(false);
+  // A budget set from the instructions may name a token the default list doesn't include; look it up too.
   const [extra, setExtra] = useState<string | undefined>(value?.assetId);
   const [lookupError, setLookupError] = useState<string | null>(null);
-  const query = useQuery({
-    queryKey: ["wallet-budget", id, excludeId ?? null, extra ?? null],
-    queryFn: ({ signal }) => {
-      const params = new URLSearchParams({
-        ...(excludeId ? { excludeId } : {}),
-        ...(extra ? { assetId: extra } : {}),
-      });
-      return readTrading(`/api/agents/budget?${params}`, walletBudgetViewSchema, signal);
-    },
-    staleTime: 0,
-    gcTime: 0,
-    retry: false,
-    refetchOnWindowFocus: false,
-  });
+  const query = useWalletBudget(excludeId, extra);
   const tokens = query.data?.tokens ?? [];
   const selected = tokens.find((token) => token.assetId === value?.assetId);
-  const symbol = (token: (typeof tokens)[number]): string =>
-    token.assetId === WALLET_SWAP_NATIVE_OUTPUT
-      ? "NEAR"
-      : token.assetId === WALLET_SWAP_INPUT
-        ? "wNEAR"
-        : token.symbol;
+  const symbol = budgetTokenSymbol;
 
   function lookup(): void {
     const parsed = nearAccountSchema.safeParse(contract.trim());
@@ -150,7 +166,7 @@ export function TokenBudget({
           })}
         </Select>
         {value ? (
-          <span className="relative w-40 shrink-0">
+          <span className="relative w-36 shrink-0">
             <input
               aria-label={`Amount${selected ? ` in ${symbol(selected)}` : ""}`}
               type="text"
@@ -225,7 +241,7 @@ export function TokenBudget({
               type="button"
               onClick={lookup}
               disabled={query.isFetching}
-              className="h-10 shrink-0 cursor-pointer rounded-sm border border-line bg-surface-3 px-3 text-small font-medium text-fg-strong transition-colors duration-200 ease-ios hover:bg-surface-4 disabled:cursor-not-allowed disabled:text-fg-disabled pointer-coarse:h-11"
+              className="h-9 shrink-0 cursor-pointer rounded-sm bg-surface-3 px-3 text-small font-medium text-fg-strong transition-colors duration-200 ease-ios hover:bg-surface-4 disabled:cursor-not-allowed disabled:text-fg-disabled pointer-coarse:h-11"
             >
               Check
             </button>

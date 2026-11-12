@@ -1,10 +1,8 @@
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { z } from "zod";
 import { AgentAdvancedOptions } from "@/components/agents/advanced-options";
-import { AgentTypeBadge } from "@/components/agents/agent-card";
+import { AgentPageHeader } from "@/components/agents/agent-header";
 import {
   HistorySection,
   PerpsSection,
@@ -13,8 +11,8 @@ import {
   StrategySection,
   StrategySkeleton,
 } from "@/components/agents/agent-page-sections";
+import { AgentPerformance } from "@/components/agents/agent-performance";
 import { AgentAllocations } from "@/components/agents/allocations";
-import { AgentAvatar } from "@/components/agents/avatar";
 import { PolicySummary } from "@/components/agents/strategy-summary";
 import { AgentTradePreview } from "@/components/agents/trade-preview";
 import { PortfolioPanel } from "@/components/portfolio/panel";
@@ -56,23 +54,16 @@ export default async function AgentPage({
   const executionAvailable = deployedRuntimeReady(publicRhea);
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <Link
-        href="/agents"
-        className="inline-flex w-fit items-center gap-2 rounded-sm text-small text-fg-muted hover:text-fg-strong"
-      >
-        <ArrowLeft aria-hidden="true" size={16} />
-        All agents
-      </Link>
-      <header className="flex items-center gap-3">
-        <AgentAvatar running={agent.status === "running"} size={36} />
-        <div className="flex min-w-0 flex-col items-start gap-1.5">
-          <h1 className="max-w-full truncate text-h1">{agent.name}</h1>
-          <AgentTypeBadge pack={agent.pack} />
-        </div>
-      </header>
+      <AgentPageHeader
+        name={agent.name}
+        pack={agent.pack}
+        running={agent.status === "running"}
+        backHref="/agents"
+      />
       <Suspense fallback={<RuntimeSkeleton />}>
         <RuntimeSection agent={agent} ownerId={user.id} executionAvailable={executionAvailable} />
       </Suspense>
+      <AgentPerformance agentId={agent.id} ownerId={user.id} />
       {agent.pack === "meme_hunter" ? (
         <p className="rounded-sm border border-line bg-surface-2 p-3 text-small text-fg-muted">
           Scans new listings with{" "}

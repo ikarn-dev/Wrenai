@@ -90,7 +90,7 @@ function WalletPlaceholder({ label }: { readonly label: string }): ReactElement 
   );
 }
 
-function WalletValueLayout({
+export function WalletValueLayout({
   usd,
   near,
   detail = "",

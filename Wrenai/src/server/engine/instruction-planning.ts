@@ -18,6 +18,7 @@ import { unreservedOwnedUnits } from "@/server/positions/lots";
 import { activeTradingAccount } from "@/server/trading-accounts/vault";
 import { publicRoutePool, usesPublicRoute } from "@/shared/agent-instructions";
 import { policySchema } from "@/shared/agents";
+import { dcaWaitSeconds } from "./dca-schedule";
 import { instructionPrice } from "./instruction-price";
 import { applyInstructionReceipt } from "./instruction-receipt";
 import { initialInstructionState, instructionStateSchema } from "./instruction-state";
@@ -62,7 +63,9 @@ export async function planSpotInstruction(
     previous,
   );
   const state = initialSpotState(instruction, receipt ?? previous);
-  const intervalSeconds = instruction.kind === "dca" ? 60 : 5;
+  // DCA wakes at its next schedule slot (at most a minute away), so slots run on time instead of up to a polling
+  // interval late; price rules keep the five-second market cadence.
+  const intervalSeconds = instruction.kind === "dca" ? dcaWaitSeconds(instruction.schedule, Date.now()) : 5;
   if (receipt || state.phase === "completed") {
     return {
       signal: null,

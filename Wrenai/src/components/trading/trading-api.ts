@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { TradingResult } from "@/shared/manual-trading";
+import { testnetMarketRead } from "@/shared/testnet-markets";
 
 // The stable code lets callers tell signed-out, conflict and quote failures apart; older replies may omit it.
 const failureSchema = z.object({
@@ -11,8 +12,13 @@ const successSchema = z.object({ ok: z.literal(true), value: z.unknown() });
 const UNREADABLE = "Trading data couldn't be loaded. Check your connection and refresh.";
 
 async function body(path: string, signal: AbortSignal): Promise<unknown> {
+  const testnet = typeof window !== "undefined" && window.location.pathname.startsWith("/testnet");
+  const target = testnet ? testnetMarketRead(path) : path;
+  if (!target) {
+    throw new Error("This account feature is available on Mainnet only.");
+  }
   try {
-    const response = await fetch(path, {
+    const response = await fetch(target, {
       signal,
       cache: "no-store",
       headers: { Accept: "application/json" },
@@ -58,6 +64,13 @@ export async function postTrading<S extends z.ZodType>(
   input: unknown,
   schema: S,
 ): Promise<TradingResult<z.output<S>>> {
+  if (typeof window !== "undefined" && window.location.pathname.startsWith("/testnet")) {
+    return {
+      ok: false,
+      code: "invalid_input",
+      message: "These markets are Mainnet only. Switch to Mainnet to trade.",
+    };
+  }
   let value: unknown;
   try {
     const response = await fetch(path, {

@@ -18,6 +18,7 @@ interface ComposerProps {
   readonly tool: ResearchTool | null;
   readonly onToolChange: (tool: ResearchTool | null) => void;
   readonly agentOffer: ReactNode;
+  readonly allowedTools?: readonly ResearchTool[] | undefined;
 }
 
 /** Memoized: its callbacks and agent offer are stable, so only typing and busy changes repaint it, not stream frames. */
@@ -33,6 +34,7 @@ export const ChatComposer = memo(function ChatComposer({
   tool,
   onToolChange,
   agentOffer,
+  allowedTools,
 }: ComposerProps): ReactElement {
   function keyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -73,7 +75,12 @@ export const ChatComposer = memo(function ChatComposer({
           style={{ fieldSizing: "content" }}
         />
         <div className="flex items-center justify-between gap-2">
-          <ChatToolPicker value={tool} disabled={disabled || busy} onChange={onToolChange} />
+          <ChatToolPicker
+            tools={allowedTools}
+            value={tool}
+            disabled={disabled || busy}
+            onChange={onToolChange}
+          />
           {busy ? (
             <button
               type="button"

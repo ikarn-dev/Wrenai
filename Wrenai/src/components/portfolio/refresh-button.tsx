@@ -5,6 +5,7 @@ import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Tooltip } from "radix-ui";
 import { type ReactElement, useTransition } from "react";
+import { useAppNetwork } from "@/components/shell/network-context";
 import { PORTFOLIO_WALLET_KEY } from "@/shared/portfolio-wallet";
 
 /**
@@ -13,6 +14,7 @@ import { PORTFOLIO_WALLET_KEY } from "@/shared/portfolio-wallet";
  * the icon still.
  */
 export function RefreshPortfolioButton(): ReactElement {
+  const network = useAppNetwork();
   const router = useRouter();
   const cache = useQueryClient();
   const [pending, startTransition] = useTransition();
@@ -29,7 +31,9 @@ export function RefreshPortfolioButton(): ReactElement {
                 startTransition(async () => {
                   router.refresh();
                   await Promise.all([
-                    cache.invalidateQueries({ queryKey: PORTFOLIO_WALLET_KEY }),
+                    cache.invalidateQueries({
+                      queryKey: network === "testnet" ? ["testnet"] : PORTFOLIO_WALLET_KEY,
+                    }),
                     cache.invalidateQueries({ queryKey: ["portfolio-insight"] }),
                   ]);
                 });

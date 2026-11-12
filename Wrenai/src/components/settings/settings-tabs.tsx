@@ -3,6 +3,7 @@
 import { KeyRound, type LucideIcon, ShieldCheck, UserRound } from "lucide-react";
 import { usePathname } from "next/navigation";
 import type { MouseEvent, ReactElement, ReactNode } from "react";
+import { useAppNetwork } from "@/components/shell/network-context";
 
 export type SettingsTabId = "account" | "trading" | "recovery";
 
@@ -42,7 +43,9 @@ export function SettingsTabs({
   readonly panels: Readonly<Record<SettingsTabId, ReactNode>>;
 }): ReactElement {
   const pathname = usePathname();
-  const active = TABS.find((tab) => tab.href === pathname)?.id ?? "account";
+  const network = useAppNetwork();
+  const path = network === "testnet" ? pathname.replace(/^\/testnet/, "") : pathname;
+  const active = TABS.find((tab) => tab.href === path)?.id ?? "account";
   return (
     <div className="flex min-w-0 flex-col gap-6 md:flex-row md:gap-10">
       <nav aria-label="Settings" className="min-w-0 md:sticky md:top-6 md:w-48 md:shrink-0 md:self-start">
@@ -53,8 +56,10 @@ export function SettingsTabs({
             return (
               <li key={tab.id} className="shrink-0">
                 <a
-                  href={tab.href}
-                  onClick={(event) => switchInPlace(event, tab.href)}
+                  href={network === "testnet" ? `/testnet${tab.href}` : tab.href}
+                  onClick={(event) =>
+                    switchInPlace(event, network === "testnet" ? `/testnet${tab.href}` : tab.href)
+                  }
                   aria-current={current ? "page" : undefined}
                   className={`flex h-9 items-center gap-2.5 rounded-sm px-3 text-body whitespace-nowrap transition-colors duration-200 ease-ios focus-visible:-outline-offset-2 pointer-coarse:h-11 ${current ? "nav-active text-accent-nav" : "text-fg-muted hover:bg-surface-2 hover:text-fg-strong"}`}
                 >

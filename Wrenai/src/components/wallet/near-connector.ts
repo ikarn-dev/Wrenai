@@ -8,7 +8,7 @@ import {
   wrongAccountNotice,
 } from "./notices";
 
-let connectorPromise: Promise<NearConnector> | undefined;
+const connectorPromises: Partial<Record<"mainnet" | "testnet", Promise<NearConnector>>> = {};
 
 // NEAR Connect runs each wallet's code in a sandboxed srcdoc iframe, which inherits this page's CSP, so its scripts
 // need the page's nonce. Next puts the nonce on its own script tags, and the property stays readable after the
@@ -18,25 +18,34 @@ function pageNonce(): string | undefined {
   return nonce === undefined || nonce.length === 0 ? undefined : nonce;
 }
 
-function connectorOptions(): NearConnectorOptions {
+function connectorOptions(network: "mainnet" | "testnet"): NearConnectorOptions {
   // Only wallets that can sign messages (sign-in) and send transactions (the agent key) are listed.
   const options: NearConnectorOptions = {
-    network: "mainnet",
-    features: { signMessage: true, signAndSendTransaction: true },
+    network,
+    features: {
+      signMessage: true,
+      signAndSendTransaction: true,
+      ...(network === "testnet" ? { testnet: true } : {}),
+    },
   };
   const nonce = pageNonce();
   return nonce === undefined ? options : { ...options, cspNonce: nonce };
 }
 
 /** Loaded on first use, so the wallet selector stays out of the initial bundle. */
-export function nearConnector(): Promise<NearConnector> {
-  connectorPromise ??= import("@hot-labs/near-connect")
-    .then(({ NearConnector: Connector }) => new Connector(connectorOptions()))
+export function nearConnector(network: "mainnet" | "testnet" = "mainnet"): Promise<NearConnector> {
+  const existing = connectorPromises[network];
+  if (existing) {
+    return existing;
+  }
+  const promise = import("@hot-labs/near-connect")
+    .then(({ NearConnector: Connector }) => new Connector(connectorOptions(network)))
     .catch((error: unknown) => {
-      connectorPromise = undefined;
+      delete connectorPromises[network];
       throw error;
     });
-  return connectorPromise;
+  connectorPromises[network] = promise;
+  return promise;
 }
 
 async function holdsAccount(wallet: NearWalletBase, accountId: string): Promise<boolean> {

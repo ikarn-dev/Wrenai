@@ -20,11 +20,11 @@ const sourceNames: Readonly<Record<WalletActivityStream, string>> = {
   intents: "Intents transfers",
 };
 
-function startCursor(ownerId: string, filter: ActivityFilter, now: number): ActivityCursor {
+function startCursor(ownerId: string, filter: ActivityFilter, now: number, wallet: boolean): ActivityCursor {
   const position = (): WalletActivityPosition => ({
     next: null,
     offset: 0,
-    done: filter === "agents",
+    done: filter === "agents" || !wallet,
     unavailable: false,
   });
   return {
@@ -48,9 +48,34 @@ function consumeWallet(
   return { next: page.next, offset: 0, done: page.next === null, unavailable: false };
 }
 
-/** Prefix consumption retains every source's ordering, including events sharing a millisecond. */
 export async function readActivityPage(
   db: AppDatabase,
+  owner: { readonly id: string; readonly accountId: string },
+  filter: ActivityFilter,
+  supplied: ActivityCursor | null,
+  now = Date.now(),
+): Promise<ActivityPage> {
+  return mergeActivityPage(
+    { app: (cursor) => appActivityPage(db, owner.id, cursor), network: "mainnet" },
+    owner,
+    filter,
+    supplied,
+    now,
+  );
+}
+
+/** Where one network's activity comes from: its app records, and the NearBlocks index for its wallet history. */
+export interface ActivitySources {
+  /** Up to ACTIVITY_PAGE_SIZE + 1 app entries before the cursor's app boundary, newest first. */
+  readonly app: (cursor: ActivityCursor) => Promise<readonly ActivityEntry[]>;
+  readonly network: "mainnet" | "testnet";
+  /** False when the owner has no wallet to index (testnet guests), so wallet streams start done. */
+  readonly wallet?: boolean;
+}
+
+/** Prefix consumption retains every source's ordering, including events sharing a millisecond. */
+export async function mergeActivityPage(
+  sources: ActivitySources,
   owner: { readonly id: string; readonly accountId: string },
   filter: ActivityFilter,
   supplied: ActivityCursor | null,
@@ -62,17 +87,24 @@ export async function readActivityPage(
   ) {
     throw new Error("Activity cursor does not belong to this view");
   }
-  const cursor = supplied ?? startCursor(owner.id, filter, now);
+  const cursor = supplied ?? startCursor(owner.id, filter, now, sources.wallet ?? true);
   const next: ActivityCursor = { ...cursor, app: { ...cursor.app }, wallet: { ...cursor.wallet } };
   const candidates: { readonly item: ActivityEntry; readonly stream: WalletActivityStream | "app" }[] = [];
   const [appResults, walletResults] = await Promise.all([
-    Promise.allSettled([cursor.app.done ? Promise.resolve([]) : appActivityPage(db, owner.id, cursor)]),
+    Promise.allSettled([cursor.app.done ? Promise.resolve([]) : sources.app(cursor)]),
     Promise.allSettled(
       WALLET_STREAMS.map(async (stream) => ({
         stream,
         page: cursor.wallet[stream].done
           ? null
-          : await walletActivityPage(owner.accountId, stream, cursor.wallet[stream], cursor.snapshotAt),
+          : await walletActivityPage(
+              owner.accountId,
+              stream,
+              cursor.wallet[stream],
+              cursor.snapshotAt,
+              undefined,
+              sources.network,
+            ),
       })),
     ),
   ]);

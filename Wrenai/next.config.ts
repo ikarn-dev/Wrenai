@@ -30,6 +30,11 @@ const nextConfig: NextConfig = {
   },
   // pg reads the CA named by sslrootcert at runtime; trace it into deployed Node functions.
   outputFileTracingIncludes: { "/*": ["./certs/supabase-root-2021.crt"] },
+  redirects() {
+    return Promise.resolve([
+      { source: "/favicon.ico", destination: "/assets/nobg_logo.png", permanent: true },
+    ]);
+  },
   headers() {
     return Promise.resolve([
       { source: "/:path*", headers: securityHeaders },

@@ -1,5 +1,5 @@
 import "server-only";
-import { refineStrategyText } from "@/server/ai/strategy-refiner";
+import { mainnetBudgetName, refineStrategyText } from "@/server/ai/strategy-refiner";
 import { isActiveAgentTool, REMOVED_AGENT_MESSAGE } from "@/shared/agent-scope";
 import {
   type AgentResult,
@@ -24,25 +24,20 @@ export async function reviewStrategy(raw: unknown): Promise<AgentResult<Strategy
 }
 
 /**
- * Rewrites the instructions clearly, then runs the same verified parse Deploy uses on the rewrite. A pass returns
- * the stored draft, so Deploy reuses it at once; a rule problem comes back as text to fix before deploying.
+ * Rewrites the instructions clearly and returns only the text. Nothing is parsed, checked or saved: the verified
+ * parse runs once, when the user continues, on whatever text they settle on.
  */
 export async function refineStrategy(raw: unknown): Promise<AgentResult<StrategyRefinement>> {
   return agentAction(async () => {
-    const user = await agentUser("parse");
+    await agentUser("parse");
     const input = parseStrategyInputSchema.parse(raw);
     if (!isActiveAgentTool(input.pack)) {
       throw new AgentError("not_ready", REMOVED_AGENT_MESSAGE);
     }
-    const text = await refineStrategyText(input.pack, input.strategyText, input.budget?.assetId);
-    try {
-      const draft = await prepareStrategyDraft(user.id, { ...input, strategyText: text });
-      return { text, draft: await withAssets(draft), problem: null };
-    } catch (error) {
-      if (error instanceof AgentError && error.code === "invalid_input") {
-        return { text, draft: null, problem: error.message };
-      }
-      throw error;
-    }
+    const symbol = mainnetBudgetName(input.budget?.assetId);
+    return refineStrategyText(input.pack, input.strategyText, {
+      budget: symbol ? { symbol, amount: input.budget?.amount || null } : null,
+      network: "mainnet",
+    });
   });
 }

@@ -5,7 +5,9 @@ import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { Tooltip } from "radix-ui";
 import { type ReactElement, type ReactNode, useState } from "react";
+import { networkRoute } from "@/shared/app-routes";
 import { isNavItemActive, type NavItem } from "./nav-items";
+import { useAppNetwork } from "./network-context";
 
 type NavigationView = "expanded" | "collapsed" | "mobile";
 
@@ -87,10 +89,11 @@ function LinkPending({
 /** One set of routes, external links and active indicators for the sidebar and mobile navigation. */
 export function NavigationItems({ items, view }: NavigationItemsProps): ReactElement {
   const pathname = usePathname();
+  const network = useAppNetwork();
   return (
     <ul className={`flex gap-0.5 ${view === "mobile" ? "overflow-x-auto" : "flex-col"}`}>
       {items.map((item) => {
-        const active = item.kind === "link" && isNavItemActive(pathname, item.href);
+        const active = item.kind === "link" && isNavItemActive(pathname, networkRoute(network, item.href));
         const state = active ? ITEM_ACTIVE : ITEM_IDLE;
         const className = `${ITEM_BASE} ${VIEW_CLASSES[view]} ${state}`;
         const Icon = item.icon;
@@ -127,7 +130,7 @@ export function NavigationItems({ items, view }: NavigationItemsProps): ReactEle
             >
               {item.kind === "link" ? (
                 <Link
-                  href={item.href}
+                  href={networkRoute(network, item.href)}
                   aria-current={active ? "page" : undefined}
                   aria-label={view === "collapsed" ? item.label : undefined}
                   className={`relative ${className}`}

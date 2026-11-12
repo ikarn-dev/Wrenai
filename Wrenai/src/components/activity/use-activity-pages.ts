@@ -30,17 +30,42 @@ export interface ActivityPages {
  * after it is last shown), so switching pages or filters back never refetches; only Refresh asks the server
  * for a new snapshot, and only that first request skips the server's cache.
  */
-export function useActivityPages(ownerId: string, initial: ActivityResult): ActivityPages {
+/** Where pages come from. Mainnet uses the Server Action; testnet passes its GET loader and a data version. */
+export interface ActivitySource {
+  readonly scope: string;
+  readonly load: (input: {
+    readonly filter: ActivityFilter;
+    readonly cursor: ActivityCursor | null;
+    readonly fresh: boolean;
+  }) => Promise<ActivityResult>;
+  /** Changes when the underlying records change, so the newest page reloads without a manual refresh. */
+  readonly version?: string;
+}
+
+const MAINNET: ActivitySource = { scope: "activity", load: loadActivity };
+
+export function useActivityPages(
+  ownerId: string,
+  initial: ActivityResult,
+  source: ActivitySource = MAINNET,
+): ActivityPages {
   const [filter, setFilter] = useState<ActivityFilter>("all");
   const [generation, setGeneration] = useState(0);
   // The page shown per filter and refresh, derived in render: a new view starts on its first page.
   const [shown, setShown] = useState<Readonly<Record<string, number>>>({});
   const view = `${filter}:${generation}`;
   const query = useInfiniteQuery({
-    queryKey: ["activity", ownerId, initial.ok ? initial.value.snapshotAt : 0, filter, generation],
+    queryKey: [
+      source.scope,
+      ownerId,
+      initial.ok ? initial.value.snapshotAt : 0,
+      filter,
+      generation,
+      source.version ?? "",
+    ],
     initialPageParam: null,
     queryFn: async ({ pageParam }: { readonly pageParam: ActivityCursor | null }): Promise<ActivityPage> => {
-      const result = await loadActivity({
+      const result = await source.load({
         filter,
         cursor: pageParam,
         fresh: generation > 0 && pageParam === null,

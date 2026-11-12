@@ -173,7 +173,7 @@ describe("attested strategy parsing", () => {
     }
   });
 
-  it("bounds a hung verification request without saving or moving to another model", async () => {
+  it("asks the next approved model when one hangs, and still bounds the whole request", async () => {
     vi.useFakeTimers();
     try {
       cloud.create.mockReturnValue(new Promise(() => {}));
@@ -182,7 +182,33 @@ describe("attested strategy parsing", () => {
       });
       await vi.advanceTimersByTimeAsync(90_000);
       await result;
-      expect(cloud.create).toHaveBeenCalledTimes(1);
+      // One attempt per approved model, started 20 s apart; never a second key or a repeat.
+      expect(cloud.create).toHaveBeenCalledTimes(3);
+      expect(cloud.create.mock.calls.map(([params]) => params.model)).toEqual([
+        "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+        "Qwen/Qwen3.8-27B",
+        "z-ai/glm-5.3-flash",
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("takes the next model's verified answer when the first is slow", async () => {
+    vi.useFakeTimers();
+    try {
+      cloud.create.mockReturnValueOnce(new Promise(() => {})).mockResolvedValueOnce(completion());
+      cloud.verify.mockResolvedValue({
+        ...verified,
+        signature: {
+          ...verified.signature,
+          signedText: `Qwen/Qwen3.8-27B:${"a".repeat(64)}:${"b".repeat(64)}`,
+        },
+      });
+      const result = parseAttestedStrategy("rebalancer", "Keep equal allocations in NEAR and USDC.");
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect((await result).receipt.model).toBe("Qwen/Qwen3.8-27B");
+      expect(cloud.create).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }

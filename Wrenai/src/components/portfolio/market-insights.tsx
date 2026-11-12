@@ -4,9 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import type { Route } from "next";
 import Link from "next/link";
 import { type ReactElement, type ReactNode, useState } from "react";
+import { useAppNetwork } from "@/components/shell/network-context";
 import { Change, compactUsd } from "@/components/trading/market-cells";
 import { TokenIcon } from "@/components/trading/token-icon";
 import { readTrading } from "@/components/trading/trading-api";
+import { networkRoute } from "@/shared/app-routes";
 import {
   type InsightCard,
   type InsightRow,
@@ -70,9 +72,10 @@ function insightQuery(card: InsightCard) {
 
 /** The card's last line, pinned to its bottom so links line up across a row of cards. */
 function CardLink({ spec }: { readonly spec: CardSpec }): ReactElement {
+  const network = useAppNetwork();
   return (
     <Link
-      href={spec.href}
+      href={networkRoute(network, spec.href)}
       className={`mt-auto self-end rounded-xs ${LINE} text-accent-text underline-offset-4 hover:underline`}
     >
       {spec.link}

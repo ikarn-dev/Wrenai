@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { Brand } from "@/components/shell/brand";
+import { GuestEntryButton } from "@/components/testnet/guest-entry";
 import { LogoMorph } from "@/components/texture/logo-morph";
 import { SignInPanel } from "@/components/wallet/sign-in-panel";
 import { currentUser } from "@/server/auth/session";
@@ -17,8 +18,13 @@ function SignInVisual() {
   );
 }
 
-export default async function SignInPage() {
-  if ((await currentUser()) !== null) {
+export default async function SignInPage({
+  searchParams,
+}: {
+  readonly searchParams: Promise<{ network?: string }>;
+}) {
+  const network = (await searchParams).network === "testnet" ? "testnet" : "mainnet";
+  if (network === "mainnet" && (await currentUser()) !== null) {
     redirect("/portfolio");
   }
   return (
@@ -41,7 +47,16 @@ export default async function SignInPage() {
             </h1>
             <p className="mt-1 text-small text-fg-muted">Connect a NEAR wallet to get started</p>
             <div className="mt-4">
-              <SignInPanel />
+              <SignInPanel network={network} />
+              {/* One choice, two ways in: a hairline "or" between the wallet and the guest entry. */}
+              <div aria-hidden="true" className="mt-6 flex items-center gap-3 text-caption text-fg-subtle">
+                <span className="h-px flex-1 bg-line-card" />
+                or
+                <span className="h-px flex-1 bg-line-card" />
+              </div>
+              <div className="mt-6 grid">
+                <GuestEntryButton />
+              </div>
             </div>
           </div>
           <p className="text-small text-fg-subtle">Private AI agents for DeFi on NEAR</p>

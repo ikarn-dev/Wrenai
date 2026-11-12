@@ -18,9 +18,11 @@ const MONTH_LABEL = new Intl.DateTimeFormat("en-US", {
 export function AgentPerformanceCard({
   agents,
   performance,
+  testnet = false,
 }: {
-  readonly agents: readonly AgentSummary[];
+  readonly agents: readonly Pick<AgentSummary, "id" | "name" | "pack" | "status" | "returningFunds">[];
   readonly performance: PortfolioPerformance;
+  readonly testnet?: boolean;
 }): ReactElement {
   return (
     <PortfolioPanel
@@ -28,7 +30,10 @@ export function AgentPerformanceCard({
       title="PnL by agent"
       className="xl:col-span-2"
       aside={
-        <Link href="/agents" className="rounded-xs text-caption text-fg-muted hover:text-fg-strong">
+        <Link
+          href={testnet ? "/testnet/agents" : "/agents"}
+          className="rounded-xs text-caption text-fg-muted hover:text-fg-strong"
+        >
           Manage agents
         </Link>
       }
@@ -64,7 +69,7 @@ export function AgentPerformanceCard({
                 <tr key={agent.id} className="border-b border-line-card last:border-0">
                   <th scope="row" className="py-4 text-left font-normal">
                     <Link
-                      href={`/agents/${agent.id}`}
+                      href={testnet ? `/testnet/agents/${agent.id}` : `/agents/${agent.id}`}
                       className="inline-flex items-center gap-3 rounded-xs hover:text-accent-text"
                     >
                       <AgentAvatar running={agent.status === "running"} />

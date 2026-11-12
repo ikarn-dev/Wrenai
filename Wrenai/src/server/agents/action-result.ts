@@ -16,7 +16,9 @@ export async function agentUser(kind: "parse" | "manage" | "stop"): Promise<Sess
     throw new AgentError("signed_out", "Sign in again to manage agents.");
   }
   if (kind !== "stop") {
-    const decision = await consumeRateLimit(`agents:${kind}:${user.id}`, kind === "parse" ? 4 : 30, 60_000);
+    // Parses start on their own once setup inputs settle (components/agents/use-early-check.ts), so a user who edits
+    // a few times in a minute needs more than the old four; still bounded per minute.
+    const decision = await consumeRateLimit(`agents:${kind}:${user.id}`, kind === "parse" ? 10 : 30, 60_000);
     if (decision !== "allowed") {
       throw new AgentError(
         decision === "limited" ? "rate_limited" : "unavailable",

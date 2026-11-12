@@ -1,0 +1,247 @@
+/* The agent live view (components/agents/live-view.tsx). A short mint segment travels along the active step's bar;
+   transform and opacity only, and under reduced motion it holds still. */
+@utility live-travel {
+  animation: live-travel 1.8s var(--ease-ios) infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    transform: translateX(200%);
+  }
+}
+@keyframes live-travel {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(300%);
+    opacity: 0;
+  }
+}
+
+/* The pixel agent (components/agents/pixel-agent.tsx). Every part moves by transform or opacity around its own box
+   (transform-box: fill-box); stepped timing keeps the motion pixel-crisp. Under reduced motion the pose holds still
+   and the phase still shows through its prop and palette. */
+@utility px-bob {
+  transform-box: fill-box;
+  animation: px-bob 1.2s steps(2, jump-none) infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility px-hop {
+  transform-box: fill-box;
+  animation: px-hop 1s steps(4, jump-none) infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility px-squash {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: px-squash 0.8s steps(3, jump-none) infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility px-sink {
+  transform-box: fill-box;
+  animation: px-sink 3.2s steps(2, jump-none) infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility px-step {
+  transform-box: fill-box;
+  animation: px-step 0.5s steps(2, jump-none) infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility px-cheer {
+  transform-box: fill-box;
+  animation: px-cheer 0.5s steps(2, jump-none) infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility px-blink {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: px-blink 3.6s steps(1, jump-none) infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility px-scan {
+  transform-box: fill-box;
+  animation: px-scan 2s steps(1, jump-none) infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility px-glance {
+  transform-box: fill-box;
+  animation: px-glance 1.6s steps(1, jump-none) infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility px-dot {
+  animation: px-dot 1.2s steps(2, jump-none) infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility px-send {
+  transform-box: fill-box;
+  animation: px-send 1.2s steps(6, jump-none) infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility px-zz {
+  transform-box: fill-box;
+  animation: px-zz 2.6s steps(4, jump-none) infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility px-sparkle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: px-sparkle 1.4s steps(2, jump-none) infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@keyframes px-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+@keyframes px-hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-10px);
+  }
+  70% {
+    transform: translateY(-4px);
+  }
+}
+@keyframes px-squash {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  50% {
+    transform: scale(1.06, 0.9);
+  }
+}
+@keyframes px-sink {
+  0%,
+  100% {
+    transform: translateY(1px);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+@keyframes px-step {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes px-cheer {
+  0%,
+  100% {
+    transform: translateY(-6px);
+  }
+  50% {
+    transform: translateY(-9px);
+  }
+}
+@keyframes px-blink {
+  0%,
+  94%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.15);
+  }
+}
+@keyframes px-scan {
+  0%,
+  100% {
+    transform: translateX(-3px);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+}
+@keyframes px-glance {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(2px, -2px);
+  }
+}
+@keyframes px-dot {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes px-send {
+  0% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(42px, -12px);
+    opacity: 0;
+  }
+}
+@keyframes px-zz {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(8px, -14px);
+    opacity: 0;
+  }
+}
+@keyframes px-sparkle {
+  0%,
+  100% {
+    transform: scale(0.4);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

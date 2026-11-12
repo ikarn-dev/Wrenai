@@ -11,6 +11,7 @@ import { manualEnvelope } from "@/server/manual-trading/record";
 import { balanceReferenceValue } from "@/server/portfolio/valuation";
 import { readWalletWnear } from "@/server/portfolio/wallet-balance";
 import { type IntentToken, intentTokens } from "@/server/research/intents";
+import type { AgentPerformance } from "@/shared/agent-performance";
 import {
   type ClaimAmount,
   type ClaimRecovery,
@@ -272,6 +273,47 @@ export async function readClaims(
         : wallet === null
           ? "Your wallet's wNEAR could not be checked."
           : null,
+  };
+}
+
+function unmeasured(agent: AgentFunds | undefined, registry: readonly IntentToken[] | null): string | null {
+  if (!agent || agent.held.length === 0) {
+    return "This agent holds no funds.";
+  }
+  if (agent.openPosition) {
+    return "An open Perps position is valued on the venue; its result shows once it closes.";
+  }
+  if (agent.unvaluedDeposit || agent.heldPrincipalMicroUsd === 0n) {
+    return "A deposit has no recorded USD value, so its result can't be measured.";
+  }
+  return registry === null ? "Prices are still loading. Values fill in on the next refresh." : null;
+}
+
+/**
+ * One agent's result for its page: what it holds at reference prices minus the principal still attributed to it,
+ * the same figures Claims shows. Owner-scoped through the lots query; another owner's agent reads as holding nothing.
+ */
+export async function readAgentPerformance(
+  db: AppDatabase,
+  userId: string,
+  agentId: string,
+): Promise<AgentPerformance> {
+  const [registry, funds] = await Promise.all([
+    withinTime(intentTokens(undefined, REGISTRY_MAX_AGE_MS).then((read) => read.tokens)),
+    readAgentFunds(db, userId, agentId),
+  ]);
+  const now = Date.now(),
+    agent = funds[0],
+    row = agent ? agentRow(agent, registry, now) : null,
+    note = unmeasured(agent, registry);
+  return {
+    unit: { kind: "usd" },
+    invested: agent && note === null ? agent.heldPrincipalMicroUsd.toString() : null,
+    value: row?.claimableMicroUsd ?? null,
+    pnl: row?.pnlMicroUsd ?? null,
+    source: "reference_prices",
+    observedAt: now,
+    note,
   };
 }
 

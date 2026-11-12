@@ -1,8 +1,9 @@
 "use client";
 
-import { Ban, Eye, History, Info, Lock, Plus, X } from "lucide-react";
+import { History, Plus, X } from "lucide-react";
 import dynamic from "next/dynamic";
-import { Dialog, ScrollArea, Tooltip } from "radix-ui";
+import { Dialog, ScrollArea } from "radix-ui";
+import type { ReactNode } from "react";
 import {
   type ReactElement,
   useCallback,
@@ -17,10 +18,15 @@ import type { LaunchContext } from "@/components/agents/deploy-launch";
 import { notify, useToastState } from "@/components/ui/toast";
 import { removeConversation } from "@/server/chat/actions";
 import type { CreateAgentRequest } from "@/shared/agent-create-request";
+import type { ChatTurn, ConversationSummary as Summary } from "@/shared/chat";
 import { type Conversation, type ConversationSummary, MAX_CHAT_TURNS } from "@/shared/chat";
 import { chatStatus } from "@/shared/chat-status";
+import type { ResearchTool } from "@/shared/research";
+import { JarvisAbout } from "./about";
+import type { AgentOffer } from "./agent-offer";
 import { AgentOfferPrompt, latestAgentOffer } from "./agent-offer";
 import { loadChatHistory } from "./chat-api";
+import type { ChatController } from "./chat-controller";
 import { ChatComposer } from "./composer";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { ChatEmptyState } from "./empty-state";
@@ -34,13 +40,6 @@ const CreateAgentDialog = dynamic(() =>
   import("@/components/agents/create-agent-dialog").then((module) => module.CreateAgentDialog),
 );
 
-const INFO_LINES = [
-  { icon: Eye, text: "Sees your wallet and agents" },
-  { icon: Ban, text: "Trade previews need your confirmation" },
-  // "Stored", not just "encrypted": true as written (encrypted at rest, Spec §10) without implying no one can read it.
-  { icon: Lock, text: "Chats stored encrypted" },
-] as const;
-
 interface ChatScreenProps {
   readonly initialId: string;
   readonly initialPrompt?: string;
@@ -49,14 +48,29 @@ interface ChatScreenProps {
   readonly launch: LaunchContext;
 }
 
-export function ChatScreen({
-  initialId,
-  initialPrompt = "",
-  conversation,
-  history,
+export function ChatScreen(props: ChatScreenProps): ReactElement {
+  const chat = useChat(props.initialId, props.conversation, props.history, props.initialPrompt);
+  return <ChatScreenView chat={chat} launch={props.launch} />;
+}
+export function ChatScreenView({
+  chat,
   launch,
-}: ChatScreenProps): ReactElement {
-  const chat = useChat(initialId, conversation, history, initialPrompt);
+  loadHistory = loadChatHistory,
+  removeChat = removeConversation,
+  renderReply,
+  onOpenAgent,
+  allowedTools,
+  offer,
+}: {
+  readonly chat: ChatController;
+  readonly launch: LaunchContext;
+  readonly loadHistory?: (signal: AbortSignal) => Promise<readonly Summary[]>;
+  readonly removeChat?: (id: string) => Promise<{ ok: true } | { ok: false; code: string; message: string }>;
+  readonly renderReply?: (turn: ChatTurn) => ReactNode;
+  readonly onOpenAgent?: (pack: CreateAgentRequest["pack"]) => void;
+  readonly allowedTools?: readonly ResearchTool[];
+  readonly offer?: AgentOffer | null;
+}): ReactElement {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [agentSetup, setAgentSetup] = useState<{
     readonly pack: CreateAgentRequest["pack"];
@@ -149,7 +163,7 @@ export function ChatScreen({
     const before = new Map(historyNow.current.map((item) => [item.id, item]));
     startTransition(async () => {
       try {
-        const result = await loadChatHistory(request.signal);
+        const result = await loadHistory(request.signal);
         if (!request.signal.aborted) {
           chat.setHistory((items) => {
             const updated = items.filter((item) => before.get(item.id) !== item);
@@ -163,7 +177,7 @@ export function ChatScreen({
         }
       }
     });
-  }, [chat.setHistory, chat.setError]);
+  }, [chat.setHistory, chat.setError, loadHistory]);
 
   async function deleteChat(): Promise<void> {
     if (!deletion || deleting) {
@@ -174,7 +188,7 @@ export function ChatScreen({
     setDeleting(id);
     setDeletion(null);
     try {
-      const result = await removeConversation(id);
+      const result = await removeChat(id);
       if (!result.ok && result.code !== "not_found") {
         setManagementError(result.message);
         return;
@@ -218,8 +232,11 @@ export function ChatScreen({
   }, [setFollowing, submit]);
   const stopReply = useCallback((): void => void stop(), [stop]);
   const openSetup = useCallback(
-    (pack: CreateAgentRequest["pack"]): void => setAgentSetup({ pack, open: true }),
-    [],
+    (pack: CreateAgentRequest["pack"]): void => {
+      if (onOpenAgent) onOpenAgent(pack);
+      else setAgentSetup({ pack, open: true });
+    },
+    [onOpenAgent],
   );
   const jumpToLatest = useCallback((): void => {
     setFollowing(true);
@@ -231,14 +248,14 @@ export function ChatScreen({
   const agentOffer = useMemo(
     () => (
       <AgentOfferPrompt
-        offer={latestAgentOffer(chat.conversationId, last)}
+        offer={offer === undefined ? latestAgentOffer(chat.conversationId, last) : offer}
         visible={offerVisible}
         inputRef={inputRef}
         onCreate={openSetup}
         jumpToLatest={canJump ? jumpToLatest : null}
       />
     ),
-    [chat.conversationId, last, offerVisible, inputRef, openSetup, canJump, jumpToLatest],
+    [chat.conversationId, last, offerVisible, inputRef, openSetup, canJump, jumpToLatest, offer],
   );
 
   const historyProps = {
@@ -276,46 +293,7 @@ export function ChatScreen({
           <JarvisMark size={24} />
           <h1 className="text-h3">Jarvis</h1>
           <div className="ml-auto flex items-center gap-1">
-            {/* Opens on hover and on keyboard focus; nothing to click. */}
-            <Tooltip.Provider delayDuration={150}>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <button
-                    type="button"
-                    aria-label="About Jarvis"
-                    className="inline-flex size-9 cursor-default items-center justify-center rounded-sm text-fg-subtle transition-colors duration-200 ease-ios hover:text-fg-strong pointer-coarse:size-11"
-                  >
-                    <Info size={16} strokeWidth={1.75} absoluteStrokeWidth aria-hidden="true" />
-                  </button>
-                </Tooltip.Trigger>
-                <Tooltip.Portal>
-                  <Tooltip.Content
-                    align="end"
-                    sideOffset={8}
-                    collisionPadding={12}
-                    className="z-50 card-shine rounded-md px-3 py-2.5 text-caption text-fg-muted shadow-float"
-                  >
-                    {/* Three facts, one line each: the panel sizes to the longest line, so nothing wraps into an
-                        orphan, and each row leads with an icon on its text's line. The storage line follows
-                        Spec §10: encrypted at rest, read in plaintext by our backend. */}
-                    <ul className="flex flex-col gap-1.5">
-                      {INFO_LINES.map(({ icon: Icon, text }) => (
-                        <li key={text} className="flex items-center gap-2 whitespace-nowrap">
-                          <Icon
-                            size={12}
-                            strokeWidth={1.75}
-                            absoluteStrokeWidth
-                            aria-hidden="true"
-                            className="shrink-0 text-fg-subtle"
-                          />
-                          {text}
-                        </li>
-                      ))}
-                    </ul>
-                  </Tooltip.Content>
-                </Tooltip.Portal>
-              </Tooltip.Root>
-            </Tooltip.Provider>
+            <JarvisAbout />
             <Dialog.Root open={historyOpen} onOpenChange={setHistoryOpen}>
               <Dialog.Trigger asChild>
                 <button
@@ -409,6 +387,7 @@ export function ChatScreen({
                         last={turn.id === last?.id}
                         busy={turn.id === last?.id && chat.busy}
                         onRetry={chat.retry}
+                        replyContent={renderReply?.(turn)}
                         pendingReply={
                           turn.id === last?.id && chat.busy
                             ? {
@@ -428,6 +407,7 @@ export function ChatScreen({
                   </div>
                 ) : empty ? (
                   <ChatEmptyState
+                    testnet={allowedTools !== undefined}
                     onPrompt={(prompt) => {
                       chat.setDraft(prompt);
                       chat.inputRef.current?.focus();
@@ -457,6 +437,7 @@ export function ChatScreen({
               onStop={stopReply}
               tool={chat.tool}
               onToolChange={chat.setTool}
+              allowedTools={allowedTools}
               agentOffer={agentOffer}
             />
           </div>

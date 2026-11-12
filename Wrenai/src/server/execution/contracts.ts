@@ -83,3 +83,23 @@ export class ExecutionError extends Error {
     this.name = "ExecutionError";
   }
 }
+
+/**
+ * A provider that is down or throttling (HTTP 429 or 5xx), as opposed to one that rejected the request. Still an
+ * ExecutionError with code "not_ready", so every existing handler (reserved-action cancellation, user messages)
+ * behaves as before; agent checks treat it as a temporary outage instead of a strategy failure.
+ */
+export class ProviderUnavailable extends ExecutionError {
+  constructor(readonly status: number) {
+    super("not_ready", "The trading provider is unavailable or rejected the request.");
+    this.name = "ProviderUnavailable";
+  }
+}
+
+/** A network failure or timeout before any provider answered (Node fetch's TypeError, AbortSignal.timeout). */
+export function isTransportFailure(error: unknown): boolean {
+  return (
+    (error instanceof DOMException && (error.name === "TimeoutError" || error.name === "AbortError")) ||
+    (error instanceof TypeError && error.message === "fetch failed")
+  );
+}

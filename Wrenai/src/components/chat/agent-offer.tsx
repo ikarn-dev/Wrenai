@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUpRight, X } from "lucide-react";
 import { AnimatePresence, m, type Transition } from "motion/react";
 import { type ReactElement, type RefObject, useState } from "react";
 import { usePrefersReducedMotion } from "@/components/motion/use-prefers-reduced-motion";
+import { useAppNetwork } from "@/components/shell/network-context";
 import { AGENT_CATALOG } from "@/shared/agent-catalog";
 import { createRequestPack } from "@/shared/agent-create-request";
 import { isActiveAgentTool } from "@/shared/agent-scope";
@@ -56,6 +57,7 @@ export function AgentOfferPrompt({
   jumpToLatest,
   onCreate,
 }: AgentOfferPromptProps): ReactElement {
+  const network = useAppNetwork();
   const reducedMotion = usePrefersReducedMotion();
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
   const key = offer?.key ?? null;
@@ -118,7 +120,7 @@ export function AgentOfferPrompt({
                 className="inline-flex min-h-10 min-w-0 items-center gap-2 rounded-sm px-3 text-small font-medium text-fg-strong transition-colors duration-200 ease-ios hover:bg-surface-2 pointer-coarse:min-h-11"
               >
                 <ArrowUpRight size={16} aria-hidden="true" className="shrink-0 text-accent-text" />
-                <span className="truncate">{`Create ${AGENT_CATALOG[offer.tool].name}`}</span>
+                <span className="truncate">{`Create ${network === "testnet" && offer.tool === "private_payments" ? "Payments Agent" : AGENT_CATALOG[offer.tool].name}`}</span>
               </button>
               <button
                 type="button"

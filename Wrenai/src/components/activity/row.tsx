@@ -99,14 +99,20 @@ function Details({ item }: { readonly item: ActivityEntry }): ReactNode {
   );
 }
 
-function Transaction({ item }: { readonly item: ActivityEntry }): ReactElement {
+function Transaction({
+  item,
+  testnet = false,
+}: {
+  readonly item: ActivityEntry;
+  readonly testnet?: boolean;
+}): ReactElement {
   if (item.transactionHash === null) {
     return <span className="font-mono text-fg-subtle">—</span>;
   }
   return (
     <span className="inline-flex items-center gap-0.5">
       <a
-        href={`https://nearblocks.io/txns/${item.transactionHash}`}
+        href={`https://${testnet ? "testnet." : ""}nearblocks.io/txns/${item.transactionHash}`}
         target="_blank"
         rel="noopener noreferrer"
         title={item.transactionHash}
@@ -121,7 +127,13 @@ function Transaction({ item }: { readonly item: ActivityEntry }): ReactElement {
 }
 
 /** One activity event as a table row: type, details, transaction, amount, status and UTC time. */
-export function ActivityRow({ item }: { readonly item: ActivityEntry }): ReactElement {
+export function ActivityRow({
+  item,
+  testnet = false,
+}: {
+  readonly item: ActivityEntry;
+  readonly testnet?: boolean;
+}): ReactElement {
   const { Icon, tone } = rowIcon(item);
   const amount = item.amount ? formatActivityAmount(item.amount) : null;
   const incoming = item.amount?.kind === "token" && item.amount.direction === "in";
@@ -137,7 +149,7 @@ export function ActivityRow({ item }: { readonly item: ActivityEntry }): ReactEl
         <Details item={item} />
       </td>
       <td className={`${CELL} whitespace-nowrap`}>
-        <Transaction item={item} />
+        <Transaction item={item} testnet={testnet} />
       </td>
       <td className={`${CELL} whitespace-nowrap font-mono tabular-nums`}>
         {amount ? (

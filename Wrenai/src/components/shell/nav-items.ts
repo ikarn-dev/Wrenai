@@ -12,6 +12,7 @@ import {
   Settings,
 } from "lucide-react";
 import type { Route } from "next";
+import type { AppRoute } from "@/shared/app-routes";
 
 interface NavItemLabel {
   readonly label: string;
@@ -36,6 +37,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { kind: "link", href: "/settings", label: "Settings", icon: Settings, group: "settings" },
 ];
 
-export function isNavItemActive(pathname: string, href: Route): boolean {
+export function isNavItemActive(pathname: string, href: AppRoute): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }

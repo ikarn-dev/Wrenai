@@ -3,16 +3,26 @@
 import { Check, ChevronDown, SlidersHorizontal } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import type { ReactElement } from "react";
+import { useAppNetwork } from "@/components/shell/network-context";
 import { activeAgentToolSchema } from "@/shared/agent-scope";
 import { RESEARCH_TOOLS, type ResearchTool } from "@/shared/research";
 
 interface ChatToolPickerProps {
+  readonly tools?: readonly ResearchTool[] | undefined;
   readonly value: ResearchTool | null;
   readonly disabled: boolean;
   readonly onChange: (tool: ResearchTool | null) => void;
 }
 
-export function ChatToolPicker({ value, disabled, onChange }: ChatToolPickerProps): ReactElement {
+export function ChatToolPicker({
+  value,
+  disabled,
+  onChange,
+  tools = activeAgentToolSchema.options,
+}: ChatToolPickerProps): ReactElement {
+  const network = useAppNetwork();
+  const label = (tool: ResearchTool): string =>
+    network === "testnet" && tool === "private_payments" ? "Payments" : RESEARCH_TOOLS[tool].label;
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
@@ -20,7 +30,7 @@ export function ChatToolPicker({ value, disabled, onChange }: ChatToolPickerProp
         <button
           type="button"
           disabled={disabled}
-          aria-label={`Research tool: ${value ? RESEARCH_TOOLS[value].label : "Auto"}`}
+          aria-label={`Research tool: ${value ? label(value) : "Auto"}`}
           className={`group inline-flex min-h-9 max-w-full cursor-pointer items-center gap-2 rounded-sm px-2.5 text-small transition-colors duration-200 ease-ios hover:bg-surface-3 data-[state=open]:bg-surface-3 disabled:cursor-not-allowed disabled:text-fg-disabled pointer-coarse:min-h-11 ${value ? "text-accent-text" : "text-fg-muted"}`}
         >
           <SlidersHorizontal
@@ -30,7 +40,7 @@ export function ChatToolPicker({ value, disabled, onChange }: ChatToolPickerProp
             aria-hidden="true"
             className="shrink-0"
           />
-          <span className="truncate">{value ? RESEARCH_TOOLS[value].label : "Auto"}</span>
+          <span className="truncate">{value ? label(value) : "Auto"}</span>
           <ChevronDown
             size={13}
             strokeWidth={1.75}
@@ -68,9 +78,9 @@ export function ChatToolPicker({ value, disabled, onChange }: ChatToolPickerProp
           >
             {[
               { id: "auto", label: "Auto" },
-              ...activeAgentToolSchema.options.map((tool) => ({
+              ...tools.map((tool) => ({
                 id: tool,
-                label: RESEARCH_TOOLS[tool].label,
+                label: label(tool),
               })),
             ].map((item) => (
               <DropdownMenu.RadioItem
