@@ -1,5 +1,6 @@
 import type { ReactElement, ReactNode } from "react";
-import { appHref } from "@/app-url";
+import { appHref, DOCS_URL } from "@/app-url";
+import { NEW_TAB } from "@/new-tab";
 import { Brand } from "./brand";
 import { FooterPatches } from "./footer-patches";
 
@@ -11,9 +12,10 @@ const SECTIONS = [
   { href: "#agents", label: "Agents" },
   { href: "#privacy", label: "Privacy" },
   { href: "#faq", label: "FAQ" },
+  { href: DOCS_URL, label: "Docs", external: true },
   // Plain-text instructions for AI agents helping someone use Wrenai (public/WRENAI.md).
   { href: "/WRENAI.md", label: "For AI agents" },
-] as const;
+] as const satisfies readonly { href: string; label: string; external?: boolean }[];
 
 const CONTACT = [
   { href: "mailto:mail.wrenai@gmail.com", label: "mail.wrenai@gmail.com", external: false },
@@ -89,7 +91,7 @@ export function SiteFooter(): ReactElement {
           >
             {SECTIONS.map((link) => (
               <li key={link.href}>
-                <a href={link.href} className={LINK}>
+                <a href={link.href} className={LINK} {...("external" in link ? NEW_TAB : {})}>
                   {link.label}
                 </a>
               </li>
@@ -102,11 +104,7 @@ export function SiteFooter(): ReactElement {
           >
             {CONTACT.map((link) => (
               <li key={link.href}>
-                <a
-                  href={link.href}
-                  className={`${LINK} break-all`}
-                  {...(link.external ? { target: "_blank", rel: "noreferrer" } : {})}
-                >
+                <a href={link.href} className={`${LINK} break-all`} {...(link.external ? NEW_TAB : {})}>
                   {link.label}
                 </a>
               </li>
@@ -117,6 +115,7 @@ export function SiteFooter(): ReactElement {
           <div className="col-span-2 grid min-h-28 place-items-center border-t border-line-card lg:col-span-3 lg:items-start lg:border-t-0 lg:border-l lg:p-frame">
             <a
               href={appHref("/")}
+              {...NEW_TAB}
               className="launch-shine inline-flex h-10 items-center rounded-full px-5 text-small font-medium text-fg-strong active:scale-97 motion-reduce:active:scale-100 pointer-coarse:h-11"
             >
               Launch app

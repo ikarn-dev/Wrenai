@@ -4,6 +4,7 @@ import { ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-react";
 import Image from "next/image";
 import { type KeyboardEvent, type ReactElement, useEffect, useId, useRef, useState } from "react";
 import { gsap, useGSAP } from "@/components/motion/gsap";
+import { NEW_TAB } from "@/new-tab";
 import logo from "../../../public/assets/nobg_logo.png";
 import type { AgentSlide } from "./agent-data";
 import { AgentIcon } from "./agent-icons";
@@ -27,7 +28,12 @@ function Profile({ agent }: { readonly agent: AgentSlideWithLink }): ReactElemen
         <h3 className="truncate text-body font-medium text-fg-strong">{agent.name}</h3>
         <p className="sr-only">{agent.text}</p>
       </div>
-      <a href={agent.href} aria-label={`Create a ${agent.name} agent in the app`} className="agent-open">
+      <a
+        href={agent.href}
+        {...NEW_TAB}
+        aria-label={`Create a ${agent.name} agent in the app (opens in a new tab)`}
+        className="agent-open"
+      >
         <ArrowUpRight size={16} {...STROKE} />
       </a>
     </div>

@@ -14,6 +14,9 @@ function readAppUrl(): URL {
 
 const APP_URL = readAppUrl();
 
+/** The documentation site. */
+export const DOCS_URL = "https://docs.wrenai.xyz";
+
 /** An absolute link into the Wrenai app. */
 export function appHref(path: `/${string}`): string {
   return new URL(path, APP_URL).toString();

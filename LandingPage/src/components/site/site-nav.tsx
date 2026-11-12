@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import { appHref } from "@/app-url";
+import { NEW_TAB } from "@/new-tab";
 import { Brand } from "./brand";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -38,6 +39,7 @@ export function SiteNav(): ReactElement {
         <ThemeToggle />
         <a
           href={appHref("/")}
+          {...NEW_TAB}
           className="launch-shine inline-flex h-10 items-center rounded-full px-4 text-small font-medium text-fg-strong active:scale-97 motion-reduce:active:scale-100 pointer-coarse:h-11"
         >
           Launch app

@@ -12,7 +12,13 @@ export function JarvisPrompt(): ReactElement {
   return (
     // The wrapper is the size container: everything in the card scales from its width (hero.css → jarvis-*).
     <div className="@container w-full max-w-reading">
-      <form action={appHref("/chat")} method="get" className="jarvis-card w-full text-left">
+      <form
+        action={appHref("/chat")}
+        method="get"
+        target="_blank"
+        className="jarvis-card w-full text-left"
+        rel="noopener"
+      >
         <p className="jarvis-label flex items-center text-ink">
           <span aria-hidden="true" className="jarvis-mark" />
           Jarvis
