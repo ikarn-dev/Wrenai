@@ -4,6 +4,7 @@ Jarvis is Wrenai's research chat. Open **Chat** in the app's sidebar. Ask in pla
 
 - **Explain a market.** For perps it leads with a long or short lean, how strong the evidence is, the time frame, then an entry, a take-profit, a stop-loss and the strongest fact against it.
 - **Read your account.** Each message includes a fresh read of your NEAR balance and the status of your agents, so you can ask "how are my agents doing?".
+- **Use recent news.** Research can include dated news from [Tavily](/reference/services). Only public topics and token names are sent.
 - **Prepare a trade.** Ask for an exact swap or perps order and Jarvis shows a [quote card](/jarvis/quote-cards) for you to confirm.
 - **Send a payment.** Ask it to send a token to a NEAR account and it shows a [payment card](/jarvis/payments).
 - **Suggest an agent.** After a research answer, Jarvis may offer to set up the matching agent. You still review and fund it yourself.
@@ -19,6 +20,8 @@ The **Tools** menu under the message box scopes a question to one agent family, 
 ## Verified answers
 
 Jarvis runs on private models in NEAR AI Cloud, which run inside hardware-protected environments (TEEs). Every reply is checked against the model's signature before it is saved. Open a reply's verification details to see which model answered and when it was verified.
+
+Three approved models answer, in order: DeepSeek V4.1 Flash, Qwen 3.8 27B and GLM 5.3 Flash. If one is rate limited, the next takes over. If one hasn't answered after about 20 seconds, the next is asked too, and the first verified answer is used.
 
 While a reply streams in, it is marked **Verification pending**. If a reply fails verification, it is removed rather than saved.
 

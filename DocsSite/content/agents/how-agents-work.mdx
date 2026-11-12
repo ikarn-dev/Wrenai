@@ -2,14 +2,20 @@ An agent is a saved set of rules with its own budget. Once started, it checks th
 
 ## Create an agent
 
-Open **Agents**, pick a type, and the setup dialog walks you through four steps.
+Open **Agents** and pick a type. The setup dialog has one form, then a short timeline.
 
 <Steps>
   <Step title="Describe it">
-    Write what the agent should do in plain words, and choose the token and the amount it may use from your wallet.
+    Write what the agent should do in plain words, or apply a template from the chips above the text box. Name tokens by symbol or by their NEAR contract, such as `usdt.tether-token.near`.
   </Step>
-  <Step title="Verify">
-    A verified private model turns your words into exact rules: assets, amounts, triggers, schedule and exits. Its signature is checked before the rules are shown.
+  <Step title="Refine, if you like">
+    **Refine** only rewrites your text into exact instructions; it doesn't check or save anything. It never renames a token or drops a contract. Where you left something out, it fills it in: the market price when no price is given, one order every 60 seconds when there are several orders and no spacing, and an even split when an amount is spread across orders. A note under the text suggests a better agent type when your words need one, for example DCA for several timed buys.
+  </Step>
+  <Step title="Check the budget">
+    The budget fills in from your words: the token you spend, times the number of orders, or a total you state. It never asks for more than you hold; if your words need more, it sets the most whole orders that fit and says so. Change it and it stops following your words; **Use it** puts the suggestion back.
+  </Step>
+  <Step title="Continue">
+    A verified private model turns your words into exact rules: assets, amounts, triggers, schedule and exits. The check starts on its own about a second after you stop typing, so the rules often appear as soon as you press Continue. It is used only if you didn't change the text, type or budget afterwards.
   </Step>
   <Step title="Review and save">
     Read the rules and limits. Saving reserves the budget and creates the agent, paused. Nothing has traded yet.
@@ -19,9 +25,13 @@ Open **Agents**, pick a type, and the setup dialog walks you through four steps.
   </Step>
 </Steps>
 
+The dialog shows these steps as a short timeline with a live timer. Errors appear as notifications, with what to do next.
+
 <Callout tone="info">
   The model only drafts rules for you to review. Deciding when to trade, how much and whether a trade is allowed is plain code, and the [Guard](/security/the-guard) checks every order before it is signed.
 </Callout>
+
+If the first model is slow, a second approved model is asked after about 20 seconds and the first verified answer is used. See [Services and providers](/reference/services).
 
 ## Funding
 
@@ -33,10 +43,18 @@ Funding moves the reserved tokens from your wallet to where the agent trades.
 
 If you decline the deposit in your wallet, nothing moves, and the setup offers a fresh review.
 
+## The agent page
+
+- **Status bar.** The agent's status and the reason for it, with its controls: **Start**, **Pause**, **Stop**, **Claim funds** and **Delete**.
+- **Live view.** A timeline from start to end time, with a small pixel character standing at "now". It hops around while the agent is working, dozes in grey when stopped and turns amber when an order needs review. Under it: what the agent is doing ("Next order in 0:42"), the step of the current order (Wait, Quote, Submit, Settle), and what ends it: orders placed, end time and budget. An amber badge says when the end time cuts the planned orders short.
+- **PnL.** What the agent has made or lost, what its holdings are worth now and the principal behind them, refreshed every 30 seconds. On mainnet this is in USD at reference prices, the same figures as [Claims](/agents/claims). A figure that can't be measured shows a dash with the reason, never zero.
+- **Advanced options.** A trade preview, unused allocations, strategy versions and the agent's event log.
+
 ## While it runs
 
-- Price checks run about every five seconds, and slower checks such as a schedule run about every minute. This is best effort; it is not a guarantee of exact timing or fills.
-- Each check gets a fresh quote. If data is stale, a quote is missing or a limit would be crossed, the agent skips that trade.
+- Price rules check about every five seconds. Scheduled orders wake at their slot, so a 60-second DCA runs every 60 seconds. This is best effort; it is not a guarantee of exact timing or fills.
+- Each order gets a fresh quote. If data is stale, a quote is missing or a limit would be crossed, the agent skips that trade.
+- A provider outage doesn't count against the agent. It shows the reason and tries again within seconds.
 - Activity shows every order, its result and the transaction where there is one.
 
 ## Pause, stop and delete

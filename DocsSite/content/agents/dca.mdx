@@ -16,10 +16,13 @@ Buy 5 NEAR worth of USDC every 12 hours for two weeks.
 Each scheduled time is one slot. When a slot comes due, the agent gets a fresh quote, the Guard checks it, and the agent buys once.
 
 - **One buy per slot.** A restart or a duplicate check never buys the same slot twice.
+- **On time.** The agent wakes at each slot rather than on a fixed polling loop, and slots stay on their schedule however long an order takes to settle.
 - **No catch-up.** If the agent was paused or a slot was missed, it doesn't buy the missed slots all at once. You review this before starting.
 - **Time zones are kept.** Slots follow the time zone you chose, including daylight-saving changes.
 
-The agent pauses itself if the budget runs out, the route isn't available or the quote is stale.
+The agent stops when its budget runs out or its end time passes. If the route or a fresh quote isn't available, it waits and tries again; a provider outage never counts as a failed order.
+
+The agent page counts orders placed against the plan and shows when the end time leaves room for fewer orders than the budget pays for.
 
 <Callout tone="tip">
   A buy that's in flight when you pause still settles. Its result shows in Activity.

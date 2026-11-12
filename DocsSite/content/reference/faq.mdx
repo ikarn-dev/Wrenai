@@ -12,7 +12,7 @@ Wrenai shows the costs of each step before you confirm it: network gas, provider
 
 ## How fast do agents react?
 
-Price checks run about every five seconds and schedules about every minute. This is best effort; it isn't a guarantee of exact timing or fills.
+Price checks run about every five seconds, and scheduled orders wake at their slot. This is best effort; it isn't a guarantee of exact timing or fills.
 
 ## What happens if I delete an agent?
 
@@ -28,4 +28,16 @@ Press **Stop all** on the Agents page. To also stop agents signing at all, revok
 
 ## Which networks are supported?
 
-NEAR mainnet, plus tokens from other chains that have a verified NEAR ecosystem route. Perps trade on Hyperliquid.
+NEAR mainnet, plus tokens from other chains that have a verified NEAR ecosystem route. Perps trade on Hyperliquid. NEAR testnet runs in the same app with test tokens; see [Try testnet](/get-started/testnet).
+
+## Can I try Wrenai without real funds?
+
+Yes. Choose **Try as a guest** on the sign-in screen for a testnet session with free test tokens and no wallet. Your test funds carry over when you come back on the same browser within 30 days.
+
+## Why is my agent waiting instead of trading?
+
+Its status bar says why. Usually a provider's prices or quotes are briefly unavailable; the agent keeps running and tries again within seconds. Outages never count as failed orders.
+
+## Which outside services does Wrenai use?
+
+See [Services and providers](/reference/services) for every one and what it is used for.

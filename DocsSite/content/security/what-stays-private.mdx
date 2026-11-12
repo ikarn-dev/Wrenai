@@ -10,6 +10,7 @@ Wrenai keeps some steps confidential and others are public by nature. This page 
 | Payouts to a NEAR wallet, including claims | Public | The transfer to the wallet is visible on NEAR |
 | Swaps from your wallet or the trading account (RHEA) | Public | They are ordinary NEAR transactions |
 | Hyperliquid positions | Public | Hyperliquid is a public venue |
+| Everything on testnet | Public | Testnet payments and swaps are ordinary public testnet transactions |
 
 ## What NEAR AI Cloud protects
 
@@ -17,7 +18,7 @@ The models that answer Jarvis and read your strategies run inside TEEs, and Wren
 
 ## What Wrenai's servers can see
 
-Wrenai's servers run on Vercel with a Supabase database. They can read your chats, strategies and trading activity while they work on them.
+Wrenai's servers run on Vercel with a Supabase database. They can read your chats, strategies and trading activity while they work on them. [Services and providers](/reference/services) lists every outside service and what it receives.
 
 - **Chats** are encrypted before they are stored, but the servers decrypt them to answer.
 - **Trading keys** are encrypted at rest. The servers decrypt them to sign your agents' trades, so signing is not hidden from the operator.
