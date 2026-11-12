@@ -7,6 +7,7 @@ export const PAGE_LOADERS: Readonly<Record<string, Loader>> = {
   "get-started/introduction": () => import("@content/get-started/introduction.mdx"),
   "get-started/quickstart": () => import("@content/get-started/quickstart.mdx"),
   "get-started/connect-wallet": () => import("@content/get-started/connect-wallet.mdx"),
+  "get-started/testnet": () => import("@content/get-started/testnet.mdx"),
   "jarvis/ask-and-research": () => import("@content/jarvis/ask-and-research.mdx"),
   "jarvis/quote-cards": () => import("@content/jarvis/quote-cards.mdx"),
   "jarvis/payments": () => import("@content/jarvis/payments.mdx"),
@@ -27,6 +28,7 @@ export const PAGE_LOADERS: Readonly<Record<string, Loader>> = {
   "security/the-guard": () => import("@content/security/the-guard.mdx"),
   "security/trading-access": () => import("@content/security/trading-access.mdx"),
   "security/recovery-backup": () => import("@content/security/recovery-backup.mdx"),
+  "reference/services": () => import("@content/reference/services.mdx"),
   "reference/glossary": () => import("@content/reference/glossary.mdx"),
   "reference/faq": () => import("@content/reference/faq.mdx"),
 };

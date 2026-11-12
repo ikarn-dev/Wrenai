@@ -1,0 +1,59 @@
+Every outside service Wrenai uses, and what it is used for. Wrenai sends each one only what its job needs.
+
+## Wallet and NEAR
+
+| Service | Used for |
+| --- | --- |
+| NEAR Connect | Signing in and approving wallet transactions. NEAR's recommended wallet connector |
+| [FastNear](https://fastnear.com) RPC | Reading balances and accounts, and checking that transactions finalized, on mainnet and testnet |
+| FastNear API | Finding the tokens your wallet holds, for budgets and Portfolio |
+| [Nearblocks](https://nearblocks.io) | Your wallet's transaction history in Activity, and transaction links on mainnet and testnet |
+
+## AI
+
+| Service | Used for |
+| --- | --- |
+| NEAR AI Cloud | Jarvis replies, strategy checks and Refine. Models run in hardware-protected environments (TEEs), and every reply's signature is checked |
+
+Wrenai uses three approved models, in this order: **DeepSeek V4.1 Flash**, then **Qwen 3.8 27B**, then **GLM 5.3 Flash**. If a model hasn't answered after about 20 seconds, the next one is asked too, and the first verified answer is used. A reply that fails verification is never used.
+
+## Trading and payments
+
+| Service | Used for |
+| --- | --- |
+| [NEAR Intents](https://docs.near-intents.org) and 1Click | Quotes, confidential swaps and payments from your private balance, deposits, Hyperliquid funding and claim payouts |
+| NEAR Intents Explorer | Research on public intent activity for Jarvis |
+| [RHEA Finance](https://app.rhea.finance) | Public NEAR swaps from the trading account, pool prices and pool data |
+| [Hyperliquid](https://app.hyperliquid.xyz) | Perps markets, candles, orders, positions and stops |
+| [Coinbase Exchange](https://docs.cdp.coinbase.com) | Timestamped USD order books for price triggers |
+
+## Market data and research
+
+| Service | Used for |
+| --- | --- |
+| [Squint](https://www.nearsquint.tech) | New NEAR listings and token risk checks for Meme Hunter and Memecoins. Public, no key |
+| [Nearly](https://nearly.trade) and Meme.Cooking | NEAR meme launches and token profiles |
+| [CoinGecko](https://www.coingecko.com) | Token market figures and token logos |
+| [Tavily](https://tavily.com) | Recent news for Jarvis research. Only public topics and token names are sent |
+
+## Testnet
+
+| Service | Used for |
+| --- | --- |
+| [Tidepool](https://www.usetidepool.tech) | Testnet swaps and payouts with test tokens, in the same format as 1Click. Its prices come from CoinGecko |
+| FastNear testnet RPC | Testnet balances, signing and finality checks |
+| Nearblocks testnet | Testnet activity and transaction links |
+
+## Infrastructure
+
+| Service | Used for |
+| --- | --- |
+| [Vercel](https://vercel.com) | Hosting the app and its servers, which also sign agents' trades |
+| Vercel Workflows | Running agents: scheduled checks, order tracking and recovery, without cron jobs |
+| Vercel Web Analytics | Page-view counts on the landing page only. Cookieless |
+| [Supabase](https://supabase.com) | The Postgres database for accounts, agents, orders, receipts and encrypted chats |
+| [Upstash](https://upstash.com) | Redis for request limits and a short-lived encrypted chat cache. Never used to approve a trade |
+
+<Callout tone="info">
+  Wrenai's servers can read what they process and sign with your trading keys. See [What stays private](/security/what-stays-private).
+</Callout>

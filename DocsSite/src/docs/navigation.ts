@@ -36,6 +36,11 @@ export const NAVIGATION: readonly DocGroup[] = [
         "Connect your wallet",
         "Sign in with your NEAR wallet. Signing in is free and moves no funds.",
       ),
+      page(
+        "get-started/testnet",
+        "Try testnet",
+        "Run agents with free test tokens as a guest, with no wallet.",
+      ),
     ],
   },
   {
@@ -105,6 +110,11 @@ export const NAVIGATION: readonly DocGroup[] = [
   {
     title: "Reference",
     pages: [
+      page(
+        "reference/services",
+        "Services and providers",
+        "Every outside service Wrenai uses, and what for.",
+      ),
       page("reference/glossary", "Glossary", "The terms used across Wrenai."),
       page("reference/faq", "FAQ", "Short answers to common questions."),
     ],
