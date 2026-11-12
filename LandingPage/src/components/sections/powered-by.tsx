@@ -3,7 +3,7 @@ import { type BrandId, BrandLogo } from "@/components/brands/brand-logo";
 
 // The NEAR ecosystem services Wrenai runs on today, by their logos. Real names only, and only NEAR projects:
 // hosting, storage, off-chain venues and data feeds stay out of "Powered by". 1Click is NEAR Intents' API, so it
-// isn't listed twice. Meta Pool and LiNEAR were removed (no active integration).
+// isn't listed twice. Meta Pool and LiNEAR were removed (no active integration). Tidepool runs testnet swaps.
 const BRANDS: readonly BrandId[] = [
   "near",
   "near-ai",
@@ -15,6 +15,7 @@ const BRANDS: readonly BrandId[] = [
   "squint",
   "nearly",
   "meme-cooking",
+  "tidepool",
 ];
 
 function NameList({ hidden = false }: { readonly hidden?: boolean }): ReactElement {

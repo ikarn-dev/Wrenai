@@ -11,6 +11,8 @@ const SECTIONS = [
   { href: "#agents", label: "Agents" },
   { href: "#privacy", label: "Privacy" },
   { href: "#faq", label: "FAQ" },
+  // Plain-text instructions for AI agents helping someone use Wrenai (public/WRENAI.md).
+  { href: "/WRENAI.md", label: "For AI agents" },
 ] as const;
 
 const CONTACT = [

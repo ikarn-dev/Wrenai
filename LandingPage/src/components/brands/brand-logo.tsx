@@ -17,6 +17,7 @@ export type BrandId =
   | "squint"
   | "nearly"
   | "meme-cooking"
+  | "tidepool"
   | "hyperliquid";
 
 interface BrandFile {
@@ -95,6 +96,12 @@ const BRANDS: Readonly<Record<BrandId, Brand>> = {
     kind: "mark",
     name: "Meme.Cooking",
     file: { src: `${DIR}/meme.cooking.png`, width: 538, height: 538 },
+  },
+  // The testnet swap provider (usetidepool.tech): NEAR Intents' format on NEAR testnet. Its own favicon mark.
+  tidepool: {
+    kind: "mark",
+    name: "Tidepool",
+    file: { src: `${DIR}/tidepool.svg`, width: 32, height: 32 },
   },
   hyperliquid: {
     kind: "wordmark",

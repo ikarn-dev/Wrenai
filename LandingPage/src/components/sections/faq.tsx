@@ -33,13 +33,25 @@ const FAQS: readonly Faq[] = [
     id: "stop",
     question: "How do I stop an agent?",
     answer:
-      "Pause or stop it on its page, or stop every agent with one switch. Stop and delete returns its funds to your wallet in a public transfer.",
+      "Pause or stop it on its page, or stop every agent with one switch. Deleting sends nothing: its funds wait in Claims until you claim them.",
   },
   {
     id: "networks",
     question: "Which networks does Wrenai support?",
     answer:
-      "NEAR mainnet. Cross-chain transfers use verified NEAR ecosystem routes; perps trade on Hyperliquid.",
+      "NEAR mainnet, and NEAR testnet in the same app. Cross-chain transfers use verified NEAR ecosystem routes; perps trade on Hyperliquid.",
+  },
+  {
+    id: "testnet",
+    question: "Can I try Wrenai without real funds?",
+    answer:
+      "Yes. Choose Try as a guest in the app for a testnet session with free test tokens and no wallet. You can run Payments, Spot, DCA, Buy the Dip and Sell the Top agents.",
+  },
+  {
+    id: "testnet-funds",
+    question: "What happens to my test funds?",
+    answer:
+      "A guest session lasts two hours. Your holdings stay with your browser for 30 days, including tokens your agents bought, and the starter tokens are topped up when you return.",
   },
 ];
 
