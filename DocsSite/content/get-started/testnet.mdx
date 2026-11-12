@@ -1,0 +1,52 @@
+Wrenai also runs on **NEAR testnet**, in the same app. Testnet uses test tokens with no value, so you can try agents, Jarvis, Claims and Proof without risking funds. Mainnet stays the default.
+
+## Start as a guest
+
+<Steps>
+  <Step title="Choose Use as Guest">
+    On the sign-in screen, choose **Use as Guest**. No wallet is needed.
+  </Step>
+  <Step title="Get starter funds">
+    The guest session starts with **0.1 NEAR, 5 USDC and 5 USDT** of test tokens from Wrenai's shared testnet pool. A **NEAR Testnet** badge sits in the top bar while you are on testnet.
+  </Step>
+  <Step title="Create an agent">
+    Open **Agents** and pick a type. Setup works as on mainnet, except the budget comes from your test funds and the agent starts as soon as you deploy it.
+  </Step>
+</Steps>
+
+You can also connect a testnet wallet. A connected wallet can make manual payments and swaps, each approved in the wallet; autonomous agents run on guest funds only.
+
+## Sessions and your funds
+
+- **A session lasts two hours.** When it ends, its agents stop and unsigned orders are cancelled. Nothing new is spent.
+- **Your funds carry over.** Coming back on the same browser starts a new session with everything you held, including tokens your agents bought. NEAR, USDC and USDT are topped back up to the starter amounts.
+- **Thirty days.** A browser that doesn't return within 30 days can't reach its funds again, and they go back to the shared pool.
+- **Agent funds wait in Claims.** Stopping or deleting a testnet agent keeps its funds with it. Claiming moves them back to your test balance.
+
+## What testnet supports
+
+| Agent | On testnet |
+| --- | --- |
+| Payments | Public payments to a testnet account, from your wallet or public Intents balance |
+| Spot Trader | One swap |
+| DCA | Repeating swaps, at least 60 seconds apart |
+| Buy the Dip | One buy after the price drops by your percentage from activation |
+| Sell the Top | One sell when proceeds reach your profit over the cost you enter |
+
+Perps, Meme Hunter and confidential (private) routes are mainnet only. Testnet swaps run through [Tidepool](/reference/services), which can't swap native NEAR: use **wNEAR** in a swap. Payments can still send native NEAR.
+
+## Limits
+
+The shared pool protects itself with fixed limits.
+
+| Limit | Value |
+| --- | --- |
+| One order | 1 USDC, 1 USDT, 0.01 NEAR, 0.25 wNEAR, 0.0003 ETH, 0.00001 wBTC or 0.001 XAUT |
+| Orders per session | 10 |
+| Orders per day, all guests | 30 |
+| Agents per guest | 5 (deleting one frees a slot) |
+| Strategy checks | 6 a minute, 100 a day |
+
+<Callout tone="info">
+  If Tidepool's live prices are down, orders pause and the agent retries every 10 seconds. The agent page says why it is waiting.
+</Callout>
