@@ -25,7 +25,8 @@ The product website at [www.wrenai.xyz](https://www.wrenai.xyz) introduces Wrena
       <h3>First impression</h3>
       <p>Brand, Jarvis prompts and product entry points.</p>
       <!-- Replace the placeholder below with a real landing-page hero capture. -->
-      <br><br><em>Hero screenshot</em><br><br><br>
+      <br><br><em><img width="1461" height="734" alt="image" src="https://github.com/user-attachments/assets/d2e307dd-d08d-4ac3-845d-5accf0f648e6" />
+</em><br><br><br>
     </td>
     <td width="50%" align="center">
       <h3>Product walkthrough</h3>
