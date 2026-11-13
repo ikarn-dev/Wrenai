@@ -1,7 +1,8 @@
 <div align="center">
   <img src="public/assets/nobg_logo.png" alt="Wrenai" width="64">
   <h1>Wrenai Application</h1>
-  <p><strong>The trading desk, intelligence layer and execution runtime.</strong></p>
+  <p><strong>Private AI for your DeFi</strong></p>
+  <p>Research, payments and trading agents in one NEAR app.</p>
   <p>
     <a href="https://app.wrenai.xyz"><img src="https://img.shields.io/badge/Open_App-237359?style=for-the-badge&amp;logo=near&amp;logoColor=white" alt="Open the Wrenai app"></a>
     <a href="../README.md#demo"><img src="https://img.shields.io/badge/Try_Demo-232323?style=for-the-badge" alt="Follow the testnet demo"></a>
@@ -12,9 +13,9 @@
 
 ---
 
-The product and execution service behind [app.wrenai.xyz](https://app.wrenai.xyz). This Next.js application contains the trading desk, Jarvis, wallet authentication, agent runtime, financial ledger and provider adapters.
+[app.wrenai.xyz](https://app.wrenai.xyz) brings together verified AI research, trading agents and supported private swaps and payments. This package contains the interface, backend and execution runtime.
 
-For product positioning and the repository architecture, start with the [root README](../README.md). The [landing page](../LandingPage/README.md) and [documentation site](../DocsSite/README.md) are separate static applications.
+[Project overview](../README.md) · [Landing page](../LandingPage/README.md) · [Documentation site](../DocsSite/README.md)
 
 ## Screenshots
 

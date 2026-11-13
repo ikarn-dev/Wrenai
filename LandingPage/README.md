@@ -1,7 +1,8 @@
 <div align="center">
   <img src="public/assets/nobg_logo.png" alt="Wrenai" width="64">
   <h1>Wrenai Landing Page</h1>
-  <p><strong>The public introduction to the Wrenai trading desk.</strong></p>
+  <p><strong>Private AI for your DeFi</strong></p>
+  <p>The public home of Wrenai's private AI and trading agents.</p>
   <p>
     <a href="https://www.wrenai.xyz"><img src="https://img.shields.io/badge/View_Website-237359?style=for-the-badge" alt="Visit the Wrenai website"></a>
     <a href="https://app.wrenai.xyz"><img src="https://img.shields.io/badge/Launch_App-232323?style=for-the-badge&amp;logo=near&amp;logoColor=89EDC0" alt="Launch the Wrenai app"></a>
@@ -12,9 +13,7 @@
 
 ---
 
-The public introduction to Wrenai at [www.wrenai.xyz](https://www.wrenai.xyz): a product site that explains the NEAR trading desk, demonstrates its workflows and leads visitors into the app.
-
-This directory is an independent **static Next.js application**. It presents the product; authentication, live research, balances, signing and settlement belong to the [Wrenai application](../Wrenai/README.md).
+The product website at [www.wrenai.xyz](https://www.wrenai.xyz) introduces Wrenai's private AI, trading agents and NEAR integrations. This package is a **static Next.js site**; live research and execution run in the [Wrenai application](../Wrenai/README.md).
 
 [Repository overview](../README.md) · [Application README](../Wrenai/README.md) · [DocsSite README](../DocsSite/README.md)
 

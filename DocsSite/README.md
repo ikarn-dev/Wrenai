@@ -1,7 +1,8 @@
 <div align="center">
   <img src="public/assets/nobg_logo.png" alt="Wrenai" width="64">
   <h1>Wrenai Documentation</h1>
-  <p><strong>A clear guide to the desk, its controls and its boundaries.</strong></p>
+  <p><strong>Private AI for your DeFi</strong></p>
+  <p>Guides to private research, payments and trading agents.</p>
   <p>
     <a href="https://docs.wrenai.xyz"><img src="https://img.shields.io/badge/Read_Docs-237359?style=for-the-badge&amp;logo=readthedocs&amp;logoColor=white" alt="Open the Wrenai documentation"></a>
     <a href="https://app.wrenai.xyz"><img src="https://img.shields.io/badge/Open_App-232323?style=for-the-badge&amp;logo=near&amp;logoColor=89EDC0" alt="Open the Wrenai app"></a>
@@ -12,9 +13,7 @@
 
 ---
 
-The product manual at [docs.wrenai.xyz](https://docs.wrenai.xyz). It explains how to research, trade, configure agents, recover funds and understand Wrenai's privacy boundary.
-
-This is an independent **static Next.js and MDX application**. It has no wallet authentication, trading backend or private credentials. Its job is to make the real product understandable and its limits explicit.
+[docs.wrenai.xyz](https://docs.wrenai.xyz) explains private AI, agent setups, trading and privacy controls. This package is a **static Next.js and MDX site**; trading runs in the [Wrenai application](../Wrenai/README.md).
 
 [Repository overview](../README.md) · [Application README](../Wrenai/README.md) · [Landing page README](../LandingPage/README.md)
 

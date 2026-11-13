@@ -1,8 +1,8 @@
 <div align="center">
   <img src="LandingPage/public/assets/nobg_logo.png" alt="Wrenai" width="76">
   <h1>Wrenai</h1>
-  <p><strong>A private research and execution desk built around NEAR.</strong></p>
-  <p>Verified intelligence. Reviewed strategies. Traceable execution.</p>
+  <p><strong>Private AI for your DeFi</strong></p>
+  <p>Private research and agentic trading on NEAR.</p>
   <p>
     <a href="https://app.wrenai.xyz"><img src="https://img.shields.io/badge/Live_App-237359?style=for-the-badge&amp;logo=near&amp;logoColor=white" alt="Open the live Wrenai app"></a>
     <a href="#demo"><img src="https://img.shields.io/badge/Demo-232323?style=for-the-badge" alt="Follow the testnet demo walkthrough"></a>
@@ -19,9 +19,9 @@
 
 ---
 
-Wrenai connects a market view to an exact, reviewable action. Research a position with Jarvis, confirm a single trade, or turn a written strategy into an agent that monitors its conditions. The same desk brings together NEAR wallet assets, confidential Intents balances, native NEAR liquidity and perpetual markets.
+Wrenai brings **private AI and agentic trading to NEAR**. Research markets with Jarvis, automate your trading rules, or confirm a swap or payment in chat.
 
-The distinction is in how a decision becomes executable: NEAR AI Cloud interprets the request; typed rules capture what the user approved; a deterministic Guard checks whether an action is permitted. An execution ledger tracks the submission through settlement, including pending outcomes, refunds and recoverable funds.
+Research uses verified models on **NEAR AI Cloud**. Supported confidential swaps and payments run through **NEAR Intents**. [See the privacy boundary](#privacy-and-control).
 
 ## Screenshots
 
@@ -60,11 +60,11 @@ The distinction is in how a decision becomes executable: NEAR AI Cloud interpret
 
 ## What you can do
 
-- **Research with Jarvis.** Combine market prices, chart indicators, liquidity and recent news. Stream an answer with verification pending, then check the completed model response before saving it as verified.
-- **Trade or pay directly from chat.** Review an exact quote or payment card and confirm it. A one-off action needs no agent.
-- **Keep a strategy running.** Define entries, schedules and exits in plain language, review the resulting rules, then fund and start the agent. Durable workflows continue checking after the browser closes.
-- **Choose the execution boundary.** Use supported confidential Intents routes, or explicitly public wallet, RHEA and Hyperliquid routes. The interface keeps native NEAR and wNEAR distinct.
-- **Inspect what happened.** Portfolio, Activity, Claims and Proof connect balances, agent state, recoverable funds, inference receipts and execution records.
+- **Private AI research.** Ask Jarvis about markets, chart indicators and news using verified NEAR AI Cloud models.
+- **Agentic trading.** Describe your entries, schedules and exits. Review the rules, fund the agent and let it monitor and trade while you are offline.
+- **Swaps and payments.** Confirm an exact quote or payment in chat, without creating an agent.
+- **Confidential routes.** Use supported private Intents swaps and payments. Wallet transfers, RHEA, Hyperliquid and testnet activity remain public.
+- **Visible results.** Follow balances, orders and agent activity; inspect receipts and claim remaining funds.
 
 ### Seven focused agents
 
