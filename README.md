@@ -18,6 +18,7 @@
 </div>
 
 ---
+<img width="1461" height="734" alt="image" src="https://github.com/user-attachments/assets/9dd9b7d6-96e7-443c-912a-2d3dc3ef7fd5" />
 
 Wrenai brings **private AI and agentic trading to NEAR**. Research markets with Jarvis, automate your trading rules, or confirm a swap or payment in chat.
 
