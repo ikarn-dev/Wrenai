@@ -4,9 +4,9 @@
   <p><strong>Private AI for your DeFi</strong></p>
   <p>The public home of Wrenai's private AI and trading agents.</p>
   <p>
-    <a href="https://www.wrenai.xyz"><img src="https://img.shields.io/badge/View_Website-237359?style=for-the-badge" alt="Visit the Wrenai website"></a>
-    <a href="https://app.wrenai.xyz"><img src="https://img.shields.io/badge/Launch_App-232323?style=for-the-badge&amp;logo=near&amp;logoColor=89EDC0" alt="Launch the Wrenai app"></a>
-    <a href="https://docs.wrenai.xyz"><img src="https://img.shields.io/badge/Read_Docs-232323?style=for-the-badge&amp;logo=readthedocs&amp;logoColor=89EDC0" alt="Read the documentation"></a>
+    <a href="https://www.wrenai.xyz" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/View_Website-237359?style=for-the-badge" alt="Visit the Wrenai website"></a>
+    <a href="https://app.wrenai.xyz" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Launch_App-232323?style=for-the-badge&amp;logo=near&amp;logoColor=89EDC0" alt="Launch the Wrenai app"></a>
+    <a href="https://docs.wrenai.xyz" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Read_Docs-232323?style=for-the-badge&amp;logo=readthedocs&amp;logoColor=89EDC0" alt="Read the documentation"></a>
   </p>
   <p><a href="#screenshots">Screenshots</a> · <a href="#delivery-model">Delivery</a> · <a href="#setup">Setup</a> · <a href="#editing-guide">Editing guide</a></p>
 </div>

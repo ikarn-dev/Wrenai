@@ -4,10 +4,10 @@
   <p><strong>Private AI for your DeFi</strong></p>
   <p>Private research and agentic trading on NEAR.</p>
   <p>
-    <a href="https://app.wrenai.xyz"><img src="https://img.shields.io/badge/Live_App-237359?style=for-the-badge&amp;logo=near&amp;logoColor=white" alt="Open the live Wrenai app"></a>
-    <a href="#demo"><img src="https://img.shields.io/badge/Demo-232323?style=for-the-badge" alt="Follow the testnet demo walkthrough"></a>
-    <a href="https://docs.wrenai.xyz"><img src="https://img.shields.io/badge/Documentation-232323?style=for-the-badge&amp;logo=readthedocs&amp;logoColor=89EDC0" alt="Read the documentation"></a>
-    <a href="https://www.wrenai.xyz"><img src="https://img.shields.io/badge/Website-232323?style=for-the-badge" alt="Explore the Wrenai website"></a>
+    <a href="https://app.wrenai.xyz" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Live_App-237359?style=for-the-badge&amp;logo=near&amp;logoColor=white" alt="Open the live Wrenai app"></a>
+    <a href="https://x.com/itskarnnn/status/2121231380533367188" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Demo-232323?style=for-the-badge" alt="View the Wrenai demo on X"></a>
+    <a href="https://docs.wrenai.xyz" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Documentation-232323?style=for-the-badge&amp;logo=readthedocs&amp;logoColor=89EDC0" alt="Read the documentation"></a>
+    <a href="https://www.wrenai.xyz" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Website-232323?style=for-the-badge" alt="Explore the Wrenai website"></a>
   </p>
   <p>
     <a href="#screenshots">Screenshots</a> ·
@@ -171,7 +171,9 @@ Scheduled checks use Vercel Workflows rather than Cron. Timing is best effort; a
 
 ## Demo
 
-Follow this walkthrough in the [live app](https://app.wrenai.xyz). Guest mode uses test tokens and requires no wallet connection.
+View the <a href="https://x.com/itskarnnn/status/2121231380533367188" target="_blank" rel="noopener noreferrer">Wrenai demo post on X</a>.
+
+To try it yourself, follow this walkthrough in the [live app](https://app.wrenai.xyz). Guest mode uses test tokens and requires no wallet connection.
 
 ### Without a wallet
 
