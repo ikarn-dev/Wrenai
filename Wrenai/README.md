@@ -1,8 +1,55 @@
-# Wrenai application
+<div align="center">
+  <img src="public/assets/nobg_logo.png" alt="Wrenai" width="64">
+  <h1>Wrenai Application</h1>
+  <p><strong>The trading desk, intelligence layer and execution runtime.</strong></p>
+  <p>
+    <a href="https://app.wrenai.xyz"><img src="https://img.shields.io/badge/Open_App-237359?style=for-the-badge&amp;logo=near&amp;logoColor=white" alt="Open the Wrenai app"></a>
+    <a href="../README.md#demo"><img src="https://img.shields.io/badge/Try_Demo-232323?style=for-the-badge" alt="Follow the testnet demo"></a>
+    <a href="https://docs.wrenai.xyz"><img src="https://img.shields.io/badge/User_Guides-232323?style=for-the-badge&amp;logo=readthedocs&amp;logoColor=89EDC0" alt="Read the user guides"></a>
+  </p>
+  <p><a href="#screenshots">Screenshots</a> · <a href="#runtime-design">Runtime</a> · <a href="#configuration">Configuration</a> · <a href="#commands">Commands</a></p>
+</div>
+
+---
 
 The product and execution service behind [app.wrenai.xyz](https://app.wrenai.xyz). This Next.js application contains the trading desk, Jarvis, wallet authentication, agent runtime, financial ledger and provider adapters.
 
 For product positioning and the repository architecture, start with the [root README](../README.md). The [landing page](../LandingPage/README.md) and [documentation site](../DocsSite/README.md) are separate static applications.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <h3>Portfolio</h3>
+      <p>Balances and capital allocation.</p>
+      <!-- Replace the placeholder below with a real Portfolio capture. -->
+      <br><br><em>Portfolio screenshot</em><br><br><br>
+    </td>
+    <td width="50%" align="center">
+      <h3>Jarvis</h3>
+      <p>Research, quotes and payment review.</p>
+      <!-- Replace the placeholder below with a real Jarvis capture. -->
+      <br><br><em>Jarvis screenshot</em><br><br><br>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <h3>Agent setup</h3>
+      <p>Strategy, exact rules and funding review.</p>
+      <!-- Replace the placeholder below with a real setup capture. -->
+      <br><br><em>Agent setup screenshot</em><br><br><br>
+    </td>
+    <td width="50%" align="center">
+      <h3>Agent runtime</h3>
+      <p>Conditions, order progress and recovery.</p>
+      <!-- Replace the placeholder below with a real runtime capture. -->
+      <br><br><em>Agent runtime screenshot</em><br><br><br>
+    </td>
+  </tr>
+</table>
+
+---
 
 ## Product surfaces
 
@@ -49,6 +96,11 @@ flowchart TB
     Jobs --> Reconcile
     Reconcile --> DB
     DB --> HTTP
+
+    classDef accent fill:#237359,stroke:#89EDC0,color:#FFFFFF
+    classDef surface fill:#232323,stroke:#5FD6A4,color:#FFFFFF
+    class Engine,Guard,Sign accent
+    class UI,HTTP,AI,Adapter,Reconcile,DB,Cache,Jobs surface
 ```
 
 Manual confirmations bind to an exact reviewed action. Agents use a reviewed strategy revision and allocated inventory. Model output is parsed and validated before use; the model cannot bypass the Guard or access signing keys.

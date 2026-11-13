@@ -1,12 +1,62 @@
-# Wrenai
+<div align="center">
+  <img src="LandingPage/public/assets/nobg_logo.png" alt="Wrenai" width="76">
+  <h1>Wrenai</h1>
+  <p><strong>A private research and execution desk built around NEAR.</strong></p>
+  <p>Verified intelligence. Reviewed strategies. Traceable execution.</p>
+  <p>
+    <a href="https://app.wrenai.xyz"><img src="https://img.shields.io/badge/Live_App-237359?style=for-the-badge&amp;logo=near&amp;logoColor=white" alt="Open the live Wrenai app"></a>
+    <a href="#demo"><img src="https://img.shields.io/badge/Demo-232323?style=for-the-badge" alt="Follow the testnet demo walkthrough"></a>
+    <a href="https://docs.wrenai.xyz"><img src="https://img.shields.io/badge/Documentation-232323?style=for-the-badge&amp;logo=readthedocs&amp;logoColor=89EDC0" alt="Read the documentation"></a>
+    <a href="https://www.wrenai.xyz"><img src="https://img.shields.io/badge/Website-232323?style=for-the-badge" alt="Explore the Wrenai website"></a>
+  </p>
+  <p>
+    <a href="#screenshots">Screenshots</a> ·
+    <a href="#what-you-can-do">Capabilities</a> ·
+    <a href="#architecture">Architecture</a> ·
+    <a href="#repository-guide">Developer guides</a>
+  </p>
+</div>
 
-**A private research and execution desk built around NEAR.**
-
-[Open the app](https://app.wrenai.xyz) · [Explore Wrenai](https://www.wrenai.xyz) · [Documentation](https://docs.wrenai.xyz)
+---
 
 Wrenai connects a market view to an exact, reviewable action. Research a position with Jarvis, confirm a single trade, or turn a written strategy into an agent that monitors its conditions. The same desk brings together NEAR wallet assets, confidential Intents balances, native NEAR liquidity and perpetual markets.
 
 The distinction is in how a decision becomes executable: NEAR AI Cloud interprets the request; typed rules capture what the user approved; a deterministic Guard checks whether an action is permitted. An execution ledger tracks the submission through settlement, including pending outcomes, refunds and recoverable funds.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <h3>Portfolio</h3>
+      <p>Wallet assets, allocations and agent activity.</p>
+      <!-- Replace the placeholder below with a real Portfolio screenshot. -->
+      <br><br><em>Portfolio screenshot</em><br><br><br>
+    </td>
+    <td width="50%" align="center">
+      <h3>Jarvis</h3>
+      <p>Market research and exact trade or payment cards.</p>
+      <!-- Replace the placeholder below with a real Jarvis screenshot. -->
+      <br><br><em>Jarvis screenshot</em><br><br><br>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <h3>Agent workspace</h3>
+      <p>Reviewed instructions, live conditions and execution progress.</p>
+      <!-- Replace the placeholder below with a real agent screenshot. -->
+      <br><br><em>Agent screenshot</em><br><br><br>
+    </td>
+    <td width="50%" align="center">
+      <h3>Markets</h3>
+      <p>Spot, perpetuals and NEAR token discovery.</p>
+      <!-- Replace the placeholder below with a real markets screenshot. -->
+      <br><br><em>Markets screenshot</em><br><br><br>
+    </td>
+  </tr>
+</table>
+
+---
 
 ## What you can do
 
@@ -82,6 +132,11 @@ flowchart TB
     Venues -->|Settlement observations| Reconcile
     Testnet -->|Testnet observations| Reconcile
     Reconcile --> PG
+
+    classDef accent fill:#237359,stroke:#89EDC0,color:#FFFFFF
+    classDef surface fill:#232323,stroke:#5FD6A4,color:#FFFFFF
+    class App,Engine,Signer accent
+    class Landing,Docs,AI,Workflows,PG,Redis,Venues,Testnet,Reconcile surface
 ```
 
 Postgres is the financial authority: reservations, strategy revisions, orders, fills and recovery state live there. Redis accelerates requests and recent encrypted chat history; it cannot approve spending. Mainnet and testnet share the configured database but use separate testnet tables and a separate migration journal.
@@ -102,11 +157,16 @@ flowchart LR
     Submit --> Track[Persist and reconcile the existing submission]
     Track --> Outcome[Confirmed result, refund or pending recovery]
     Outcome --> Records[Activity, Claims and Proof]
+
+    classDef accent fill:#237359,stroke:#89EDC0,color:#FFFFFF
+    class Confirm,Review,Validate accent
 ```
 
 Scheduled checks use Vercel Workflows rather than Cron. Timing is best effort; a timeout is reconciled against the existing order instead of treated as permission to submit another one.
 
-## Try the product
+## Demo
+
+Follow this walkthrough in the [live app](https://app.wrenai.xyz). Guest mode uses test tokens and requires no wallet connection.
 
 ### Without a wallet
 
@@ -158,10 +218,6 @@ Wrenai uses Next.js, React, TypeScript and Tailwind CSS; NEAR Connect and NEAR J
 
 External services include NEAR AI Cloud, NEAR Intents, RHEA, Hyperliquid, FastNear, Nearblocks, Squint, Nearly, Meme.Cooking, CoinGecko, Coinbase Exchange, Tavily, Tidepool, Vercel, Supabase and Upstash. Their responsibilities are described in the [application README](Wrenai/README.md) and [service reference](https://docs.wrenai.xyz/reference/services).
 
-## NEAR Hackathon
+## License
 
-The project is being developed for **NEAR HACKATHON 2026**. Its concrete areas of fit are DeFi execution, private AI, agent spending controls and the agent economy. These describe the implementation; they are not a declaration that any tracks have been submitted or accepted.
-
-The checked-in history begins with the [initial snapshot on 1 November 2026](https://github.com/ikarn-dev/Wrenai/commit/cdfe44f). [Changes since that snapshot](https://github.com/ikarn-dev/Wrenai/compare/cdfe44f...main) are visible separately; the initial snapshot already contains application code and is not an empty baseline.
-
-This README follows the [organizer brief](https://near.army/HACKATHON.md): identify NEAR's actual role, document reused foundations, provide observable demo steps and distinguish testnet from mainnet. Recheck the [canonical brief](https://nearhackathon.com/HACKATHON.md) before submission. Repository publication, the demo post and final submission remain owner-controlled actions. A repository-wide `LICENSE` file has not yet been added.
+Licensed under the [MIT License](LICENSE). Third-party libraries and assets retain their respective licenses and notices.

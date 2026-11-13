@@ -1,10 +1,43 @@
-# Wrenai landing page
+<div align="center">
+  <img src="public/assets/nobg_logo.png" alt="Wrenai" width="64">
+  <h1>Wrenai Landing Page</h1>
+  <p><strong>The public introduction to the Wrenai trading desk.</strong></p>
+  <p>
+    <a href="https://www.wrenai.xyz"><img src="https://img.shields.io/badge/View_Website-237359?style=for-the-badge" alt="Visit the Wrenai website"></a>
+    <a href="https://app.wrenai.xyz"><img src="https://img.shields.io/badge/Launch_App-232323?style=for-the-badge&amp;logo=near&amp;logoColor=89EDC0" alt="Launch the Wrenai app"></a>
+    <a href="https://docs.wrenai.xyz"><img src="https://img.shields.io/badge/Read_Docs-232323?style=for-the-badge&amp;logo=readthedocs&amp;logoColor=89EDC0" alt="Read the documentation"></a>
+  </p>
+  <p><a href="#screenshots">Screenshots</a> · <a href="#delivery-model">Delivery</a> · <a href="#setup">Setup</a> · <a href="#editing-guide">Editing guide</a></p>
+</div>
+
+---
 
 The public introduction to Wrenai at [www.wrenai.xyz](https://www.wrenai.xyz): a product site that explains the NEAR trading desk, demonstrates its workflows and leads visitors into the app.
 
 This directory is an independent **static Next.js application**. It presents the product; authentication, live research, balances, signing and settlement belong to the [Wrenai application](../Wrenai/README.md).
 
 [Repository overview](../README.md) · [Application README](../Wrenai/README.md) · [DocsSite README](../DocsSite/README.md)
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <h3>First impression</h3>
+      <p>Brand, Jarvis prompts and product entry points.</p>
+      <!-- Replace the placeholder below with a real landing-page hero capture. -->
+      <br><br><em>Hero screenshot</em><br><br><br>
+    </td>
+    <td width="50%" align="center">
+      <h3>Product walkthrough</h3>
+      <p>Agent workflows and the privacy boundary.</p>
+      <!-- Replace the placeholder below with a real product-section capture. -->
+      <br><br><em>Product section screenshot</em><br><br><br>
+    </td>
+  </tr>
+</table>
+
+---
 
 ## What it contains
 
@@ -27,6 +60,11 @@ flowchart LR
     Host --> Visitor[Visitor]
     Visitor -->|Launch app or send a prompt| App["app.wrenai.xyz"]
     Visitor -->|Read guides| Docs["docs.wrenai.xyz"]
+
+    classDef accent fill:#237359,stroke:#89EDC0,color:#FFFFFF
+    classDef surface fill:#232323,stroke:#5FD6A4,color:#FFFFFF
+    class App,Host accent
+    class Source,Build,Files,Docs surface
 ```
 
 The site exports static files through [`next.config.ts`](next.config.ts). It has no trading backend, database connection or private environment variables. GSAP handles visual sequences, Lenis handles scroll behavior, and React Flow powers workflow diagrams.

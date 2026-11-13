@@ -1,4 +1,16 @@
-# Wrenai documentation site
+<div align="center">
+  <img src="public/assets/nobg_logo.png" alt="Wrenai" width="64">
+  <h1>Wrenai Documentation</h1>
+  <p><strong>A clear guide to the desk, its controls and its boundaries.</strong></p>
+  <p>
+    <a href="https://docs.wrenai.xyz"><img src="https://img.shields.io/badge/Read_Docs-237359?style=for-the-badge&amp;logo=readthedocs&amp;logoColor=white" alt="Open the Wrenai documentation"></a>
+    <a href="https://app.wrenai.xyz"><img src="https://img.shields.io/badge/Open_App-232323?style=for-the-badge&amp;logo=near&amp;logoColor=89EDC0" alt="Open the Wrenai app"></a>
+    <a href="../README.md"><img src="https://img.shields.io/badge/Project_Overview-232323?style=for-the-badge" alt="Read the repository overview"></a>
+  </p>
+  <p><a href="#content-model">Content model</a> · <a href="#setup">Setup</a> · <a href="#add-or-update-a-guide">Writing guides</a> · <a href="#deployment">Deployment</a></p>
+</div>
+
+---
 
 The product manual at [docs.wrenai.xyz](https://docs.wrenai.xyz). It explains how to research, trade, configure agents, recover funds and understand Wrenai's privacy boundary.
 
@@ -25,6 +37,11 @@ flowchart LR
     Index --> Export
     Export --> Browser["Static host · reader's browser"]
     Browser --> Search["Local search and section links"]
+
+    classDef accent fill:#237359,stroke:#89EDC0,color:#FFFFFF
+    classDef surface fill:#232323,stroke:#5FD6A4,color:#FFFFFF
+    class Export,Browser accent
+    class Content,Nav,Loaders,Render,Routes,Extract,Index,Search surface
 ```
 
 Search records are generated from source at build time. The search dialog fetches `/search-index.json` on first use and searches in the browser; it does not send queries to an external search service.
