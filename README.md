@@ -31,13 +31,15 @@ Research uses verified models on **NEAR AI Cloud**. Supported confidential swaps
       <h3>Portfolio</h3>
       <p>Wallet assets, allocations and agent activity.</p>
       <!-- Replace the placeholder below with a real Portfolio screenshot. -->
-      <br><br><em>Portfolio screenshot</em><br><br><br>
+      <br><br><em><img width="1439" height="735" alt="image" src="https://github.com/user-attachments/assets/ac6633f1-0113-47cf-ba93-8260352864c3" />
+</em><br><br><br>
     </td>
     <td width="50%" align="center">
       <h3>Jarvis</h3>
       <p>Market research and exact trade or payment cards.</p>
       <!-- Replace the placeholder below with a real Jarvis screenshot. -->
-      <br><br><em>Jarvis screenshot</em><br><br><br>
+      <br><br><em><img width="1464" height="730" alt="image" src="https://github.com/user-attachments/assets/21a3a099-95db-4242-a750-c12aa9b58daf" />
+</em><br><br><br>
     </td>
   </tr>
   <tr>
@@ -45,13 +47,15 @@ Research uses verified models on **NEAR AI Cloud**. Supported confidential swaps
       <h3>Agent workspace</h3>
       <p>Reviewed instructions, live conditions and execution progress.</p>
       <!-- Replace the placeholder below with a real agent screenshot. -->
-      <br><br><em>Agent screenshot</em><br><br><br>
+      <br><br><em><img width="1449" height="730" alt="image" src="https://github.com/user-attachments/assets/0cd6cae3-f578-4f1d-9c3f-6757973ed51e" />
+      </em><br><br><br>
     </td>
     <td width="50%" align="center">
       <h3>Markets</h3>
       <p>Spot, perpetuals and NEAR token discovery.</p>
       <!-- Replace the placeholder below with a real markets screenshot. -->
-      <br><br><em>Markets screenshot</em><br><br><br>
+      <br><br><em><img width="1455" height="742" alt="image" src="https://github.com/user-attachments/assets/30840579-515c-4da2-bd6f-d9997d97a17e" />
+</em><br><br><br>
     </td>
   </tr>
 </table>
