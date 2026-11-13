@@ -32,7 +32,8 @@ The product website at [www.wrenai.xyz](https://www.wrenai.xyz) introduces Wrena
       <h3>Product walkthrough</h3>
       <p>Agent workflows and the privacy boundary.</p>
       <!-- Replace the placeholder below with a real product-section capture. -->
-      <br><br><em>Product section screenshot</em><br><br><br>
+      <br><br><em><img width="1202" height="721" alt="image" src="https://github.com/user-attachments/assets/23bf3f38-e099-4b53-a54f-545064399239" />
+</em><br><br><br>
     </td>
   </tr>
 </table>
